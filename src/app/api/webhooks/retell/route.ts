@@ -26,11 +26,48 @@ export async function POST(req: Request) {
     const retellAgentId = call.agent_id
     const retellCallId = call.call_id
     const duration = Math.floor((call.end_timestamp - call.start_timestamp) / 1000)
-    const transcript = call.transcript
     const recordingUrl = call.recording_url
     const callSummary = call.call_analysis?.call_summary || null
     const userSentiment = call.call_analysis?.user_sentiment || null
     const fromNumber = call.from_number || null
+
+    // Normalize transcript: handle string, array of {role, content/text}, or missing
+    let transcript: string | null = null
+    if (typeof call.transcript === 'string' && call.transcript.trim()) {
+      transcript = call.transcript
+    } else if (Array.isArray(call.transcript) && call.transcript.length > 0) {
+      transcript = call.transcript
+        .map((u: any) => `${u.role === 'agent' ? 'Agent' : 'User'}: ${u.content || u.text || ''}`)
+        .join('\n')
+    } else if (Array.isArray(call.transcript_object) && call.transcript_object.length > 0) {
+      transcript = call.transcript_object
+        .map((u: any) => `${u.role === 'agent' ? 'Agent' : 'User'}: ${u.content || u.text || ''}`)
+        .join('\n')
+    }
+
+    // Fallback: fetch transcript from Retell API if not in webhook payload
+    if (!transcript && retellCallId) {
+      try {
+        const retellApiKey = process.env.RETELL_API_KEY
+        if (retellApiKey) {
+          const callRes = await fetch(`https://api.retellai.com/v2/get-call/${retellCallId}`, {
+            headers: { 'Authorization': `Bearer ${retellApiKey}` }
+          })
+          if (callRes.ok) {
+            const callDetail = await callRes.json()
+            if (typeof callDetail.transcript === 'string' && callDetail.transcript.trim()) {
+              transcript = callDetail.transcript
+            } else if (Array.isArray(callDetail.transcript_object) && callDetail.transcript_object.length > 0) {
+              transcript = callDetail.transcript_object
+                .map((u: any) => `${u.role === 'agent' ? 'Agent' : 'User'}: ${u.content || u.text || ''}`)
+                .join('\n')
+            }
+          }
+        }
+      } catch {
+        console.error('Failed to fetch transcript fallback from Retell API')
+      }
+    }
 
     const supabaseAdmin = getServiceSupabase()
 
