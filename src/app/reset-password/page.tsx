@@ -8,35 +8,81 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { setClientActiveAction } from './actions'
 
-export default function UpdatePasswordPage() {
+export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    // Check if we have a valid session (Supabase automatically handles the hash in URL on redirect)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        // Not logged in via invite link, redirect to login
-        router.push('/login')
-      } else {
+    let mounted = true
+
+    // 1. Listen for auth changes (this triggers when Supabase parses tokens from the recovery URL)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return
+      if (session) {
         setSessionChecked(true)
       }
     })
+
+    // 2. Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return
+      if (session) {
+        setSessionChecked(true)
+      } else {
+        // If there are tokens in the URL hash, allow Supabase client a moment to parse them
+        const hasTokens = typeof window !== 'undefined' && (
+          window.location.hash.includes('access_token') ||
+          window.location.hash.includes('type=recovery') ||
+          window.location.search.includes('code=')
+        )
+
+        if (hasTokens) {
+          const timeout = setTimeout(() => {
+            if (!mounted) return
+            supabase.auth.getSession().then(({ data: { session: retrySession } }) => {
+              if (!mounted) return
+              if (retrySession) {
+                setSessionChecked(true)
+              } else {
+                router.push('/login')
+              }
+            })
+          }, 2500)
+          return () => clearTimeout(timeout)
+        } else {
+          router.push('/login')
+        }
+      }
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [router])
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (password !== confirm) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.')
+      return
+    }
+
     setLoading(true)
     setError(null)
-    
-    const { data: { user }, error } = await supabase.auth.updateUser({
-      password: password
-    })
+
+    const { error } = await supabase.auth.updateUser({ password })
 
     if (error) {
       setError(error.message)
@@ -44,15 +90,20 @@ export default function UpdatePasswordPage() {
       return
     }
 
-    if (user) {
-      await setClientActiveAction(user.id)
-    }
-
-    toast.success("Password saved successfully!")
-    router.push('/dashboard')
+    await supabase.auth.signOut()
+    toast.success('Password updated successfully!')
+    router.push('/login')
   }
 
-  if (!sessionChecked) return null
+  if (!sessionChecked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f4f0] p-4">
+        <p className="text-xs uppercase tracking-widest text-[#73706b] animate-pulse">
+          Verifying password reset link...
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f6f4f0] p-4 text-[#202020]">
@@ -64,13 +115,13 @@ export default function UpdatePasswordPage() {
             <img src="/logo-horizontal-black.png" alt="BerinAgents" className="h-9 w-auto object-contain" />
           </div>
           <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-            <span>•</span> ONBOARDING
+            <span>•</span> AUTHENTICATION
           </div>
           <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">
-            Welcome!
+            New Password
           </h1>
           <p className="text-sm text-[#73706b]">
-            Please set your password to finalize your account setup
+            Choose a new secure password for your account
           </p>
         </div>
 
@@ -84,13 +135,32 @@ export default function UpdatePasswordPage() {
               >
                 New Password
               </Label>
-              <Input 
-                id="password" 
-                type="password" 
+              <Input
+                id="password"
+                type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required 
+                required
+                minLength={6}
+                className="border-[#e2dfd8] bg-[#faf9f7]/50 focus-visible:ring-[#1a1918] focus-visible:border-[#1a1918] rounded-sm h-11 text-sm text-[#202020]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label 
+                htmlFor="confirm"
+                className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase"
+              >
+                Confirm Password
+              </Label>
+              <Input
+                id="confirm"
+                type="password"
+                placeholder="••••••••"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
                 minLength={6}
                 className="border-[#e2dfd8] bg-[#faf9f7]/50 focus-visible:ring-[#1a1918] focus-visible:border-[#1a1918] rounded-sm h-11 text-sm text-[#202020]"
               />
@@ -109,10 +179,10 @@ export default function UpdatePasswordPage() {
               className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-11 text-xs font-semibold tracking-wider uppercase transition-all shadow-none flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? (
-                'Saving...'
+                'Updating...'
               ) : (
                 <>
-                  Save and Continue <span className="text-[#9e4733] text-[16px] leading-none">•</span>
+                  Update Password <span className="text-[#9e4733] text-[16px] leading-none">•</span>
                 </>
               )}
             </Button>

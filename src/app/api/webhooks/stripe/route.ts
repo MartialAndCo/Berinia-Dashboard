@@ -1,0 +1,108 @@
+import { NextResponse } from 'next/server'
+import { Resend } from 'resend'
+import { getEmailTemplate } from '@/lib/email-template'
+
+const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy')
+
+export async function POST(req: Request) {
+  try {
+    const rawBody = await req.text()
+    const signature = req.headers.get('stripe-signature') || ''
+
+    const Stripe = require('stripe').default || require('stripe')
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_key')
+    
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET
+
+    let event;
+    if (endpointSecret) {
+      try {
+        event = stripe.webhooks.constructEvent(rawBody, signature, endpointSecret)
+      } catch (err: any) {
+        console.error('Webhook signature verification failed:', err.message)
+        return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 })
+      }
+    } else {
+      // For local testing without webhook secret
+      event = JSON.parse(rawBody)
+    }
+
+    if (event.type === 'invoice.payment_succeeded') {
+      const invoice = event.data.object
+
+      // We only send emails for subscription invoices (where amount > 0)
+      if (invoice.subscription && invoice.amount_paid > 0 && invoice.customer_email) {
+        let usageSeconds = 0
+        let usageAmount = 0
+        let retainerAmount = 0
+
+        invoice.lines.data.forEach((line: any) => {
+          if (line.price?.recurring?.usage_type === 'metered') {
+            usageSeconds += line.quantity || 0
+            usageAmount += line.amount
+          } else {
+            retainerAmount += line.amount
+          }
+        })
+
+        const usageMinutes = Math.floor(usageSeconds / 60)
+        const totalPaidStr = (invoice.amount_paid / 100).toFixed(2).replace('.', ',')
+        const usageAmountStr = (usageAmount / 100).toFixed(2).replace('.', ',')
+        const retainerAmountStr = (retainerAmount / 100).toFixed(2).replace('.', ',')
+        const invoicePdf = invoice.invoice_pdf || invoice.hosted_invoice_url
+
+        const contentHtml = `
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
+            <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
+          </div>
+          <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #1a1918; margin: 0 0 24px 0; letter-spacing: -0.5px;">Your invoice is ready</h1>
+          <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
+          
+          <p style="margin: 0 0 28px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Your usage for this billing period has been calculated. Your card on file will be charged automatically — no action required on your part.</p>
+          
+          <div style="background-color: #f0ede6; border: 1px solid #e2dfd8; padding: 20px 24px; margin-bottom: 36px;">
+            <div style="font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #73706b; margin-bottom: 12px;">
+              Billing Summary
+            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 15px; color: #1a1918; line-height: 2;">
+              ${retainerAmount > 0 ? `
+              <tr>
+                <td>Monthly Platform Subscription</td>
+                <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">€${retainerAmountStr}</td>
+              </tr>` : ''}
+              ${usageAmount > 0 ? `
+              <tr>
+                <td>Voice AI Usage (${usageMinutes} min)</td>
+                <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">€${usageAmountStr}</td>
+              </tr>` : ''}
+              <tr style="border-top: 1px solid #dcd7ce;">
+                <td style="padding-top: 10px; font-weight: bold; font-size: 16px;">Total Billed</td>
+                <td align="right" style="padding-top: 10px; font-weight: bold; font-size: 18px; color: #9e4733; font-family: monospace;">€${totalPaidStr}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div>
+            <a href="${invoicePdf}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
+              <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> VIEW INVOICE
+            </a>
+          </div>
+        `
+
+        const htmlEmail = getEmailTemplate('Your BerinAgents Invoice', contentHtml)
+
+        await resend.emails.send({
+          from: 'BerinAgents Billing <billing@berinagents.com>',
+          to: [invoice.customer_email],
+          subject: 'Your Monthly Invoice - BerinAgents',
+          html: htmlEmail,
+        })
+      }
+    }
+
+    return NextResponse.json({ received: true })
+  } catch (err: any) {
+    console.error('Stripe webhook error:', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}

@@ -13,18 +13,86 @@ export async function POST(req: Request) {
     }
 
     const supabaseAdmin = getServiceSupabase()
-
+    const origin = req.headers.get('origin') || 'https://www.berinagents.com'
+    
     // 1. Generate an invite link for the user
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'invite',
       email: email,
+      options: {
+        redirectTo: `${origin}/update-password`
+      }
     })
 
     if (inviteError) {
-      return NextResponse.json({ error: inviteError.message }, { status: 500 })
+      return NextResponse.json({ error: inviteError.message }, { status: 400 })
     }
 
-    // 2. Create the client record in the database
+    // 2. STRIPE INTEGRATION (Customer + Retainer + Metered Usage)
+    let stripeCustomerId = null
+    let stripeSubscriptionId = null
+    let invoiceUrl = ''
+
+    try {
+      const Stripe = require('stripe').default || require('stripe')
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_key', {
+        apiVersion: '2023-10-16' as any
+      })
+      
+      const customer = await stripe.customers.create({
+        email: email,
+        name: company_name,
+      })
+      stripeCustomerId = customer.id
+
+      const items: any[] = []
+
+      // Forfait Mensuel (Retainer)
+      if (monthly_retainer > 0) {
+        const productRetainer = await stripe.products.create({ name: `Forfait Mensuel - ${company_name}` })
+        const priceRetainer = await stripe.prices.create({
+          product: productRetainer.id,
+          unit_amount: Math.round(monthly_retainer * 100),
+          currency: 'eur',
+          recurring: { interval: 'month' }
+        })
+        items.push({ price: priceRetainer.id })
+      }
+
+      // Consommation au prorata (Metered per second)
+      if (billing_rate > 0) {
+        const productUsage = await stripe.products.create({ name: `Consommation Appels (Secondes) - ${company_name}` })
+        const priceUsage = await stripe.prices.create({
+          product: productUsage.id,
+          currency: 'eur',
+          unit_amount_decimal: ((billing_rate * 100) / 60).toFixed(12),
+          recurring: { 
+            interval: 'month',
+            usage_type: 'metered'
+          }
+        })
+        items.push({ price: priceUsage.id })
+      }
+
+      if (items.length > 0) {
+        const subscription = await stripe.subscriptions.create({
+          customer: customer.id,
+          items: items,
+          payment_behavior: 'default_incomplete',
+          payment_settings: { save_default_payment_method: 'on_subscription' },
+          expand: ['latest_invoice']
+        })
+        stripeSubscriptionId = subscription.id
+
+        if (subscription.latest_invoice && typeof subscription.latest_invoice !== 'string') {
+          invoiceUrl = subscription.latest_invoice.hosted_invoice_url || ''
+        }
+      }
+    } catch (stripeErr: any) {
+      console.error('Stripe error:', stripeErr)
+    }
+
+    // 3. Create the client record in the database
     const { data: clientData, error: clientError } = await supabaseAdmin
       .from('clients')
       .insert({
@@ -32,48 +100,64 @@ export async function POST(req: Request) {
         company_name,
         billing_rate_per_min: billing_rate || 0,
         monthly_retainer: monthly_retainer || 0,
+        email: email,
+        status: 'En attente',
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: stripeSubscriptionId
       })
       .select()
       .single()
 
     if (clientError) {
-      // Rollback user if client creation fails
       await supabaseAdmin.auth.admin.deleteUser(inviteData.user.id)
       return NextResponse.json({ error: clientError.message }, { status: 500 })
     }
 
-    // 3. Send the custom invite email via Resend
-    const inviteUrl = inviteData.properties.action_link // The URL the user clicks to set password
+    // 4. Send the custom invite email via Resend
+    const inviteUrl = inviteData.properties.action_link
     
-    // Customize this HTML email to fit the Zen/Minimalist brand
-    const htmlEmail = `
-      <div style="font-family: sans-serif; max-w-md mx-auto p-6 bg-[#fafafa] text-[#333]">
-        <h1 style="color: #444; font-weight: 300;">Bienvenue chez Voice AI</h1>
-        <p>Bonjour ${company_name},</p>
-        <p>Votre espace client a été créé avec succès. Vous pouvez y accéder pour suivre vos appels, vos coûts et paramétrer vos informations de paiement.</p>
-        <br/>
-        <a href="${inviteUrl}" style="background-color: #555; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Configurer mon mot de passe</a>
-        <br/><br/>
-        <p style="color: #777; font-size: 12px;">Si le bouton ne fonctionne pas, copiez ce lien : ${inviteUrl}</p>
+    const { getEmailTemplate } = require('@/lib/email-template')
+
+    const contentHtml = `
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
+        <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
       </div>
+      <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #202020; margin: 0 0 24px 0; letter-spacing: -0.5px;">Welcome</h1>
+      <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
+      
+      <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6;">Hello ${company_name},</p>
+      <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6;">Your client portal has been successfully created. You can now monitor your calls, analytics, and usage in real-time.</p>
+      
+      <div>
+        <a href="${inviteUrl}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
+          <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Set up my password
+        </a>
+      </div>
+      
+      <p style="color: #737373; font-size: 13px; margin-top: 32px; line-height: 1.5;">
+        If the button does not work, copy this link: <br/>
+        <a href="${inviteUrl}" style="color: #202020; text-decoration: underline; word-break: break-all;">${inviteUrl}</a>
+      </p>
     `
 
+    const htmlEmail = getEmailTemplate('Welcome to BerinAgents', contentHtml)
+
     const { error: resendError } = await resend.emails.send({
-      from: 'Voice AI <onboarding@resend.dev>', // resend.dev is the default test domain
+      from: 'BerinAgents <onboarding@berinagents.com>',
       to: [email],
-      subject: 'Accès à votre tableau de bord Voice AI',
+      subject: 'Access your BerinAgents Portal',
       html: htmlEmail,
     })
 
     if (resendError) {
       console.error('Resend error:', resendError)
-      // We don't rollback because the user is created, we can just return a warning
-      return NextResponse.json({ success: true, warning: 'User created but email failed to send', inviteUrl })
+      return NextResponse.json({ success: true, warning: 'User created but email failed to send', clientId: clientData.id })
     }
 
     return NextResponse.json({ success: true, clientId: clientData.id })
 
   } catch (err: any) {
+    console.error('Invite error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

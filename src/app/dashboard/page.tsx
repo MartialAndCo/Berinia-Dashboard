@@ -6,12 +6,28 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import CallPlayer from '@/components/CallPlayer'
+import { ArrowUpDown, ChevronDown, ChevronRight, Search, Phone, SmilePlus, Meh, Frown } from 'lucide-react'
+import { getSubscriptionStatusAction } from './actions'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+
+type SortKey = 'created_at' | 'duration_secs' | 'cost'
+type SortDir = 'asc' | 'desc'
 
 export default function ClientDashboard() {
   const [calls, setCalls] = useState<any[]>([])
   const [clientInfo, setClientInfo] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [expandedCall, setExpandedCall] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>('created_at')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [paymentStatus, setPaymentStatus] = useState<{
+    needsPaymentMethod: boolean, 
+    payUrl: string | null,
+    cardInfo: { brand: string, last4: string } | null
+  }>({ needsPaymentMethod: false, payUrl: null, cardInfo: null })
   const router = useRouter()
 
   useEffect(() => {
@@ -25,7 +41,6 @@ export default function ClientDashboard() {
       return
     }
 
-    // Get client info
     const { data: client } = await supabase
       .from('clients')
       .select('*')
@@ -34,7 +49,12 @@ export default function ClientDashboard() {
     
     if (client) {
       setClientInfo(client)
-      // Get calls for this client
+      
+      if (client.stripe_subscription_id) {
+        const pStatus = await getSubscriptionStatusAction(client.stripe_subscription_id)
+        setPaymentStatus(pStatus as any)
+      }
+
       const { data: callsData } = await supabase
         .from('calls')
         .select(`*, agents(agent_name)`)
@@ -68,88 +88,440 @@ export default function ClientDashboard() {
     }
   }
 
-  const totalCost = calls.reduce((acc, call) => acc + Number(call.cost), 0)
-  const totalMinutes = calls.reduce((acc, call) => acc + call.duration_secs, 0) / 60
+  // Sorting
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('desc')
+    }
+  }
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Chargement...</div>
+  // Filter + sort
+  const filteredCalls = calls
+    .filter(call => {
+      if (!searchQuery) return true
+      const q = searchQuery.toLowerCase()
+      return (
+        (call.call_summary && call.call_summary.toLowerCase().includes(q)) ||
+        (call.transcript && call.transcript.toLowerCase().includes(q)) ||
+        (call.from_number && call.from_number.includes(q)) ||
+        (call.agents?.agent_name && call.agents.agent_name.toLowerCase().includes(q))
+      )
+    })
+    .sort((a, b) => {
+      const valA = a[sortKey]
+      const valB = b[sortKey]
+      if (sortDir === 'asc') return valA > valB ? 1 : -1
+      return valA < valB ? 1 : -1
+    })
+
+  const totalCost = calls.reduce((acc, call) => acc + Number(call.cost), 0)
+  const totalSeconds = calls.reduce((acc, call) => acc + call.duration_secs, 0)
+  const totalMinutes = totalSeconds / 60
+
+  // Chart data
+  const callsByDate = calls.reduce((acc: Record<string, number>, call) => {
+    if (call.created_at) {
+      const date = new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      acc[date] = (acc[date] || 0) + 1
+    }
+    return acc
+  }, {})
+  const chartData = Object.entries(callsByDate)
+    .map(([date, count]) => ({ date, calls: count }))
+    .reverse() // Reverse to get chronological order if calls are descending
+
+  // Sentiment stats
+  const sentimentCounts = calls.reduce((acc, call) => {
+    const s = call.user_sentiment?.toLowerCase()
+    if (s === 'positive') acc.positive++
+    else if (s === 'negative') acc.negative++
+    else acc.neutral++
+    return acc
+  }, { positive: 0, negative: 0, neutral: 0 })
+
+  const SentimentBadge = ({ sentiment }: { sentiment: string | null }) => {
+    if (!sentiment) return <span className="text-xs text-[#73706b]">—</span>
+    const s = sentiment.toLowerCase()
+    if (s === 'positive') return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-medium bg-[#eef7ee] text-[#2e6b34] border border-[#d2ead4]">
+        <SmilePlus className="h-3 w-3" /> Positive
+      </span>
+    )
+    if (s === 'negative') return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-medium bg-[#fdf2f0] text-[#9e4733] border border-[#fad4cf]">
+        <Frown className="h-3 w-3" /> Negative
+      </span>
+    )
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-medium bg-[#faf4e6] text-[#8c6b1c] border border-[#fae8b8]">
+        <Meh className="h-3 w-3" /> Neutral
+      </span>
+    )
+  }
+
+  const formatDuration = (secs: number) => {
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    return m > 0 ? `${m}m ${s}s` : `${s}s`
+  }
+
+  if (loading) {
+    return (
+      <div className="p-8 animate-pulse">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Header Skeleton */}
+          <div className="space-y-2">
+            <div className="h-3 w-28 bg-[#e6e2d6] rounded-sm" />
+            <div className="h-8 w-64 bg-[#dfdbd2] rounded-sm" />
+            <div className="h-4 w-80 bg-[#eae7df] rounded-sm" />
+          </div>
+
+          {/* Plan / Payment banner skeleton */}
+          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+            <div className="flex justify-between items-center pb-3 border-b border-[#f0ece4]">
+              <div className="h-3 w-24 bg-[#e6e2d6] rounded-sm" />
+              <div className="h-4 w-32 bg-[#dfdbd2] rounded-sm" />
+            </div>
+            <div className="flex justify-between items-center pt-1">
+              <div className="space-y-1.5">
+                <div className="h-2.5 w-28 bg-[#e6e2d6] rounded-sm" />
+                <div className="h-4 w-48 bg-[#eae7df] rounded-sm" />
+              </div>
+              <div className="h-9 w-28 bg-[#e6e2d6] rounded-sm" />
+            </div>
+          </div>
+
+          {/* Chart Skeleton */}
+          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+            <div className="flex justify-between items-center">
+              <div className="space-y-1.5">
+                <div className="h-2.5 w-24 bg-[#e6e2d6] rounded-sm" />
+                <div className="h-5 w-40 bg-[#dfdbd2] rounded-sm" />
+              </div>
+              <div className="flex gap-2">
+                <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
+                <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
+                <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
+              </div>
+            </div>
+            <div className="h-56 w-full bg-[#f6f4f0]/80 rounded-sm flex items-end justify-between px-6 py-4 gap-2">
+              {[35, 60, 25, 75, 45, 65, 40, 85, 55, 70, 50, 80].map((h, i) => (
+                <div key={i} className="flex-1 bg-[#e6e2d6] rounded-t-sm" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+          </div>
+
+          {/* 3 KPI Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-3 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+                <div className="flex justify-between items-center">
+                  <div className="h-2.5 w-24 bg-[#e6e2d6] rounded-sm" />
+                  <div className="h-4 w-4 bg-[#e6e2d6] rounded-sm" />
+                </div>
+                <div className="h-8 w-28 bg-[#dfdbd2] rounded-sm" />
+                <div className="h-3 w-36 bg-[#eae7df] rounded-sm" />
+              </div>
+            ))}
+          </div>
+
+          {/* Table Skeleton */}
+          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+            <div className="p-6 border-b border-[#f0ece4] flex justify-between items-center">
+              <div className="space-y-1.5">
+                <div className="h-2.5 w-20 bg-[#e6e2d6] rounded-sm" />
+                <div className="h-5 w-36 bg-[#dfdbd2] rounded-sm" />
+              </div>
+              <div className="h-9 w-64 bg-[#eae7df] rounded-sm" />
+            </div>
+            <div className="p-6 space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-[#f6f4f0]">
+                  <div className="h-4 w-28 bg-[#e6e2d6] rounded-sm" />
+                  <div className="h-4 w-20 bg-[#eae7df] rounded-sm" />
+                  <div className="h-4 w-16 bg-[#e6e2d6] rounded-sm" />
+                  <div className="h-4 w-16 bg-[#dfdbd2] rounded-sm" />
+                  <div className="h-6 w-16 bg-[#eae7df] rounded-sm" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <div className="p-8">
       <div className="max-w-6xl mx-auto space-y-8">
         
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Bonjour, {clientInfo?.company_name}</h1>
-            <p className="text-muted-foreground">Tableau de bord de votre assistant vocal</p>
-          </div>
-          <div className="space-x-4">
-            <Button variant="default" onClick={handleBillingPortal}>Gérer mon abonnement</Button>
-            <Button variant="outline" onClick={handleLogout}>Déconnexion</Button>
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-1">
+              <span>•</span> CLIENT PORTAL
+            </div>
+            <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">Welcome, {clientInfo?.company_name}</h1>
+            <p className="text-sm text-[#73706b]">Your voice AI assistant performance & call intelligence</p>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Volume total</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{totalMinutes.toFixed(1)} <span className="text-xl font-normal text-muted-foreground">min</span></div>
+        {/* Billing Banners */}
+        {paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo ? (
+          <Card className="border border-[#fad4cf] bg-[#fdf2f0] shadow-[0_4px_24px_rgba(0,0,0,0.02)] rounded-sm">
+            <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[#9e4733] text-sm leading-none">•</span>
+                  <h3 className="font-semibold text-[#9e4733] text-xs uppercase tracking-wider">Payment Method Required</h3>
+                </div>
+                <p className="text-sm text-[#73706b]">No payment method on file. Please add one to enable automatic billing for your voice AI calls.</p>
+              </div>
+              {paymentStatus.payUrl ? (
+                <a href={paymentStatus.payUrl}>
+                  <Button className="shrink-0 bg-[#9e4733] hover:bg-[#833827] text-white rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 shadow-none">
+                    Add card now <span className="ml-1 text-white/80">•</span>
+                  </Button>
+                </a>
+              ) : (
+                <Button onClick={handleBillingPortal} className="shrink-0 bg-[#9e4733] hover:bg-[#833827] text-white rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 shadow-none">
+                  Add card now <span className="ml-1 text-white/80">•</span>
+                </Button>
+              )}
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Coût à l'usage</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{totalCost.toFixed(2)} €</div>
-              <p className="text-xs text-muted-foreground mt-1">Au tarif de {clientInfo?.billing_rate_per_min}€/min</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Forfait mensuel</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{clientInfo?.monthly_retainer} €</div>
-            </CardContent>
-          </Card>
-        </div>
+        ) : (
+          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] text-[#1a1918] overflow-hidden">
+            {/* Plan Section */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-[#f0ece4] bg-[#faf8f5]">
+              <div className="text-[11px] font-semibold tracking-widest text-[#73706b] uppercase flex items-center gap-1.5">
+                <span className="text-[#9e4733]">•</span> YOUR PLAN
+              </div>
+              <div className="text-sm">
+                <span className="font-semibold font-mono text-[#1a1918]">{clientInfo?.billing_rate_per_min}€</span>
+                <span className="text-xs text-[#73706b] ml-1">per minute</span>
+              </div>
+            </div>
+            
+            {/* Payment Method Section */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-4">
+              <div>
+                <div className="text-[11px] font-semibold tracking-widest text-[#73706b] uppercase mb-1">
+                  PAYMENT METHOD
+                </div>
+                {paymentStatus.cardInfo && (
+                  <div className="text-sm flex items-center">
+                    <span className="font-medium capitalize text-[#1a1918]">{paymentStatus.cardInfo.brand}</span>
+                    <span className="mx-1 text-[#73706b]">
+                      {paymentStatus.cardInfo.brand.toLowerCase() === 'link' ? '-' : '••••'}
+                    </span>
+                    <span className="font-mono font-medium text-[#1a1918]">{paymentStatus.cardInfo.last4}</span>
+                    <span className="text-[#e6e2d6] mx-2">·</span>
+                    <span className="text-xs text-[#73706b]">billed automatically each month</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <Button onClick={handleBillingPortal} className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase px-5 h-9 shadow-none">
+                  Update card <span className="ml-1.5 text-[#9e4733] text-[16px] leading-none">•</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Historique des appels</CardTitle>
-            <CardDescription>Tous les appels traités par vos agents vocaux.</CardDescription>
+        {/* Calls Trend Chart */}
+        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <CardHeader className="pb-4 border-b border-[#f0ece4]">
+            <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
+              <span>•</span> CALL ACTIVITY
+            </div>
+            <CardTitle className="font-serif text-xl font-bold text-[#1a1918]">Call Volume Trends</CardTitle>
+            <CardDescription className="text-xs text-[#73706b]">Daily inbound and outbound call distributions</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Table>
+          <CardContent className="h-[260px] pt-6">
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e6e2d6" />
+                  <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} stroke="#73706b" />
+                  <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#73706b" />
+                  <Tooltip 
+                    cursor={{ fill: '#faf8f5' }} 
+                    contentStyle={{ 
+                      backgroundColor: '#ffffff', 
+                      border: '1px solid #e6e2d6', 
+                      borderRadius: '2px', 
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                      fontSize: '12px'
+                    }} 
+                  />
+                  <Bar dataKey="calls" name="Calls" fill="#1a1918" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-[#73706b] text-xs">
+                Not enough call data to display trend chart.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* KPIs */}
+        <div className="grid md:grid-cols-3 gap-6">
+          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+            <CardHeader className="pb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#73706b]">Total Volume</div>
+            </CardHeader>
+            <CardContent>
+              <div className="font-serif text-3xl font-bold text-[#1a1918]">
+                {totalMinutes.toFixed(1)} <span className="text-base font-normal font-sans text-[#73706b]">min</span>
+              </div>
+              <p className="text-xs text-[#73706b] mt-1">{calls.length} total calls recorded</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+            <CardHeader className="pb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#73706b]">Usage Cost</div>
+            </CardHeader>
+            <CardContent>
+              <div className="font-serif text-3xl font-bold text-[#1a1918]">
+                {totalCost.toFixed(2)} €
+              </div>
+              <p className="text-xs text-[#73706b] mt-1">At €{clientInfo?.billing_rate_per_min}/min billing rate</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+            <CardHeader className="pb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#73706b]">Customer Sentiment</div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-[#2e6b34] bg-[#eef7ee] px-2 py-0.5 rounded-sm border border-[#d2ead4]">
+                  <SmilePlus className="h-3.5 w-3.5" /> {sentimentCounts.positive}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-[#8c6b1c] bg-[#faf4e6] px-2 py-0.5 rounded-sm border border-[#fae8b8]">
+                  <Meh className="h-3.5 w-3.5" /> {sentimentCounts.neutral}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-[#9e4733] bg-[#fdf2f0] px-2 py-0.5 rounded-sm border border-[#fad4cf]">
+                  <Frown className="h-3.5 w-3.5" /> {sentimentCounts.negative}
+                </span>
+              </div>
+              <p className="text-xs text-[#73706b] mt-2">Sentiment breakdown across all calls</p>
+            </CardContent>
+          </Card>
+        </div>
+
+
+        {/* Calls Table */}
+        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <CardHeader className="pb-4 border-b border-[#f0ece4]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
+                  <span>•</span> RECORDS
+                </div>
+                <CardTitle className="font-serif text-xl font-bold text-[#1a1918]">Call History</CardTitle>
+                <CardDescription className="text-xs text-[#73706b]">Detailed audio recordings, transcripts, and AI analysis</CardDescription>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#73706b]" />
+                <Input 
+                  placeholder="Search calls..." 
+                  className="pl-9 h-9 text-xs border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table className="min-w-[900px]">
               <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Agent</TableHead>
-                  <TableHead>Durée</TableHead>
-                  <TableHead>Coût</TableHead>
-                  <TableHead>Audio</TableHead>
+                <TableRow className="bg-[#faf8f5] hover:bg-[#faf8f5] border-b border-[#e6e2d6]">
+                  <TableHead className="w-10 px-4"></TableHead>
+                  <TableHead className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('created_at')}>
+                    <span className="flex items-center gap-1">Date <ArrowUpDown className="h-3 w-3" /></span>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Agent</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Caller</TableHead>
+                  <TableHead className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('duration_secs')}>
+                    <span className="flex items-center gap-1">Duration <ArrowUpDown className="h-3 w-3" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('cost')}>
+                    <span className="flex items-center gap-1">Cost <ArrowUpDown className="h-3 w-3" /></span>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Sentiment</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11 text-right px-6">Audio</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {calls.map(call => (
-                  <TableRow key={call.id}>
-                    <TableCell className="font-medium">
-                      {new Date(call.created_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}
-                    </TableCell>
-                    <TableCell>{call.agents?.agent_name}</TableCell>
-                    <TableCell>{Math.ceil(call.duration_secs / 60)} min</TableCell>
-                    <TableCell>{call.cost} €</TableCell>
-                    <TableCell>
-                      <CallPlayer recordingUrl={call.recording_url} />
-                    </TableCell>
-                  </TableRow>
+                {filteredCalls.map(call => (
+                  <>
+                    <TableRow 
+                      key={call.id} 
+                      className="cursor-pointer hover:bg-[#faf8f5]/60 border-b border-[#f0ece4] transition-colors"
+                      onClick={() => setExpandedCall(expandedCall === call.id ? null : call.id)}
+                    >
+                      <TableCell className="px-4">
+                        {expandedCall === call.id 
+                          ? <ChevronDown className="h-4 w-4 text-[#1a1918]" /> 
+                          : <ChevronRight className="h-4 w-4 text-[#73706b]" />
+                        }
+                      </TableCell>
+                      <TableCell className="text-xs font-mono text-[#1a1918]">
+                        {new Date(call.created_at).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}
+                      </TableCell>
+                      <TableCell className="font-semibold text-xs text-[#1a1918]">{call.agents?.agent_name}</TableCell>
+                      <TableCell className="font-mono text-xs text-[#73706b]">
+                        {call.from_number ? (
+                          <span className="flex items-center gap-1"><Phone className="h-3 w-3 text-[#9e4733]" /> {call.from_number}</span>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell className="text-xs text-[#73706b] font-mono">{formatDuration(call.duration_secs)}</TableCell>
+                      <TableCell className="text-xs font-mono font-medium text-[#1a1918]">{Number(call.cost).toFixed(2)} €</TableCell>
+                      <TableCell><SentimentBadge sentiment={call.user_sentiment} /></TableCell>
+                      <TableCell className="text-right px-6" onClick={e => e.stopPropagation()}>
+                        <CallPlayer recordingUrl={call.recording_url} />
+                      </TableCell>
+                    </TableRow>
+                    {expandedCall === call.id && (
+                      <TableRow key={`${call.id}-detail`}>
+                        <TableCell colSpan={8} className="bg-[#faf9f7]/60 p-0 border-b border-[#e6e2d6]">
+                          <div className="p-6 space-y-4 max-w-full overflow-hidden border-l-2 border-[#1a1918] ml-4 my-3 bg-white rounded-sm shadow-sm">
+                            {call.call_summary && (
+                              <div>
+                                <h4 className="text-[10px] font-semibold text-[#9e4733] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                  <span>•</span> Call Summary
+                                </h4>
+                                <p className="text-xs text-[#2d2d2d] leading-relaxed break-words whitespace-normal">{call.call_summary}</p>
+                              </div>
+                            )}
+                            {call.transcript && (
+                              <div>
+                                <h4 className="text-[10px] font-semibold text-[#73706b] uppercase tracking-wider mb-1.5">
+                                  Complete Transcript
+                                </h4>
+                                <div className="text-xs bg-[#faf8f5] rounded-sm p-3.5 border border-[#e6e2d6] max-h-60 overflow-y-auto whitespace-pre-wrap break-words font-mono leading-relaxed text-[#1a1918]">
+                                  {call.transcript}
+                                </div>
+                              </div>
+                            )}
+                            {!call.call_summary && !call.transcript && (
+                              <p className="text-xs text-[#73706b] italic">No detailed summary or transcript available for this call.</p>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
                 ))}
-                {calls.length === 0 && (
+                {filteredCalls.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      Aucun appel enregistré pour le moment.
+                    <TableCell colSpan={8} className="text-center text-[#73706b] py-12 text-sm">
+                      {searchQuery ? 'No calls match your search criteria.' : 'No calls recorded yet.'}
                     </TableCell>
                   </TableRow>
                 )}

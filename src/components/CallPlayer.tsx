@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { Button } from './ui/button'
+import { Play, Pause } from 'lucide-react'
 
 export default function CallPlayer({ recordingUrl }: { recordingUrl: string }) {
   const [isPlaying, setIsPlaying] = useState(false)
@@ -17,7 +18,7 @@ export default function CallPlayer({ recordingUrl }: { recordingUrl: string }) {
     setIsPlaying(!isPlaying)
   }
 
-  if (!recordingUrl) return <span className="text-muted-foreground text-sm">Pas d'audio</span>
+  if (!recordingUrl) return <span className="text-[#73706b] text-xs">—</span>
 
   return (
     <div className="flex items-center space-x-2">
@@ -27,8 +28,21 @@ export default function CallPlayer({ recordingUrl }: { recordingUrl: string }) {
         onEnded={() => setIsPlaying(false)}
         className="hidden" 
       />
-      <Button variant="secondary" size="sm" onClick={togglePlay}>
-        {isPlaying ? '⏸ Pause' : '▶ Écouter'}
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={togglePlay}
+        className="h-7 px-2.5 text-[11px] font-semibold tracking-wider uppercase border-[#e6e2d6] bg-white hover:bg-[#faf8f5] text-[#1a1918] rounded-sm transition-colors flex items-center gap-1.5 shadow-none"
+      >
+        {isPlaying ? (
+          <>
+            <Pause className="h-3 w-3 fill-current text-[#9e4733]" /> Pause
+          </>
+        ) : (
+          <>
+            <Play className="h-3 w-3 fill-current text-[#1a1918]" /> Listen
+          </>
+        )}
       </Button>
     </div>
   )
