@@ -205,11 +205,11 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Rate per minute (€)</Label>
-                <Input type="number" step="0.01" value={billingRate} onChange={e => setBillingRate(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" />
+                <Input type="number" step="0.01" value={billingRate} onChange={e => setBillingRate(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-base font-serif font-bold" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Monthly Retainer (€)</Label>
-                <Input type="number" step="1" value={retainer} onChange={e => setRetainer(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" />
+                <Input type="number" step="1" value={retainer} onChange={e => setRetainer(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-base font-serif font-bold" />
               </div>
               <Button onClick={handleUpdateConfig} className="w-full mt-4 bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10">
                 <Save className="w-4 h-4 mr-2"/> Save Configuration <span className="ml-1 text-[#9e4733] text-[16px] leading-none">•</span>

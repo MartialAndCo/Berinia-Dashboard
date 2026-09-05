@@ -170,7 +170,7 @@ export default function NewClientPage() {
                     step="0.01" 
                     value={billingRate} 
                     onChange={e => setBillingRate(e.target.value)} 
-                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" 
+                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-base font-serif font-bold" 
                   />
                   <p className="text-[11px] text-[#73706b]">Billed based on total call duration in seconds.</p>
                 </div>
@@ -184,7 +184,7 @@ export default function NewClientPage() {
                     step="1" 
                     value={retainer} 
                     onChange={e => setRetainer(e.target.value)} 
-                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" 
+                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-base font-serif font-bold" 
                   />
                   <p className="text-[11px] text-[#73706b]">Fixed subscription charged automatically each month.</p>
                 </div>

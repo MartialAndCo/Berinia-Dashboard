@@ -120,6 +120,7 @@ export default function ClientDashboard() {
   const totalCost = calls.reduce((acc, call) => acc + Number(call.cost), 0)
   const totalSeconds = calls.reduce((acc, call) => acc + call.duration_secs, 0)
   const totalMinutes = totalSeconds / 60
+  const avgDurationMinutes = calls.length > 0 ? (totalMinutes / calls.length).toFixed(1) : '0.0'
 
   // Chart data
   const callsByDate = calls.reduce((acc: Record<string, number>, call) => {
@@ -300,7 +301,7 @@ export default function ClientDashboard() {
                 <span className="text-[#9e4733]">•</span> YOUR PLAN
               </div>
               <div className="text-sm">
-                <span className="font-semibold font-mono text-[#1a1918]">{clientInfo?.billing_rate_per_min}€</span>
+                <span className="font-bold font-serif text-base text-[#1a1918]">{clientInfo?.billing_rate_per_min} €</span>
                 <span className="text-xs text-[#73706b] ml-1">per minute</span>
               </div>
             </div>
@@ -317,7 +318,7 @@ export default function ClientDashboard() {
                     <span className="mx-1 text-[#73706b]">
                       {paymentStatus.cardInfo.brand.toLowerCase() === 'link' ? '-' : '••••'}
                     </span>
-                    <span className="font-mono font-medium text-[#1a1918]">{paymentStatus.cardInfo.last4}</span>
+                    <span className="font-serif font-semibold text-[#1a1918]">{paymentStatus.cardInfo.last4}</span>
                     <span className="text-[#e6e2d6] mx-2">·</span>
                     <span className="text-xs text-[#73706b]">billed automatically each month</span>
                   </div>
@@ -369,50 +370,55 @@ export default function ClientDashboard() {
           </CardContent>
         </Card>
 
-        {/* KPIs */}
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-            <CardHeader className="pb-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#73706b]">Total Volume</div>
-            </CardHeader>
-            <CardContent>
-              <div className="font-serif text-3xl font-bold text-[#1a1918]">
-                {totalMinutes.toFixed(1)} <span className="text-base font-normal font-sans text-[#73706b]">min</span>
-              </div>
-              <p className="text-xs text-[#73706b] mt-1">{calls.length} total calls recorded</p>
-            </CardContent>
-          </Card>
-          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-            <CardHeader className="pb-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#73706b]">Usage Cost</div>
-            </CardHeader>
-            <CardContent>
-              <div className="font-serif text-3xl font-bold text-[#1a1918]">
-                {totalCost.toFixed(2)} €
-              </div>
-              <p className="text-xs text-[#73706b] mt-1">At €{clientInfo?.billing_rate_per_min}/min billing rate</p>
-            </CardContent>
-          </Card>
-          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-            <CardHeader className="pb-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#73706b]">Customer Sentiment</div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-[#2e6b34] bg-[#eef7ee] px-2 py-0.5 rounded-sm border border-[#d2ead4]">
-                  <SmilePlus className="h-3.5 w-3.5" /> {sentimentCounts.positive}
-                </span>
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-[#8c6b1c] bg-[#faf4e6] px-2 py-0.5 rounded-sm border border-[#fae8b8]">
-                  <Meh className="h-3.5 w-3.5" /> {sentimentCounts.neutral}
-                </span>
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-[#9e4733] bg-[#fdf2f0] px-2 py-0.5 rounded-sm border border-[#fad4cf]">
-                  <Frown className="h-3.5 w-3.5" /> {sentimentCounts.negative}
-                </span>
-              </div>
-              <p className="text-xs text-[#73706b] mt-2">Sentiment breakdown across all calls</p>
-            </CardContent>
-          </Card>
+        {/* KPIs matching screenshot layout */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] divide-y sm:divide-y-0 sm:divide-x divide-[#f0ece4] overflow-hidden">
+          <div className="p-6 space-y-1.5">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Calls</div>
+            <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1918]">
+              {calls.length}
+            </div>
+            <p className="text-xs text-[#73706b]">completed calls</p>
+          </div>
+          <div className="p-6 space-y-1.5">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Minutes</div>
+            <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1918]">
+              {totalMinutes.toFixed(1)}
+            </div>
+            <p className="text-xs text-[#73706b]">billable minutes</p>
+          </div>
+          <div className="p-6 space-y-1.5">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Billed</div>
+            <div className="font-serif text-3xl sm:text-4xl font-bold text-[#9e4733]">
+              {totalCost.toFixed(2)} €
+            </div>
+            <p className="text-xs text-[#73706b]">usage revenue</p>
+          </div>
+          <div className="p-6 space-y-1.5">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Avg. Duration</div>
+            <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1918]">
+              {avgDurationMinutes} <span className="font-serif font-normal text-2xl text-[#1a1918] ml-0.5">min</span>
+            </div>
+            <p className="text-xs text-[#73706b]">per completed call</p>
+          </div>
         </div>
+
+        {/* Customer Sentiment Bar */}
+        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <CardContent className="py-3.5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Customer Sentiment Breakdown</div>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-[#2e6b34] bg-[#eef7ee] px-2.5 py-1 rounded-sm border border-[#d2ead4]">
+                <SmilePlus className="h-3.5 w-3.5" /> Positive: <span className="font-serif font-bold text-sm ml-0.5">{sentimentCounts.positive}</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-[#8c6b1c] bg-[#faf4e6] px-2.5 py-1 rounded-sm border border-[#fae8b8]">
+                <Meh className="h-3.5 w-3.5" /> Neutral: <span className="font-serif font-bold text-sm ml-0.5">{sentimentCounts.neutral}</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-[#9e4733] bg-[#fdf2f0] px-2.5 py-1 rounded-sm border border-[#fad4cf]">
+                <Frown className="h-3.5 w-3.5" /> Negative: <span className="font-serif font-bold text-sm ml-0.5">{sentimentCounts.negative}</span>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
 
 
         {/* Calls Table */}
@@ -471,17 +477,17 @@ export default function ClientDashboard() {
                           : <ChevronRight className="h-4 w-4 text-[#73706b]" />
                         }
                       </TableCell>
-                      <TableCell className="text-xs font-mono text-[#1a1918]">
+                      <TableCell className="text-xs font-serif text-[#1a1918]">
                         {new Date(call.created_at).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}
                       </TableCell>
                       <TableCell className="font-semibold text-xs text-[#1a1918]">{call.agents?.agent_name}</TableCell>
-                      <TableCell className="font-mono text-xs text-[#73706b]">
+                      <TableCell className="font-serif text-xs text-[#73706b]">
                         {call.from_number ? (
                           <span className="flex items-center gap-1"><Phone className="h-3 w-3 text-[#9e4733]" /> {call.from_number}</span>
                         ) : '—'}
                       </TableCell>
-                      <TableCell className="text-xs text-[#73706b] font-mono">{formatDuration(call.duration_secs)}</TableCell>
-                      <TableCell className="text-xs font-mono font-medium text-[#1a1918]">{Number(call.cost).toFixed(2)} €</TableCell>
+                      <TableCell className="text-xs text-[#73706b] font-serif font-medium">{formatDuration(call.duration_secs)}</TableCell>
+                      <TableCell className="text-sm font-serif font-bold text-[#1a1918]">{Number(call.cost).toFixed(2)} €</TableCell>
                       <TableCell><SentimentBadge sentiment={call.user_sentiment} /></TableCell>
                       <TableCell className="text-right px-6" onClick={e => e.stopPropagation()}>
                         <CallPlayer recordingUrl={call.recording_url} />

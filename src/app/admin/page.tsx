@@ -279,12 +279,12 @@ export default function AdminDashboard() {
                         {client.status === 'Actif' ? 'Active' : (client.status || 'Active')}
                       </span>
                     </TableCell>
-                    <TableCell className="text-[#55524d]">{client.billing_rate_per_min} €</TableCell>
-                    <TableCell className="text-[#55524d]">{client.monthly_retainer} €</TableCell>
-                    <TableCell className="text-[#55524d]">{clientCallStats[client.id]?.calls || 0}</TableCell>
-                    <TableCell className="font-medium text-[#1a1918]">{(clientCallStats[client.id]?.revenue || 0).toFixed(2)} €</TableCell>
-                    <TableCell className="text-[#9e4733]">{(clientCallStats[client.id]?.retellCost || 0).toFixed(2)} €</TableCell>
-                    <TableCell className="text-[#2e6930] font-semibold">
+                    <TableCell className="font-serif font-medium text-[#55524d]">{client.billing_rate_per_min} €</TableCell>
+                    <TableCell className="font-serif font-medium text-[#55524d]">{client.monthly_retainer} €</TableCell>
+                    <TableCell className="font-serif font-medium text-[#55524d]">{clientCallStats[client.id]?.calls || 0}</TableCell>
+                    <TableCell className="font-serif font-semibold text-[#1a1918]">{(clientCallStats[client.id]?.revenue || 0).toFixed(2)} €</TableCell>
+                    <TableCell className="font-serif font-semibold text-[#9e4733]">{(clientCallStats[client.id]?.retellCost || 0).toFixed(2)} €</TableCell>
+                    <TableCell className="font-serif font-semibold text-[#2e6930]">
                       {((clientCallStats[client.id]?.revenue || 0) - (clientCallStats[client.id]?.retellCost || 0)).toFixed(2)} €
                     </TableCell>
                     <TableCell className="text-right">

@@ -200,7 +200,7 @@ export default function ClientSettingsPage() {
               <CardContent className="space-y-4 pt-6">
                 <div className="flex justify-between items-center py-2">
                   <span className="text-xs font-semibold uppercase tracking-wider text-[#73706b]">Rate per minute</span>
-                  <span className="font-mono font-bold text-base text-[#1a1918]">{clientData?.billing_rate_per_min} € / min</span>
+                  <span className="font-serif font-bold text-lg text-[#1a1918]">{clientData?.billing_rate_per_min} € / min</span>
                 </div>
               </CardContent>
             </Card>
