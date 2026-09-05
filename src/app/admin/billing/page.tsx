@@ -133,15 +133,15 @@ export default function AdminBillingPage() {
               <TableBody>
                 {filteredInvoices.map(inv => (
                   <TableRow key={inv.id} className="border-b border-[#f0ece4] hover:bg-[#faf8f5]/60 transition-colors">
-                    <TableCell className="font-serif text-xs text-[#1a1918]">{inv.number || 'Draft'}</TableCell>
+                    <TableCell className="font-mono text-xs text-[#1a1918]">{inv.number || 'Draft'}</TableCell>
                     <TableCell>
                       <div className="font-medium text-[#1a1918]">{inv.customer_name || '-'}</div>
                       <div className="text-xs text-[#73706b]">{inv.customer_email}</div>
                     </TableCell>
-                    <TableCell className="text-xs font-serif text-[#55524d]">
+                    <TableCell className="text-xs text-[#55524d]">
                       {new Date(inv.created).toLocaleDateString('en-US')}
                     </TableCell>
-                    <TableCell className="font-serif font-bold text-sm text-[#1a1918]">
+                    <TableCell className="font-semibold text-sm text-[#1a1918]">
                       {inv.amount_due.toFixed(2)} €
                     </TableCell>
                     <TableCell>

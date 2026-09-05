@@ -477,17 +477,17 @@ export default function ClientDashboard() {
                           : <ChevronRight className="h-4 w-4 text-[#73706b]" />
                         }
                       </TableCell>
-                      <TableCell className="text-xs font-serif text-[#1a1918]">
+                      <TableCell className="text-xs font-mono text-[#1a1918]">
                         {new Date(call.created_at).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}
                       </TableCell>
                       <TableCell className="font-semibold text-xs text-[#1a1918]">{call.agents?.agent_name}</TableCell>
-                      <TableCell className="font-serif text-xs text-[#73706b]">
+                      <TableCell className="font-mono text-xs text-[#73706b]">
                         {call.from_number ? (
                           <span className="flex items-center gap-1"><Phone className="h-3 w-3 text-[#9e4733]" /> {call.from_number}</span>
                         ) : '—'}
                       </TableCell>
-                      <TableCell className="text-xs text-[#73706b] font-serif font-medium">{formatDuration(call.duration_secs)}</TableCell>
-                      <TableCell className="text-sm font-serif font-bold text-[#1a1918]">{Number(call.cost).toFixed(2)} €</TableCell>
+                      <TableCell className="text-xs text-[#73706b] font-mono">{formatDuration(call.duration_secs)}</TableCell>
+                      <TableCell className="text-xs font-mono font-medium text-[#1a1918]">{Number(call.cost).toFixed(2)} €</TableCell>
                       <TableCell><SentimentBadge sentiment={call.user_sentiment} /></TableCell>
                       <TableCell className="text-right px-6" onClick={e => e.stopPropagation()}>
                         <CallPlayer recordingUrl={call.recording_url} />
