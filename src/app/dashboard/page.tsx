@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import CallPlayer from '@/components/CallPlayer'
-import { ArrowUpDown, ChevronDown, ChevronRight, Search, Phone, SmilePlus, Meh, Frown } from 'lucide-react'
+import { ArrowUpDown, ChevronDown, ChevronRight, Search, Phone, SmilePlus, Meh, Frown, CreditCard, X, ShieldCheck } from 'lucide-react'
 import { getSubscriptionStatusAction } from './actions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -23,6 +23,7 @@ export default function ClientDashboard() {
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [searchQuery, setSearchQuery] = useState('')
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<{
     needsPaymentMethod: boolean, 
     payUrl: string | null,
@@ -53,6 +54,11 @@ export default function ClientDashboard() {
       if (client.stripe_subscription_id) {
         const pStatus = await getSubscriptionStatusAction(client.stripe_subscription_id)
         setPaymentStatus(pStatus as any)
+        if (pStatus?.needsPaymentMethod || !pStatus?.cardInfo) {
+          setShowPaymentModal(true)
+        }
+      } else {
+        setShowPaymentModal(true)
       }
 
       const { data: callsData } = await supabase
@@ -257,6 +263,93 @@ export default function ClientDashboard() {
 
   return (
     <div className="p-8">
+      {/* Payment Method Required Popup Modal */}
+      {showPaymentModal && (paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1a1918]/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-[500px] bg-[#ffffff] border border-[#e6e2d6] rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden">
+            {/* Close button */}
+            <button 
+              onClick={() => setShowPaymentModal(false)}
+              className="absolute top-4 right-4 p-1.5 text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5] rounded-sm transition-colors"
+              aria-label="Fermer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="p-8 space-y-6">
+              {/* Header */}
+              <div className="text-center space-y-2">
+                <div className="flex justify-center mb-3">
+                  <div className="h-12 w-12 rounded-full bg-[#fdf2f0] border border-[#fad4cf] flex items-center justify-center text-[#9e4733]">
+                    <CreditCard className="h-6 w-6" />
+                  </div>
+                </div>
+                <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
+                  <span>•</span> ACTIVATION DU COMPTE
+                </div>
+                <h2 className="font-serif text-2xl font-bold tracking-tight text-[#1a1918]">
+                  Ajoutez votre moyen de paiement
+                </h2>
+                <p className="text-sm text-[#73706b] leading-relaxed">
+                  Pour activer vos agents vocaux IA et débloquer les appels en direct, veuillez renseigner une carte bancaire.
+                </p>
+              </div>
+
+              {/* Plan info box */}
+              <div className="bg-[#faf8f5] border border-[#e6e2d6] rounded-sm p-4 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-[#73706b]">
+                  <span className="uppercase tracking-wider text-[10px] font-semibold">Entreprise</span>
+                  <span className="font-semibold text-[#1a1918]">{clientInfo?.company_name}</span>
+                </div>
+                {clientInfo?.billing_rate_per_min > 0 && (
+                  <div className="flex justify-between items-center text-[#73706b]">
+                    <span className="uppercase tracking-wider text-[10px] font-semibold">Tarif à la minute</span>
+                    <span className="font-mono font-medium text-[#1a1918]">{clientInfo.billing_rate_per_min} € / min</span>
+                  </div>
+                )}
+                {clientInfo?.monthly_retainer > 0 && (
+                  <div className="flex justify-between items-center text-[#73706b]">
+                    <span className="uppercase tracking-wider text-[10px] font-semibold">Forfait mensuel</span>
+                    <span className="font-mono font-medium text-[#1a1918]">{clientInfo.monthly_retainer} € / mois</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-[11px] text-[#73706b] pt-1.5 border-t border-[#e6e2d6]">
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#2e6b34] shrink-0" />
+                  <span>Paiement sécurisé via Stripe. Facturation automatique au prorata.</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2.5 pt-1">
+                {paymentStatus.payUrl ? (
+                  <a href={paymentStatus.payUrl} className="block w-full">
+                    <Button className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-12 text-xs font-semibold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-none">
+                      <CreditCard className="h-4 w-4" />
+                      Renseigner ma carte maintenant <span className="text-[#9e4733] text-[16px] leading-none">•</span>
+                    </Button>
+                  </a>
+                ) : (
+                  <Button 
+                    onClick={handleBillingPortal} 
+                    className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-12 text-xs font-semibold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-none"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Renseigner ma carte maintenant <span className="text-[#9e4733] text-[16px] leading-none">•</span>
+                  </Button>
+                )}
+
+                <button 
+                  onClick={() => setShowPaymentModal(false)}
+                  className="w-full py-2 text-xs text-[#73706b] hover:text-[#1a1918] transition-colors underline-offset-4 hover:underline uppercase tracking-wider font-medium text-center"
+                >
+                  Je le ferai plus tard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto space-y-8">
         
         <div className="flex items-center justify-between">
