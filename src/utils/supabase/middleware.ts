@@ -2,6 +2,17 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Skip middleware for APIs, static assets, images, etc.
+  if (
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/_next') ||
+    pathname.includes('.')
+  ) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -15,7 +26,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({
             request,
           })
@@ -27,29 +38,44 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data?.user || null
+  } catch (err) {
+    console.error('Middleware getUser error:', err)
+  }
 
-  const pathname = request.nextUrl.pathname
+  const redirectWithCookies = (targetPath: string) => {
+    const url = request.nextUrl.clone()
+    url.pathname = targetPath
+    const res = NextResponse.redirect(url)
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      res.cookies.set(cookie.name, cookie.value, cookie)
+    })
+    return res
+  }
 
+  // Protect Admin routes
   if (pathname.startsWith('/admin')) {
     if (!user || user.email !== 'admin@berinia.com') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
+      return redirectWithCookies('/login')
     }
-  } else if (pathname.startsWith('/dashboard')) {
+  }
+
+  // Protect Client Dashboard routes
+  if (pathname.startsWith('/dashboard')) {
     if (!user) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
+      return redirectWithCookies('/login')
     }
-  } else if (pathname.startsWith('/login') || pathname === '/') {
+  }
+
+  // Root redirect
+  if (pathname === '/') {
     if (user) {
-      const url = request.nextUrl.clone()
-      url.pathname = user.email === 'admin@berinia.com' ? '/admin' : '/dashboard'
-      return NextResponse.redirect(url)
+      return redirectWithCookies(user.email === 'admin@berinia.com' ? '/admin' : '/dashboard')
+    } else {
+      return redirectWithCookies('/login')
     }
   }
 

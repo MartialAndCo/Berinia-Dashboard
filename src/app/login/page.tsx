@@ -20,19 +20,32 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const cleanEmail = email.trim()
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      })
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
 
-    if (data.session) {
-      // Check if user is an admin or a regular client by checking the clients table
+      if (!data?.session) {
+        setError('Impossible d\'ouvrir une session. Veuillez vérifier vos identifiants.')
+        setLoading(false)
+        return
+      }
+
+      // If user is admin, immediately redirect to admin console
+      if (cleanEmail.toLowerCase() === 'admin@berinia.com' || data.session.user.email?.toLowerCase() === 'admin@berinia.com') {
+        window.location.href = '/admin'
+        return
+      }
+
+      // Check if user is a regular client by checking the clients table
       const { data: clientData } = await supabase
         .from('clients')
         .select('id')
@@ -40,10 +53,14 @@ export default function LoginPage() {
         .maybeSingle()
       
       if (clientData) {
-        router.push('/dashboard')
+        window.location.href = '/dashboard'
       } else {
-        router.push('/admin')
+        window.location.href = '/admin'
       }
+    } catch (err: any) {
+      console.error('Login error:', err)
+      setError(err?.message || 'Une erreur inattendue est survenue.')
+      setLoading(false)
     }
   }
 
