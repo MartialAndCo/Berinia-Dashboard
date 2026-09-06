@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     })
 
     if (resendError) {
-      return NextResponse.json({ success: true, warning: 'Lien généré mais erreur Resend: ' + resendError.message, link: linkData.properties?.action_link })
+      return NextResponse.json({ success: true, warning: 'Link generated but Resend error: ' + resendError.message, link: linkData.properties?.action_link })
     }
 
     return NextResponse.json({ success: true })

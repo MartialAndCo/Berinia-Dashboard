@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     const { email } = await req.json()
 
     if (!email || typeof email !== 'string') {
-      return NextResponse.json({ error: 'Adresse email requise' }, { status: 400 })
+      return NextResponse.json({ error: 'Email address is required.' }, { status: 400 })
     }
 
     const normalizedEmail = email.trim().toLowerCase()
@@ -28,14 +28,14 @@ export async function POST(req: Request) {
       console.error('Supabase generateLink error:', linkError)
       const isNotFound = linkError.message.toLowerCase().includes('not found')
       const errorMessage = isNotFound
-        ? "Aucun compte n'est associé à cette adresse email."
+        ? "No account is associated with this email address."
         : linkError.message
       return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
     const resetUrl = linkData.properties?.action_link
     if (!resetUrl) {
-      return NextResponse.json({ error: 'Impossible de générer le lien de réinitialisation.' }, { status: 500 })
+      return NextResponse.json({ error: 'Unable to generate reset link.' }, { status: 500 })
     }
 
     // 2. Send custom email via Resend
@@ -77,12 +77,12 @@ export async function POST(req: Request) {
 
     if (resendError) {
       console.error('Resend error:', resendError)
-      return NextResponse.json({ error: "Erreur lors de l'envoi de l'email via Resend: " + resendError.message }, { status: 500 })
+      return NextResponse.json({ error: "Error sending email via Resend: " + resendError.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('Forgot password error:', err)
-    return NextResponse.json({ error: err.message || 'Une erreur inattendue est survenue' }, { status: 500 })
+    return NextResponse.json({ error: err.message || 'An unexpected error occurred.' }, { status: 500 })
   }
 }

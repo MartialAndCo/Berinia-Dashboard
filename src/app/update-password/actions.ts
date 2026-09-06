@@ -14,7 +14,7 @@ export async function setClientActiveAction(userId: string) {
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
   
-  const { error } = await supabaseAdmin.from('clients').update({ status: 'Actif' }).eq('user_id', userId)
+  const { error } = await supabaseAdmin.from('clients').update({ status: 'Active' }).eq('user_id', userId)
   
   if (error) return { success: false, error: error.message }
   return { success: true }

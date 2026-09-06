@@ -33,9 +33,9 @@ export default function UpdatePasswordPage() {
 
     if (urlError || errorCode === 'otp_expired') {
       if (errorCode === 'otp_expired' || urlError?.includes('expired') || urlError?.includes('invalid')) {
-        setLinkError('Ce lien d\'invitation a expiré ou a déjà été utilisé. Si vous avez déjà configuré votre compte, vous pouvez vous connecter directement. Sinon, vous pouvez réinitialiser votre mot de passe.')
+        setLinkError('This invitation link has expired or has already been used. If you have already set up your account, you can sign in directly. Otherwise, you can reset your password.')
       } else {
-        setLinkError(urlError || 'Lien invalide.')
+        setLinkError(urlError || 'Invalid link.')
       }
       return
     }
@@ -57,7 +57,7 @@ export default function UpdatePasswordPage() {
           setSessionChecked(true)
         } else if (error) {
           console.error('Code exchange error:', error)
-          setLinkError('Le code de vérification est invalide ou expiré.')
+          setLinkError('The verification code is invalid or has expired.')
         }
       })
       return () => {
@@ -80,7 +80,7 @@ export default function UpdatePasswordPage() {
           setSessionChecked(true)
         } else {
           console.error('setSession error:', error)
-          setLinkError('Impossible de valider votre session d\'accès. Le lien est peut-être expiré.')
+          setLinkError('Unable to validate access session. The link may have expired.')
         }
       })
       return () => {
@@ -109,12 +109,12 @@ export default function UpdatePasswordPage() {
     e.preventDefault()
 
     if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas.')
+      setError('Passwords do not match.')
       return
     }
 
     if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères.')
+      setError('Password must be at least 6 characters long.')
       return
     }
 
@@ -140,11 +140,11 @@ export default function UpdatePasswordPage() {
         }
       }
 
-      toast.success("Mot de passe enregistré avec succès !")
+      toast.success("Password set successfully!")
       window.location.href = '/dashboard'
     } catch (err: any) {
       console.error('Update password error:', err)
-      setError(err?.message || 'Une erreur inattendue est survenue.')
+      setError(err?.message || 'An unexpected error occurred.')
       setLoading(false)
     }
   }
@@ -159,10 +159,10 @@ export default function UpdatePasswordPage() {
               <img src="/logo-horizontal-black.png" alt="BerinAgents" className="h-9 w-auto object-contain" />
             </div>
             <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-              <span>•</span> ACCÈS PORTAIL
+              <span>•</span> PORTAL ACCESS
             </div>
             <h1 className="font-serif text-2xl font-bold tracking-tight text-[#1a1918]">
-              Lien expiré ou déjà utilisé
+              Link expired or already used
             </h1>
           </div>
 
@@ -174,12 +174,12 @@ export default function UpdatePasswordPage() {
             <div className="space-y-3 pt-2">
               <Link href="/login" className="block w-full">
                 <Button className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-11 text-xs font-semibold tracking-wider uppercase transition-all">
-                  Se connecter
+                  Sign in
                 </Button>
               </Link>
               <Link href="/forgot-password" className="block w-full">
                 <Button variant="outline" className="w-full border-[#e2dfd8] text-[#73706b] hover:text-[#1a1918] rounded-sm h-11 text-xs font-semibold tracking-wider uppercase">
-                  Réinitialiser mon mot de passe
+                  Reset password
                 </Button>
               </Link>
             </div>
@@ -196,7 +196,7 @@ export default function UpdatePasswordPage() {
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 rounded-full border-2 border-[#9e4733] border-t-transparent animate-spin" />
           <p className="text-xs uppercase tracking-widest text-[#73706b] animate-pulse font-medium">
-            Vérification de votre lien d&apos;accès...
+            Verifying your access link...
           </p>
         </div>
       </div>
@@ -216,10 +216,10 @@ export default function UpdatePasswordPage() {
             <span>•</span> ONBOARDING
           </div>
           <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">
-            Bienvenue !
+            Welcome!
           </h1>
           <p className="text-sm text-[#73706b]">
-            Définissez votre mot de passe pour finaliser la création de votre compte
+            Set your password to finalize your account setup
           </p>
         </div>
 
@@ -228,10 +228,10 @@ export default function UpdatePasswordPage() {
           <form onSubmit={handleUpdate} className="space-y-5">
             <div className="space-y-1.5">
               <Label 
-                htmlFor="password"
+                htmlFor="password" 
                 className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase"
               >
-                Nouveau mot de passe
+                New password
               </Label>
               <Input 
                 id="password" 
@@ -247,10 +247,10 @@ export default function UpdatePasswordPage() {
 
             <div className="space-y-1.5">
               <Label 
-                htmlFor="confirmPassword"
+                htmlFor="confirmPassword" 
                 className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase"
               >
-                Confirmer le mot de passe
+                Confirm password
               </Label>
               <Input 
                 id="confirmPassword" 
@@ -277,10 +277,10 @@ export default function UpdatePasswordPage() {
               className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-11 text-xs font-semibold tracking-wider uppercase transition-all shadow-none flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? (
-                'Enregistrement...'
+                'Saving...'
               ) : (
                 <>
-                  Enregistrer et accéder au portail <span className="text-[#9e4733] text-[16px] leading-none">•</span>
+                  Save and access portal <span className="text-[#9e4733] text-[16px] leading-none">•</span>
                 </>
               )}
             </Button>

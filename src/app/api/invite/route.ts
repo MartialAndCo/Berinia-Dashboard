@@ -47,9 +47,9 @@ export async function POST(req: Request) {
 
       const items: any[] = []
 
-      // Forfait Mensuel (Retainer)
+      // Monthly Retainer
       if (monthly_retainer > 0) {
-        const productRetainer = await stripe.products.create({ name: `Forfait Mensuel - ${company_name}` })
+        const productRetainer = await stripe.products.create({ name: `Monthly Retainer - ${company_name}` })
         const priceRetainer = await stripe.prices.create({
           product: productRetainer.id,
           unit_amount: Math.round(monthly_retainer * 100),
@@ -59,9 +59,9 @@ export async function POST(req: Request) {
         items.push({ price: priceRetainer.id })
       }
 
-      // Consommation au prorata (Metered per second)
+      // Usage-based billing (Metered per second)
       if (billing_rate > 0) {
-        const productUsage = await stripe.products.create({ name: `Consommation Appels (Secondes) - ${company_name}` })
+        const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${company_name}` })
         const priceUsage = await stripe.prices.create({
           product: productUsage.id,
           currency: 'eur',
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
         billing_rate_per_min: billing_rate || 0,
         monthly_retainer: monthly_retainer || 0,
         email: email,
-        status: 'En attente',
+        status: 'Pending',
         stripe_customer_id: stripeCustomerId,
         stripe_subscription_id: stripeSubscriptionId
       })

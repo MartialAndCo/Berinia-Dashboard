@@ -38,7 +38,7 @@ export default function AdminDashboard() {
     if (clientsData) {
       setClients(clientsData)
       
-      const activeClients = clientsData.filter(c => c.status === 'Actif')
+      const activeClients = clientsData.filter(c => c.status === 'Actif' || c.status === 'Active')
       const totalMRR = activeClients.reduce((acc, c) => acc + Number(c.monthly_retainer), 0)
       
       let totalUsageRevenue = 0
@@ -276,7 +276,7 @@ export default function AdminDashboard() {
                           ? 'bg-[#eef7ee] text-[#2e6930] border border-[#d2ead2]' 
                           : 'bg-[#faf4e6] text-[#8a6519] border border-[#eeddb8]'
                       }`}>
-                        {client.status === 'Actif' ? 'Active' : (client.status || 'Active')}
+                        {client.status === 'Actif' || client.status === 'Active' ? 'Active' : (client.status === 'En attente' ? 'Pending' : (client.status || 'Active'))}
                       </span>
                     </TableCell>
                     <TableCell className="text-[#55524d]">{client.billing_rate_per_min} €</TableCell>

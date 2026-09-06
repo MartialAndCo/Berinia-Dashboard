@@ -18,9 +18,9 @@ type TimeRange = '24h' | '7d' | '30d' | 'all'
 
 const timeRanges: { key: TimeRange; label: string }[] = [
   { key: '24h', label: '24h' },
-  { key: '7d', label: '7 jours' },
-  { key: '30d', label: '1 mois' },
-  { key: 'all', label: 'All time' },
+  { key: '7d', label: '7 Days' },
+  { key: '30d', label: '30 Days' },
+  { key: 'all', label: 'All Time' },
 ]
 
 export default function ClientDashboard() {
@@ -311,7 +311,7 @@ export default function ClientDashboard() {
             <button 
               onClick={() => setShowPaymentModal(false)}
               className="absolute top-4 right-4 p-1.5 text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5] rounded-sm transition-colors"
-              aria-label="Fermer"
+              aria-label="Close"
             >
               <X className="h-4 w-4" />
             </button>
@@ -325,37 +325,37 @@ export default function ClientDashboard() {
                   </div>
                 </div>
                 <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-                  <span>•</span> ACTIVATION DU COMPTE
+                  <span>•</span> ACCOUNT ACTIVATION
                 </div>
                 <h2 className="font-serif text-2xl font-bold tracking-tight text-[#1a1918]">
-                  Ajoutez votre moyen de paiement
+                  Add your payment method
                 </h2>
                 <p className="text-sm text-[#73706b] leading-relaxed">
-                  Pour activer vos agents vocaux IA et débloquer les appels en direct, veuillez renseigner une carte bancaire.
+                  To activate your AI voice agents and enable live calling, please add a payment card.
                 </p>
               </div>
 
               {/* Plan info box */}
               <div className="bg-[#faf8f5] border border-[#e6e2d6] rounded-sm p-4 space-y-2 text-xs">
                 <div className="flex justify-between items-center text-[#73706b]">
-                  <span className="uppercase tracking-wider text-[10px] font-semibold">Entreprise</span>
+                  <span className="uppercase tracking-wider text-[10px] font-semibold">Company</span>
                   <span className="font-semibold text-[#1a1918]">{clientInfo?.company_name}</span>
                 </div>
                 {clientInfo?.billing_rate_per_min > 0 && (
                   <div className="flex justify-between items-center text-[#73706b]">
-                    <span className="uppercase tracking-wider text-[10px] font-semibold">Tarif à la minute</span>
+                    <span className="uppercase tracking-wider text-[10px] font-semibold">Rate per minute</span>
                     <span className="font-mono font-medium text-[#1a1918]">{clientInfo.billing_rate_per_min} € / min</span>
                   </div>
                 )}
                 {clientInfo?.monthly_retainer > 0 && (
                   <div className="flex justify-between items-center text-[#73706b]">
-                    <span className="uppercase tracking-wider text-[10px] font-semibold">Forfait mensuel</span>
-                    <span className="font-mono font-medium text-[#1a1918]">{clientInfo.monthly_retainer} € / mois</span>
+                    <span className="uppercase tracking-wider text-[10px] font-semibold">Monthly retainer</span>
+                    <span className="font-mono font-medium text-[#1a1918]">{clientInfo.monthly_retainer} € / mo</span>
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 text-[11px] text-[#73706b] pt-1.5 border-t border-[#e6e2d6]">
                   <ShieldCheck className="h-3.5 w-3.5 text-[#2e6b34] shrink-0" />
-                  <span>Paiement sécurisé via Stripe. Facturation automatique au prorata.</span>
+                  <span>Secure payment powered by Stripe. Automatic prorated billing.</span>
                 </div>
               </div>
 
@@ -365,7 +365,7 @@ export default function ClientDashboard() {
                   <a href={paymentStatus.payUrl} className="block w-full">
                     <Button className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-12 text-xs font-semibold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-none">
                       <CreditCard className="h-4 w-4" />
-                      Renseigner ma carte maintenant <span className="text-[#9e4733] text-[16px] leading-none">•</span>
+                      Add card now <span className="text-[#9e4733] text-[16px] leading-none">•</span>
                     </Button>
                   </a>
                 ) : (
@@ -374,7 +374,7 @@ export default function ClientDashboard() {
                     className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-12 text-xs font-semibold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-none"
                   >
                     <CreditCard className="h-4 w-4" />
-                    Renseigner ma carte maintenant <span className="text-[#9e4733] text-[16px] leading-none">•</span>
+                    Add card now <span className="text-[#9e4733] text-[16px] leading-none">•</span>
                   </Button>
                 )}
 
@@ -382,7 +382,7 @@ export default function ClientDashboard() {
                   onClick={() => setShowPaymentModal(false)}
                   className="w-full py-2 text-xs text-[#73706b] hover:text-[#1a1918] transition-colors underline-offset-4 hover:underline uppercase tracking-wider font-medium text-center"
                 >
-                  Je le ferai plus tard
+                  I&apos;ll do this later
                 </button>
               </div>
             </div>

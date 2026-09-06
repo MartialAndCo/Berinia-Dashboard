@@ -80,21 +80,21 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   const handleRecalculatePastCalls = async () => {
     const rateNum = parseFloat(billingRate)
     if (isNaN(rateNum) || rateNum < 0) {
-      toast.error("Veuillez saisir un tarif valide.")
+      toast.error("Please enter a valid rate.")
       return
     }
 
-    if (!confirm(`Voulez-vous recalculer le coût de tous les appels passés de "${companyName || 'ce client'}" avec le tarif de ${rateNum} €/min ?\n\nCette action mettra à jour l'historique des coûts pour ce client.`)) {
+    if (!confirm(`Do you want to recalculate the cost of all past calls for "${companyName || 'this client'}" with the rate of ${rateNum} €/min?\n\nThis action will update past call costs for this client.`)) {
       return
     }
 
-    const toastId = toast.loading("Recalcul des coûts passés en cours...")
+    const toastId = toast.loading("Recalculating past calls cost...")
     const res = await recalculateClientCallsCostAction(clientId, rateNum)
     if (res.success) {
-      toast.success(`${res.count ?? 0} appel(s) recalculé(s) avec succès !`, { id: toastId })
+      toast.success(`${res.count ?? 0} call(s) recalculated successfully!`, { id: toastId })
       fetchData()
     } else {
-      toast.error("Erreur : " + res.error, { id: toastId })
+      toast.error("Error: " + res.error, { id: toastId })
     }
   }
 
@@ -222,10 +222,10 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                   onClick={handleRecalculatePastCalls}
                   className="w-full border-[#e6e2d6] bg-[#faf9f7] hover:bg-[#f0ece4] text-[#1a1918] rounded-sm text-xs font-semibold tracking-wider uppercase h-10"
                 >
-                  <RefreshCw className="w-4 h-4 mr-2 text-[#9e4733]" /> Recalculer les appels passés
+                  <RefreshCw className="w-4 h-4 mr-2 text-[#9e4733]" /> Recalculate past calls
                 </Button>
                 <p className="text-[11px] text-[#73706b] mt-1.5 text-center">
-                  Applique ce tarif ({billingRate || 0} €/min) à l'historique de tous les appels passés de ce client.
+                  Applies this rate ({billingRate || 0} €/min) to all past calls history for this client.
                 </p>
               </div>
             </CardContent>
@@ -310,13 +310,13 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            title="Resynchroniser le webhook Retell AI"
+                            title="Resync Retell AI webhook"
                             className="hover:bg-[#f6f4f0] text-[#73706b] hover:text-[#1a1918] h-8 w-8 p-0" 
                             onClick={async () => {
-                              const toastId = toast.loading("Configuration du webhook Retell...")
+                              const toastId = toast.loading("Configuring Retell webhook...")
                               const res = await syncRetellAgentWebhookAction(a.retell_agent_id)
-                              if (res.success) toast.success("Webhook Retell configuré avec succès !", { id: toastId })
-                              else toast.error("Erreur: " + res.error, { id: toastId })
+                              if (res.success) toast.success("Retell webhook configured successfully!", { id: toastId })
+                              else toast.error("Error: " + res.error, { id: toastId })
                             }}
                           >
                             <RefreshCw className="w-3.5 h-3.5" />

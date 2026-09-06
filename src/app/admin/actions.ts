@@ -173,7 +173,7 @@ export async function syncRetellAgentWebhookAction(retellAgentId: string) {
   try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
 
   const retellApiKey = process.env.RETELL_API_KEY
-  if (!retellApiKey) return { success: false, error: 'Clé Retell non configurée' }
+  if (!retellApiKey) return { success: false, error: 'Retell API key not configured' }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.berinagents.com'
   const webhookUrl = `${siteUrl}/api/webhooks/retell`
@@ -190,7 +190,7 @@ export async function syncRetellAgentWebhookAction(retellAgentId: string) {
 
     if (!res.ok) {
       const errorBody = await res.text()
-      return { success: false, error: `Erreur Retell (${res.status}): ${errorBody}` }
+      return { success: false, error: `Retell API error (${res.status}): ${errorBody}` }
     }
 
     return { success: true }
@@ -203,7 +203,7 @@ export async function getRetellAgentsAction() {
   try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
 
   const retellApiKey = process.env.RETELL_API_KEY
-  if (!retellApiKey) return { success: false, error: 'Clé Retell non configurée' }
+  if (!retellApiKey) return { success: false, error: 'Retell API key not configured' }
   
   try {
     const res = await fetch('https://api.retellai.com/list-agents', {
@@ -212,7 +212,7 @@ export async function getRetellAgentsAction() {
       }
     })
     if (!res.ok) {
-      return { success: false, error: 'Erreur API Retell' }
+      return { success: false, error: 'Retell API error' }
     }
     const data = await res.json()
     let agents = Array.isArray(data) ? data : (data.agents || data)

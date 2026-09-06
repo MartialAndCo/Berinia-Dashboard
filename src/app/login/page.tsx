@@ -34,7 +34,7 @@ export default function LoginPage() {
       }
 
       if (!data?.session) {
-        setError('Impossible d\'ouvrir une session. Veuillez vérifier vos identifiants.')
+        setError('Unable to establish session. Please verify your credentials.')
         setLoading(false)
         return
       }
@@ -59,7 +59,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error('Login error:', err)
-      setError(err?.message || 'Une erreur inattendue est survenue.')
+      setError(err?.message || 'An unexpected error occurred.')
       setLoading(false)
     }
   }
