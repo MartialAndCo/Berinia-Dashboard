@@ -16,9 +16,6 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
     fullName: '',
     phone: '',
     email: '',
-    businessType: 'Home Services (HVAC, Plumbing, Roofing, etc.)',
-    callVolume: '10 - 50 calls / day',
-    notes: '',
   })
 
   if (!isOpen) return null
@@ -27,11 +24,11 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
     e.preventDefault()
     setLoading(true)
 
-    // Simulate submission (can easily be connected to an API or webhook)
+    // Simulate submission
     setTimeout(() => {
       setLoading(false)
       setSubmitted(true)
-    }, 700)
+    }, 600)
   }
 
   const handleReset = () => {
@@ -41,17 +38,14 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
       fullName: '',
       phone: '',
       email: '',
-      businessType: 'Home Services (HVAC, Plumbing, Roofing, etc.)',
-      callVolume: '10 - 50 calls / day',
-      notes: '',
     })
     onClose()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
-        className="relative w-full max-w-lg bg-[#ffffff] border border-[#e6e2d6] rounded-sm shadow-[0_20px_60px_rgba(0,0,0,0.15)] overflow-hidden"
+        className="relative w-full max-w-md bg-[#ffffff] border border-[#e6e2d6] rounded-sm shadow-[0_20px_60px_rgba(0,0,0,0.15)] overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -71,15 +65,15 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
             <h3 className="font-serif text-2xl font-bold text-[#1a1918]">
               Demo Request Received!
             </h3>
-            <p className="text-sm text-[#66635e] max-w-sm mx-auto leading-relaxed">
-              Thanks <span className="font-semibold text-[#1a1918]">{formData.fullName}</span>! We will prepare a live sample agent for <span className="font-semibold text-[#1a1918]">{formData.businessName}</span> and call you at <span className="font-semibold text-[#1a1918]">{formData.phone}</span> within 1 business day.
+            <p className="text-sm text-[#66635e] max-w-xs mx-auto leading-relaxed">
+              Thanks <span className="font-semibold text-[#1a1918]">{formData.fullName}</span>! We will prepare a live sample agent for <span className="font-semibold text-[#1a1918]">{formData.businessName}</span> and call you at <span className="font-semibold text-[#1a1918]">{formData.phone}</span>.
             </p>
-            <div className="pt-4">
+            <div className="pt-2">
               <button
                 onClick={handleReset}
                 className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] text-xs font-semibold tracking-wider uppercase px-6 py-3 rounded-sm transition-all cursor-pointer"
               >
-                Done
+                Close
               </button>
             </div>
           </div>
@@ -87,123 +81,70 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
           <div className="p-6 sm:p-8 space-y-5">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-                <span>•</span> See It Work For Your Business
+                <span>•</span> Quick 30-Second Request
               </div>
               <h3 className="font-serif text-2xl font-bold text-[#1a1918]">
                 Request a Free Live Demo
               </h3>
               <p className="text-xs text-[#73706b]">
-                Fill out the quick form below. We will show you how an agent handles your calls and books appointments in real time.
+                Enter your details below to hear how an agent sounds answering calls for your business.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3.5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Business Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.businessName}
-                    onChange={e => setFormData({ ...formData, businessName: e.target.value })}
-                    placeholder="e.g. Apex Heating & Air"
-                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Your Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.fullName}
-                    onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-                    placeholder="e.g. John Miller"
-                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Phone Number (To Call You) *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="(555) 000-0000"
-                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Work Email *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="john@apexheating.com"
-                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Industry / Business Type
-                  </label>
-                  <select
-                    value={formData.businessType}
-                    onChange={e => setFormData({ ...formData, businessType: e.target.value })}
-                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
-                  >
-                    <option>Home Services (HVAC, Plumbing, Roofing, etc.)</option>
-                    <option>Dental &amp; Healthcare Clinics</option>
-                    <option>Real Estate &amp; Property Management</option>
-                    <option>Legal &amp; Professional Services</option>
-                    <option>Auto Repair &amp; Dealerships</option>
-                    <option>Other Business</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Daily Call Volume
-                  </label>
-                  <select
-                    value={formData.callVolume}
-                    onChange={e => setFormData({ ...formData, callVolume: e.target.value })}
-                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
-                  >
-                    <option>Under 10 calls / day</option>
-                    <option>10 - 50 calls / day</option>
-                    <option>50 - 150 calls / day</option>
-                    <option>150+ calls / day</option>
-                  </select>
-                </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
+                  Business Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.businessName}
+                  onChange={e => setFormData({ ...formData, businessName: e.target.value })}
+                  placeholder="e.g. Apex Heating & Air"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
+                />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                  Biggest Phone Frustration (Optional)
+                  Your Name *
                 </label>
-                <textarea
-                  rows={2}
-                  value={formData.notes}
-                  onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="e.g. Missing calls while on job sites, or losing after-hours leads to competitors..."
-                  className="w-full text-xs px-3 py-2 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none resize-none"
+                <input
+                  type="text"
+                  required
+                  value={formData.fullName}
+                  onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+                  placeholder="e.g. John Miller"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
+                  Phone Number (To Call You) *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={formData.phone}
+                  onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="(555) 000-0000"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={e => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="john@apexheating.com"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
                 />
               </div>
 
@@ -211,7 +152,7 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] text-xs font-semibold tracking-wider uppercase py-3.5 rounded-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] text-xs font-semibold tracking-wider uppercase py-3.5 rounded-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-sm"
                 >
                   {loading ? (
                     'Sending Request...'
@@ -225,8 +166,8 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
               </div>
 
               <div className="text-center">
-                <p className="text-[11px] text-[#8c8880]">
-                  Zero obligation &middot; No credit card required &middot; 100% confidential
+                <p className="text-[10px] text-[#8c8880]">
+                  No credit card required &middot; 100% confidential
                 </p>
               </div>
             </form>
