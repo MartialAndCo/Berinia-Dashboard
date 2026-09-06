@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Plus, Users, DollarSign, TrendingUp, Trash2 } from 'lucide-react'
+import { Plus, Users, DollarSign, TrendingUp, Trash2, Eye } from 'lucide-react'
 import { deleteClientAction } from './actions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
@@ -288,15 +288,28 @@ export default function AdminDashboard() {
                       ${((clientCallStats[client.id]?.revenue || 0) - (clientCallStats[client.id]?.retellCost || 0)).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/admin/client/${client.id}`}>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="border-[#e2dfd8] bg-white hover:bg-[#f6f4f0] text-[#1a1918] rounded-sm text-xs font-medium shadow-none h-8 px-3"
-                        >
-                          Manage client
-                        </Button>
-                      </Link>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link href={`/dashboard?clientId=${client.id}`}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            title="View client call history and stats"
+                            className="border border-[#e2dfd8] bg-white hover:bg-[#faf8f5] text-[#1a1918] rounded-sm text-xs font-medium shadow-none h-8 px-2.5 cursor-pointer"
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1 text-[#9e4733]" />
+                            View Portal
+                          </Button>
+                        </Link>
+                        <Link href={`/admin/client/${client.id}`}>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-[#e2dfd8] bg-white hover:bg-[#f6f4f0] text-[#1a1918] rounded-sm text-xs font-medium shadow-none h-8 px-3 cursor-pointer"
+                          >
+                            Manage
+                          </Button>
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

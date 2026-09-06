@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutDashboard, Receipt, LogOut, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -81,7 +82,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Settings
           </Link>
         </nav>
-        <div className="p-4 border-t border-[#e6e2d6]">
+        <div className="p-4 border-t border-[#e6e2d6] space-y-2">
+          <SwitchAccountDropdown isAdminConsole />
           <Button 
             variant="ghost" 
             className="w-full justify-start text-[#73706b] hover:text-[#9e4733] hover:bg-[#fdf2f0] rounded-sm text-xs uppercase tracking-wider font-semibold" 

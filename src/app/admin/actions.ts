@@ -231,3 +231,51 @@ export async function getRetellAgentsAction() {
     return { success: false, error: e.message }
   }
 }
+
+export async function getClientsListAction() {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+  const { data, error } = await supabaseAdmin
+    .from('clients')
+    .select('id, company_name, email, status, billing_rate_per_min, monthly_retainer')
+    .order('company_name', { ascending: true })
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, clients: data || [] }
+}
+
+export async function getClientDashboardAction(clientId: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+  const { data: client, error: clientErr } = await supabaseAdmin
+    .from('clients')
+    .select('*')
+    .eq('id', clientId)
+    .single()
+
+  if (clientErr || !client) {
+    return { success: false, error: clientErr?.message || 'Client not found' }
+  }
+
+  const { data: calls, error: callsErr } = await supabaseAdmin
+    .from('calls')
+    .select(`*, agents(agent_name)`)
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+
+  if (callsErr) {
+    return { success: false, error: callsErr.message }
+  }
+
+  return { success: true, client, calls: calls || [] }
+}

@@ -12,6 +12,8 @@ import { Building2, KeyRound, Mail, ReceiptText } from 'lucide-react'
 export default function ClientSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [adminClientId, setAdminClientId] = useState<string | null>(null)
   
   const [clientData, setClientData] = useState<any>(null)
   const [companyName, setCompanyName] = useState('')
@@ -24,6 +26,16 @@ export default function ClientSettingsPage() {
   const fetchClient = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
+
+    if (session.user.email === 'admin@berinia.com') {
+      setIsAdmin(true)
+      if (typeof window !== 'undefined') {
+        const cId = sessionStorage.getItem('admin_selected_client_id')
+        setAdminClientId(cId)
+      }
+      setLoading(false)
+      return
+    }
 
     const { data } = await supabase
       .from('clients')
@@ -144,6 +156,53 @@ export default function ClientSettingsPage() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isAdmin) {
+    return (
+      <div className="p-8">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+            <CardHeader className="border-b border-[#e6e2d6] py-5 px-6 bg-[#faf8f5]">
+              <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-1">
+                <span>•</span> ADMIN VIEW MODE
+              </div>
+              <CardTitle className="font-serif text-2xl font-bold text-[#1a1918]">
+                Client Portal Settings Restricted
+              </CardTitle>
+              <CardDescription className="text-xs text-[#73706b]">
+                Client private credentials (passwords, emails) are restricted when viewing as Admin.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4 text-sm text-[#73706b] leading-relaxed">
+              <p>
+                In Switch Account mode, you can inspect call histories, stats, recordings, and usage costs. To manage this client&apos;s credentials, voice agent mappings, or billing rates, please use the Admin Console.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-2">
+                {adminClientId ? (
+                  <a href={`/admin/client/${adminClientId}`}>
+                    <Button className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 cursor-pointer shadow-none">
+                      Manage Client in Admin Console <span className="ml-1 text-[#9e4733]">•</span>
+                    </Button>
+                  </a>
+                ) : (
+                  <a href="/admin">
+                    <Button className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 cursor-pointer shadow-none">
+                      Go to Admin Console <span className="ml-1 text-[#9e4733]">•</span>
+                    </Button>
+                  </a>
+                )}
+                <a href={adminClientId ? `/dashboard?clientId=${adminClientId}` : '/dashboard'}>
+                  <Button variant="outline" className="border-[#e6e2d6] bg-white hover:bg-[#f6f4f0] text-[#1a1918] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 cursor-pointer shadow-none">
+                    Back to Call Intelligence
+                  </Button>
+                </a>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     )

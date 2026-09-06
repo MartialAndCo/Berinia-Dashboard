@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2, ShieldAlert, KeyRound, Save, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Trash2, ShieldAlert, KeyRound, Save, RefreshCw, Eye } from 'lucide-react'
 import { updateClientConfigAction, forceUpdateClientEmailAction, recalculateClientCallsCostAction, deleteClientAction } from './actions'
 import { addAgentAction, deleteAgentAction, getRetellAgentsAction, updateAgentWebhookAction, syncRetellAgentWebhookAction } from '../../actions'
 import { DeleteClientModal } from '@/components/DeleteClientModal'
@@ -177,12 +177,17 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             <p className="text-sm text-[#73706b]">Detailed client management & configuration</p>
           </div>
           <div className="flex gap-2">
+            <Link href={`/dashboard?clientId=${clientId}`}>
+              <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4 cursor-pointer">
+                <Eye className="h-4 w-4 mr-2 text-[#9e4733]" /> View Portal
+              </Button>
+            </Link>
             <Link href="/admin">
-              <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4">
+              <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4 cursor-pointer">
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back to Overview
               </Button>
             </Link>
-            <Button onClick={() => setShowDeleteModal(true)} variant="outline" size="sm" className="border-[#fad4cf] bg-[#fdf2f0] text-[#9e4733] hover:bg-[#fad4cf] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4">
+            <Button onClick={() => setShowDeleteModal(true)} variant="outline" size="sm" className="border-[#fad4cf] bg-[#fdf2f0] text-[#9e4733] hover:bg-[#fad4cf] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4 cursor-pointer">
               <Trash2 className="h-4 w-4 mr-2" /> Delete Client
             </Button>
           </div>

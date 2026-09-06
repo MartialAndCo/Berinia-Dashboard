@@ -3,24 +3,35 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Settings, LayoutDashboard, LogOut, Phone } from 'lucide-react'
+import { Settings, LayoutDashboard, LogOut, Shield, Sliders } from 'lucide-react'
 import Link from 'next/link'
+import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [currentClientId, setCurrentClientId] = useState<string | null>(null)
 
   useEffect(() => {
     checkAuth()
-  }, [])
+    updateCurrentClient()
+  }, [pathname])
+
+  const updateCurrentClient = () => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const cId = params.get('clientId') || sessionStorage.getItem('admin_selected_client_id')
+      setCurrentClientId(cId)
+    }
+  }
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
       router.push('/login')
-    } else {
-      
+    } else if (session.user.email === 'admin@berinia.com') {
+      setIsAdmin(true)
     }
   }
 
@@ -29,8 +40,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.href = '/login'
   }
 
-
-
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col md:flex-row bg-[#f6f4f0] text-[#1a1918]">
       {/* Sidebar: Fixed, full height, no vertical scrolling with content */}
@@ -38,18 +47,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="h-20 flex flex-col justify-center px-6 border-b border-[#e6e2d6]">
           <div className="flex items-center justify-between">
             <img src="/logo-horizontal-black.png" alt="BerinAgents" className="h-6 w-auto object-contain" />
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold tracking-widest bg-[#faf8f5] border border-[#e6e2d6] text-[#73706b] uppercase">
-              Portal
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold tracking-widest uppercase ${
+              isAdmin 
+                ? 'bg-[#1a1918] text-[#f6f4f0]' 
+                : 'bg-[#faf8f5] border border-[#e6e2d6] text-[#73706b]'
+            }`}>
+              {isAdmin ? 'Admin View' : 'Portal'}
             </span>
           </div>
           <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.18em] text-[#9e4733] uppercase mt-1">
-            <span>•</span> CLIENT
+            <span>•</span> {isAdmin ? 'CLIENT PREVIEW' : 'CLIENT'}
           </div>
         </div>
         
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
           <Link 
-            href="/dashboard" 
+            href={currentClientId ? `/dashboard?clientId=${currentClientId}` : '/dashboard'} 
             className={`flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide transition-all ${
               pathname === '/dashboard' 
                 ? 'bg-[#f0ede6] text-[#1a1918] font-semibold border-l-2 border-[#9e4733]' 
@@ -60,23 +73,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             Overview
           </Link>
           
-          <Link 
-            href="/dashboard/settings" 
-            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide transition-all ${
-              pathname === '/dashboard/settings' 
-                ? 'bg-[#f0ede6] text-[#1a1918] font-semibold border-l-2 border-[#9e4733]' 
-                : 'text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5]'
-            }`}
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </Link>
+          {isAdmin ? (
+            <>
+              <Link 
+                href="/admin" 
+                className="flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5] transition-all"
+              >
+                <Shield className="h-4 w-4 text-[#9e4733]" />
+                Admin Console
+              </Link>
+
+              {currentClientId && (
+                <Link 
+                  href={`/admin/client/${currentClientId}`} 
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5] transition-all"
+                >
+                  <Sliders className="h-4 w-4" />
+                  Client Config
+                </Link>
+              )}
+            </>
+          ) : (
+            <Link 
+              href="/dashboard/settings" 
+              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide transition-all ${
+                pathname === '/dashboard/settings' 
+                  ? 'bg-[#f0ede6] text-[#1a1918] font-semibold border-l-2 border-[#9e4733]' 
+                  : 'text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5]'
+              }`}
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+          )}
         </nav>
         
-        <div className="p-4 border-t border-[#e6e2d6] mt-auto">
+        <div className="p-4 border-t border-[#e6e2d6] mt-auto space-y-2">
+          {isAdmin && (
+            <SwitchAccountDropdown currentClientId={currentClientId} />
+          )}
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs uppercase tracking-wider font-semibold text-[#73706b] hover:bg-[#fdf2f0] hover:text-[#9e4733] transition-colors w-full"
+            className="flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs uppercase tracking-wider font-semibold text-[#73706b] hover:bg-[#fdf2f0] hover:text-[#9e4733] transition-colors w-full cursor-pointer"
           >
             <LogOut className="h-4 w-4" />
             Log out

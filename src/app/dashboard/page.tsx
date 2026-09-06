@@ -1,16 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import CallPlayer from '@/components/CallPlayer'
+import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 import { ArrowUpDown, ChevronDown, ChevronRight, Search, Phone, SmilePlus, Meh, Frown, CreditCard, X, ShieldCheck, Calendar } from 'lucide-react'
 import { getSubscriptionStatusAction } from './actions'
+import { getClientDashboardAction, getClientsListAction } from '@/app/admin/actions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { toast } from 'sonner'
 
 type SortKey = 'created_at' | 'duration_secs' | 'cost'
 type SortDir = 'asc' | 'desc'
@@ -23,10 +27,11 @@ const timeRanges: { key: TimeRange; label: string }[] = [
   { key: 'all', label: 'All Time' },
 ]
 
-export default function ClientDashboard() {
+function ClientDashboardContent() {
   const [calls, setCalls] = useState<any[]>([])
   const [clientInfo, setClientInfo] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [isAdminView, setIsAdminView] = useState(false)
   const [expandedCall, setExpandedCall] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -39,18 +44,72 @@ export default function ClientDashboard() {
     cardInfo: { brand: string, last4: string } | null
   }>({ needsPaymentMethod: false, payUrl: null, cardInfo: null })
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const queryClientId = searchParams?.get('clientId')
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [queryClientId])
 
   const fetchData = async () => {
+    setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
       router.push('/login')
       return
     }
 
+    const isAdmin = session.user.email === 'admin@berinia.com'
+
+    if (isAdmin) {
+      setIsAdminView(true)
+      let targetId = queryClientId
+      if (!targetId && typeof window !== 'undefined') {
+        targetId = sessionStorage.getItem('admin_selected_client_id')
+      }
+
+      // If still no clientId, fetch client list and pick the first one
+      if (!targetId) {
+        const clientListRes = await getClientsListAction()
+        if (clientListRes.success && clientListRes.clients && clientListRes.clients.length > 0) {
+          targetId = clientListRes.clients[0].id
+        }
+      }
+
+      if (!targetId) {
+        // No clients at all in the database
+        router.push('/admin')
+        return
+      }
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('admin_selected_client_id', targetId)
+      }
+
+      if (queryClientId !== targetId) {
+        router.replace(`/dashboard?clientId=${targetId}`)
+      }
+
+      const dashRes = await getClientDashboardAction(targetId)
+      if (dashRes.success && dashRes.client) {
+        setClientInfo(dashRes.client)
+        setCalls(dashRes.calls || [])
+      } else {
+        toast.error("Unable to load client data.")
+      }
+
+      setShowPaymentModal(false)
+      setPaymentStatus({
+        needsPaymentMethod: false,
+        payUrl: null,
+        cardInfo: null
+      })
+      setLoading(false)
+      return
+    }
+
+    // Regular client flow
+    setIsAdminView(false)
     const { data: client } = await supabase
       .from('clients')
       .select('*')
@@ -228,95 +287,44 @@ export default function ClientDashboard() {
   }
 
   if (loading) {
-    return (
-      <div className="p-8 animate-pulse">
-        <div className="max-w-6xl mx-auto space-y-8">
-          {/* Header Skeleton */}
-          <div className="space-y-2">
-            <div className="h-3 w-28 bg-[#e6e2d6] rounded-sm" />
-            <div className="h-8 w-64 bg-[#dfdbd2] rounded-sm" />
-            <div className="h-4 w-80 bg-[#eae7df] rounded-sm" />
-          </div>
-
-          {/* Plan / Payment banner skeleton */}
-          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-            <div className="flex justify-between items-center pb-3 border-b border-[#f0ece4]">
-              <div className="h-3 w-24 bg-[#e6e2d6] rounded-sm" />
-              <div className="h-4 w-32 bg-[#dfdbd2] rounded-sm" />
-            </div>
-            <div className="flex justify-between items-center pt-1">
-              <div className="space-y-1.5">
-                <div className="h-2.5 w-28 bg-[#e6e2d6] rounded-sm" />
-                <div className="h-4 w-48 bg-[#eae7df] rounded-sm" />
-              </div>
-              <div className="h-9 w-28 bg-[#e6e2d6] rounded-sm" />
-            </div>
-          </div>
-
-          {/* Chart Skeleton */}
-          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-            <div className="flex justify-between items-center">
-              <div className="space-y-1.5">
-                <div className="h-2.5 w-24 bg-[#e6e2d6] rounded-sm" />
-                <div className="h-5 w-40 bg-[#dfdbd2] rounded-sm" />
-              </div>
-              <div className="flex gap-2">
-                <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
-                <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
-                <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
-              </div>
-            </div>
-            <div className="h-56 w-full bg-[#f6f4f0]/80 rounded-sm flex items-end justify-between px-6 py-4 gap-2">
-              {[35, 60, 25, 75, 45, 65, 40, 85, 55, 70, 50, 80].map((h, i) => (
-                <div key={i} className="flex-1 bg-[#e6e2d6] rounded-t-sm" style={{ height: `${h}%` }} />
-              ))}
-            </div>
-          </div>
-
-          {/* 3 KPI Cards Skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-3 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-                <div className="flex justify-between items-center">
-                  <div className="h-2.5 w-24 bg-[#e6e2d6] rounded-sm" />
-                  <div className="h-4 w-4 bg-[#e6e2d6] rounded-sm" />
-                </div>
-                <div className="h-8 w-28 bg-[#dfdbd2] rounded-sm" />
-                <div className="h-3 w-36 bg-[#eae7df] rounded-sm" />
-              </div>
-            ))}
-          </div>
-
-          {/* Table Skeleton */}
-          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
-            <div className="p-6 border-b border-[#f0ece4] flex justify-between items-center">
-              <div className="space-y-1.5">
-                <div className="h-2.5 w-20 bg-[#e6e2d6] rounded-sm" />
-                <div className="h-5 w-36 bg-[#dfdbd2] rounded-sm" />
-              </div>
-              <div className="h-9 w-64 bg-[#eae7df] rounded-sm" />
-            </div>
-            <div className="p-6 space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-[#f6f4f0]">
-                  <div className="h-4 w-28 bg-[#e6e2d6] rounded-sm" />
-                  <div className="h-4 w-20 bg-[#eae7df] rounded-sm" />
-                  <div className="h-4 w-16 bg-[#e6e2d6] rounded-sm" />
-                  <div className="h-4 w-16 bg-[#dfdbd2] rounded-sm" />
-                  <div className="h-6 w-16 bg-[#eae7df] rounded-sm" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
 
   return (
-    <div className="p-8">
-      {/* Payment Method Required Popup Modal */}
-      {showPaymentModal && (paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo) && (
+    <div>
+      {/* Top Admin Impersonation/Switch Notification Banner */}
+      {isAdminView && (
+        <div className="bg-[#1a1918] text-[#f6f4f0] px-6 py-3 border-b border-[#33302a] flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30 shadow-md">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold tracking-widest bg-[#9e4733] text-white uppercase">
+              Admin View
+            </span>
+            <span className="text-xs text-[#d1ccc0]">
+              Viewing client: <strong className="text-white font-semibold">{clientInfo?.company_name || 'Loading...'}</strong>
+            </span>
+            <span className="hidden md:inline text-[#73706b] text-xs">•</span>
+            <span className="hidden md:inline text-xs text-[#a09c93]">
+              Read-only call records, cost & intelligence
+            </span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <SwitchAccountDropdown currentClientId={clientInfo?.id} inBanner />
+            <Link href="/admin">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-[#47433c] bg-[#2d2a26] hover:bg-[#3d3934] text-[#f6f4f0] text-xs uppercase tracking-wider h-8 px-3 rounded-sm shadow-none cursor-pointer"
+              >
+                Exit to Admin Console →
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <div className="p-8">
+        {/* Payment Method Required Popup Modal */}
+        {!isAdminView && showPaymentModal && (paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1a1918]/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-[500px] bg-[#ffffff] border border-[#e6e2d6] rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden">
             {/* Close button */}
@@ -436,7 +444,38 @@ export default function ClientDashboard() {
         </div>
 
         {/* Billing Banners */}
-        {paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo ? (
+        {isAdminView ? (
+          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] text-[#1a1918] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-[#f0ece4] bg-[#faf8f5]">
+              <div className="text-[11px] font-semibold tracking-widest text-[#73706b] uppercase flex items-center gap-1.5">
+                <span className="text-[#9e4733]">•</span> CLIENT PLAN CONFIGURATION
+              </div>
+              <div className="text-sm">
+                <span className="font-bold font-serif text-base text-[#1a1918]">${clientInfo?.billing_rate_per_min}</span>
+                <span className="text-xs text-[#73706b] ml-1">per minute</span>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-4">
+              <div>
+                <div className="text-[11px] font-semibold tracking-widest text-[#73706b] uppercase mb-1">
+                  RETAINER & BILLING
+                </div>
+                <div className="text-xs text-[#73706b]">
+                  Monthly Retainer: <strong className="text-[#1a1918] font-mono">${clientInfo?.monthly_retainer || 0} / mo</strong> · Status: <span className="font-medium text-[#2e6b34] capitalize">{clientInfo?.status || 'Active'}</span>
+                </div>
+              </div>
+              <div>
+                {clientInfo?.id && (
+                  <Link href={`/admin/client/${clientInfo.id}`}>
+                    <Button className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase px-4 h-9 shadow-none cursor-pointer">
+                      Manage Pricing & Agents <span className="ml-1 text-[#9e4733]">•</span>
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo ? (
           <Card className="border border-[#fad4cf] bg-[#fdf2f0] shadow-[0_4px_24px_rgba(0,0,0,0.02)] rounded-sm">
             <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 gap-4">
               <div>
@@ -712,5 +751,100 @@ export default function ClientDashboard() {
 
       </div>
     </div>
+  </div>
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="p-8 animate-pulse">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header Skeleton */}
+        <div className="space-y-2">
+          <div className="h-3 w-28 bg-[#e6e2d6] rounded-sm" />
+          <div className="h-8 w-64 bg-[#dfdbd2] rounded-sm" />
+          <div className="h-4 w-80 bg-[#eae7df] rounded-sm" />
+        </div>
+
+        {/* Plan / Payment banner skeleton */}
+        <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <div className="flex justify-between items-center pb-3 border-b border-[#f0ece4]">
+            <div className="h-3 w-24 bg-[#e6e2d6] rounded-sm" />
+            <div className="h-4 w-32 bg-[#dfdbd2] rounded-sm" />
+          </div>
+          <div className="flex justify-between items-center pt-1">
+            <div className="space-y-1.5">
+              <div className="h-2.5 w-28 bg-[#e6e2d6] rounded-sm" />
+              <div className="h-4 w-48 bg-[#eae7df] rounded-sm" />
+            </div>
+            <div className="h-9 w-28 bg-[#e6e2d6] rounded-sm" />
+          </div>
+        </div>
+
+        {/* Chart Skeleton */}
+        <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <div className="flex justify-between items-center">
+            <div className="space-y-1.5">
+              <div className="h-2.5 w-24 bg-[#e6e2d6] rounded-sm" />
+              <div className="h-5 w-40 bg-[#dfdbd2] rounded-sm" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
+              <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
+              <div className="h-8 w-16 bg-[#eae7df] rounded-sm" />
+            </div>
+          </div>
+          <div className="h-56 w-full bg-[#f6f4f0]/80 rounded-sm flex items-end justify-between px-6 py-4 gap-2">
+            {[35, 60, 25, 75, 45, 65, 40, 85, 55, 70, 50, 80].map((h, i) => (
+              <div key={i} className="flex-1 bg-[#e6e2d6] rounded-t-sm" style={{ height: `${h}%` }} />
+            ))}
+          </div>
+        </div>
+
+        {/* 3 KPI Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-3 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+              <div className="flex justify-between items-center">
+                <div className="h-2.5 w-24 bg-[#e6e2d6] rounded-sm" />
+                <div className="h-4 w-4 bg-[#e6e2d6] rounded-sm" />
+              </div>
+              <div className="h-8 w-28 bg-[#dfdbd2] rounded-sm" />
+              <div className="h-3 w-36 bg-[#eae7df] rounded-sm" />
+            </div>
+          ))}
+        </div>
+
+        {/* Table Skeleton */}
+        <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+          <div className="p-6 border-b border-[#f0ece4] flex justify-between items-center">
+            <div className="space-y-1.5">
+              <div className="h-2.5 w-20 bg-[#e6e2d6] rounded-sm" />
+              <div className="h-5 w-36 bg-[#dfdbd2] rounded-sm" />
+            </div>
+            <div className="h-9 w-64 bg-[#eae7df] rounded-sm" />
+          </div>
+          <div className="p-6 space-y-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b border-[#f6f4f0]">
+                <div className="h-4 w-28 bg-[#e6e2d6] rounded-sm" />
+                <div className="h-4 w-20 bg-[#eae7df] rounded-sm" />
+                <div className="h-4 w-16 bg-[#e6e2d6] rounded-sm" />
+                <div className="h-4 w-16 bg-[#dfdbd2] rounded-sm" />
+                <div className="h-6 w-16 bg-[#eae7df] rounded-sm" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ClientDashboard() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <ClientDashboardContent />
+    </Suspense>
   )
 }
