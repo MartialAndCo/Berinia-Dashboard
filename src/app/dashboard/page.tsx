@@ -8,12 +8,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import CallPlayer from '@/components/CallPlayer'
-import { ArrowUpDown, ChevronDown, ChevronRight, Search, Phone, SmilePlus, Meh, Frown, CreditCard, X, ShieldCheck } from 'lucide-react'
+import { ArrowUpDown, ChevronDown, ChevronRight, Search, Phone, SmilePlus, Meh, Frown, CreditCard, X, ShieldCheck, Calendar } from 'lucide-react'
 import { getSubscriptionStatusAction } from './actions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 type SortKey = 'created_at' | 'duration_secs' | 'cost'
 type SortDir = 'asc' | 'desc'
+type TimeRange = '24h' | '7d' | '30d' | 'all'
+
+const timeRanges: { key: TimeRange; label: string }[] = [
+  { key: '24h', label: '24h' },
+  { key: '7d', label: '7 jours' },
+  { key: '30d', label: '1 mois' },
+  { key: 'all', label: 'All time' },
+]
 
 export default function ClientDashboard() {
   const [calls, setCalls] = useState<any[]>([])
@@ -23,6 +31,7 @@ export default function ClientDashboard() {
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [searchQuery, setSearchQuery] = useState('')
+  const [timeRange, setTimeRange] = useState<TimeRange>('all')
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<{
     needsPaymentMethod: boolean, 
@@ -104,8 +113,23 @@ export default function ClientDashboard() {
     }
   }
 
+  // Filter calls by selected time period
+  const callsInPeriod = calls.filter(call => {
+    if (timeRange === 'all') return true
+    if (!call.created_at) return false
+    const callTime = new Date(call.created_at).getTime()
+    if (isNaN(callTime)) return true
+    const now = Date.now()
+    const diff = now - callTime
+
+    if (timeRange === '24h') return diff <= 24 * 60 * 60 * 1000 && diff >= -120000
+    if (timeRange === '7d') return diff <= 7 * 24 * 60 * 60 * 1000 && diff >= -120000
+    if (timeRange === '30d') return diff <= 30 * 24 * 60 * 60 * 1000 && diff >= -120000
+    return true
+  })
+
   // Filter + sort
-  const filteredCalls = calls
+  const filteredCalls = callsInPeriod
     .filter(call => {
       if (!searchQuery) return true
       const q = searchQuery.toLowerCase()
@@ -123,25 +147,41 @@ export default function ClientDashboard() {
       return valA < valB ? 1 : -1
     })
 
-  const totalCost = calls.reduce((acc, call) => acc + Number(call.cost), 0)
-  const totalSeconds = calls.reduce((acc, call) => acc + call.duration_secs, 0)
+  const totalCost = callsInPeriod.reduce((acc, call) => acc + Number(call.cost || 0), 0)
+  const totalSeconds = callsInPeriod.reduce((acc, call) => acc + (call.duration_secs || 0), 0)
   const totalMinutes = totalSeconds / 60
-  const avgDurationMinutes = calls.length > 0 ? (totalMinutes / calls.length).toFixed(1) : '0.0'
+  const avgDurationMinutes = callsInPeriod.length > 0 ? (totalMinutes / callsInPeriod.length).toFixed(1) : '0.0'
 
-  // Chart data
-  const callsByDate = calls.reduce((acc: Record<string, number>, call) => {
-    if (call.created_at) {
-      const date = new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      acc[date] = (acc[date] || 0) + 1
+  // Chart data sorted chronologically
+  const chartMap: Record<string, { label: string; timestamp: number; calls: number }> = {}
+  callsInPeriod.forEach(call => {
+    if (!call.created_at) return
+    const d = new Date(call.created_at)
+    if (isNaN(d.getTime())) return
+
+    let key: string
+    let label: string
+    if (timeRange === '24h') {
+      const hourStr = d.getHours().toString().padStart(2, '0') + ':00'
+      key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`
+      label = hourStr
+    } else {
+      key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+      label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }
-    return acc
-  }, {})
-  const chartData = Object.entries(callsByDate)
-    .map(([date, count]) => ({ date, calls: count }))
-    .reverse() // Reverse to get chronological order if calls are descending
+
+    if (!chartMap[key]) {
+      chartMap[key] = { label, timestamp: d.getTime(), calls: 0 }
+    }
+    chartMap[key].calls += 1
+  })
+
+  const chartData = Object.values(chartMap)
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map(item => ({ date: item.label, calls: item.calls }))
 
   // Sentiment stats
-  const sentimentCounts = calls.reduce((acc, call) => {
+  const sentimentCounts = callsInPeriod.reduce((acc, call) => {
     const s = call.user_sentiment?.toLowerCase()
     if (s === 'positive') acc.positive++
     else if (s === 'negative') acc.negative++
@@ -352,13 +392,34 @@ export default function ClientDashboard() {
 
       <div className="max-w-6xl mx-auto space-y-8">
         
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-1">
               <span>•</span> CLIENT PORTAL
             </div>
             <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">Welcome, {clientInfo?.company_name}</h1>
             <p className="text-sm text-[#73706b]">Your voice AI assistant performance & call intelligence</p>
+          </div>
+
+          {/* Time range selector */}
+          <div className="inline-flex items-center gap-1 bg-[#ffffff] border border-[#e6e2d6] rounded-sm p-1 shadow-[0_2px_8px_rgba(0,0,0,0.02)] self-start sm:self-auto">
+            <div className="pl-2 pr-1 text-[#73706b]">
+              <Calendar className="h-3.5 w-3.5" />
+            </div>
+            {timeRanges.map(t => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTimeRange(t.key)}
+                className={`px-3 py-1.5 text-xs font-semibold tracking-wider rounded-sm transition-all ${
+                  timeRange === t.key
+                    ? 'bg-[#1a1918] text-[#f6f4f0] shadow-sm'
+                    : 'text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5]'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -433,7 +494,9 @@ export default function ClientDashboard() {
               <span>•</span> CALL ACTIVITY
             </div>
             <CardTitle className="font-serif text-xl font-bold text-[#1a1918]">Call Volume Trends</CardTitle>
-            <CardDescription className="text-xs text-[#73706b]">Daily inbound and outbound call distributions</CardDescription>
+            <CardDescription className="text-xs text-[#73706b]">
+              Call activity distribution ({timeRanges.find(t => t.key === timeRange)?.label})
+            </CardDescription>
           </CardHeader>
           <CardContent className="h-[260px] pt-6">
             {chartData.length > 0 ? (
@@ -457,7 +520,7 @@ export default function ClientDashboard() {
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-[#73706b] text-xs">
-                Not enough call data to display trend chart.
+                Not enough call data to display trend chart for this period.
               </div>
             )}
           </CardContent>
@@ -468,7 +531,7 @@ export default function ClientDashboard() {
           <div className="p-6 space-y-1.5">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Calls</div>
             <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1918]">
-              {calls.length}
+              {callsInPeriod.length}
             </div>
             <p className="text-xs text-[#73706b]">completed calls</p>
           </div>
@@ -498,7 +561,9 @@ export default function ClientDashboard() {
         {/* Customer Sentiment Bar */}
         <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
           <CardContent className="py-3.5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Customer Sentiment Breakdown</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">
+              Customer Sentiment Breakdown <span className="text-[#9e4733] font-normal">• {timeRanges.find(t => t.key === timeRange)?.label}</span>
+            </div>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-[#2e6b34] bg-[#eef7ee] px-2.5 py-1 rounded-sm border border-[#d2ead4]">
                 <SmilePlus className="h-3.5 w-3.5" /> Positive: <span className="font-serif font-bold text-sm ml-0.5">{sentimentCounts.positive}</span>
@@ -620,7 +685,11 @@ export default function ClientDashboard() {
                 {filteredCalls.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-[#73706b] py-12 text-sm">
-                      {searchQuery ? 'No calls match your search criteria.' : 'No calls recorded yet.'}
+                      {searchQuery
+                        ? 'No calls match your search criteria.'
+                        : timeRange !== 'all'
+                        ? `No calls recorded for this period (${timeRanges.find(t => t.key === timeRange)?.label}).`
+                        : 'No calls recorded yet.'}
                     </TableCell>
                   </TableRow>
                 )}
