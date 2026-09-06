@@ -60,7 +60,16 @@ export default function ClientDashboard() {
     if (client) {
       setClientInfo(client)
       
-      if (client.stripe_subscription_id) {
+      const isDemo = client.status === 'Demo' || client.email === 'account@test.com'
+
+      if (isDemo) {
+        setPaymentStatus({
+          needsPaymentMethod: false,
+          payUrl: null,
+          cardInfo: { brand: 'visa', last4: '4242' }
+        })
+        setShowPaymentModal(false)
+      } else if (client.stripe_subscription_id) {
         const pStatus = await getSubscriptionStatusAction(client.stripe_subscription_id)
         setPaymentStatus(pStatus as any)
         if (pStatus?.needsPaymentMethod || !pStatus?.cardInfo) {
@@ -88,6 +97,9 @@ export default function ClientDashboard() {
   }
 
   const handleBillingPortal = async () => {
+    if (clientInfo?.status === 'Demo' || clientInfo?.email === 'account@test.com') {
+      return
+    }
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -98,8 +110,8 @@ export default function ClientDashboard() {
       if (data.url) {
         window.location.href = data.url
       }
-    } catch (err) {
-      console.error(err)
+    } catch (e) {
+      console.error(e)
     }
   }
 
