@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Settings, LayoutDashboard, LogOut, Shield, Sliders } from 'lucide-react'
+import { Settings, LayoutDashboard, LogOut } from 'lucide-react'
 import Link from 'next/link'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 
@@ -47,16 +47,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="h-20 flex flex-col justify-center px-6 border-b border-[#e6e2d6]">
           <div className="flex items-center justify-between">
             <img src="/logo-horizontal-black.png" alt="BerinAgents" className="h-6 w-auto object-contain" />
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold tracking-widest uppercase ${
-              isAdmin 
-                ? 'bg-[#1a1918] text-[#f6f4f0]' 
-                : 'bg-[#faf8f5] border border-[#e6e2d6] text-[#73706b]'
-            }`}>
-              {isAdmin ? 'Admin View' : 'Portal'}
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold tracking-widest bg-[#faf8f5] border border-[#e6e2d6] text-[#73706b] uppercase">
+              Portal
             </span>
           </div>
           <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.18em] text-[#9e4733] uppercase mt-1">
-            <span>•</span> {isAdmin ? 'CLIENT PREVIEW' : 'CLIENT'}
+            <span>•</span> CLIENT
           </div>
         </div>
         
@@ -73,27 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             Overview
           </Link>
           
-          {isAdmin ? (
-            <>
-              <Link 
-                href="/admin" 
-                className="flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5] transition-all"
-              >
-                <Shield className="h-4 w-4 text-[#9e4733]" />
-                Admin Console
-              </Link>
-
-              {currentClientId && (
-                <Link 
-                  href={`/admin/client/${currentClientId}`} 
-                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5] transition-all"
-                >
-                  <Sliders className="h-4 w-4" />
-                  Client Config
-                </Link>
-              )}
-            </>
-          ) : (
+          {!isAdmin && (
             <Link 
               href="/dashboard/settings" 
               className={`flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide transition-all ${

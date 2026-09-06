@@ -291,38 +291,7 @@ function ClientDashboardContent() {
   }
 
   return (
-    <div>
-      {/* Top Admin Impersonation/Switch Notification Banner */}
-      {isAdminView && (
-        <div className="bg-[#1a1918] text-[#f6f4f0] px-6 py-3 border-b border-[#33302a] flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30 shadow-md">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold tracking-widest bg-[#9e4733] text-white uppercase">
-              Admin View
-            </span>
-            <span className="text-xs text-[#d1ccc0]">
-              Viewing client: <strong className="text-white font-semibold">{clientInfo?.company_name || 'Loading...'}</strong>
-            </span>
-            <span className="hidden md:inline text-[#73706b] text-xs">•</span>
-            <span className="hidden md:inline text-xs text-[#a09c93]">
-              Read-only call records, cost & intelligence
-            </span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <SwitchAccountDropdown currentClientId={clientInfo?.id} inBanner />
-            <Link href="/admin">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="border-[#47433c] bg-[#2d2a26] hover:bg-[#3d3934] text-[#f6f4f0] text-xs uppercase tracking-wider h-8 px-3 rounded-sm shadow-none cursor-pointer"
-              >
-                Exit to Admin Console →
-              </Button>
-            </Link>
-          </div>
-        </div>
-      )}
-
-      <div className="p-8">
+    <div className="p-8">
         {/* Payment Method Required Popup Modal */}
         {!isAdminView && showPaymentModal && (paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1a1918]/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -751,7 +720,6 @@ function ClientDashboardContent() {
 
       </div>
     </div>
-  </div>
   )
 }
 
