@@ -70,13 +70,12 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // Root redirect
+  // Root route
   if (pathname === '/') {
     if (user) {
       return redirectWithCookies(user.email === 'admin@berinia.com' ? '/admin' : '/dashboard')
-    } else {
-      return redirectWithCookies('/login')
     }
+    return supabaseResponse
   }
 
   return supabaseResponse
