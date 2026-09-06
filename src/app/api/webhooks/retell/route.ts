@@ -1,32 +1,98 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
+import Stripe from 'stripe'
 
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text()
-    const signature = req.headers.get('x-retell-signature') || ''
+    const signature = req.headers.get('x-retell-signature') || req.headers.get('X-Retell-Signature') || ''
     
-    let payload;
+    let payload: any
     try {
       payload = JSON.parse(rawBody)
-    } catch(e) {
+    } catch (e) {
+      console.error('[Retell Webhook] Invalid JSON received')
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
-    // We only care about call_analyzed for billing
-    if (payload.event !== 'call_analyzed') {
-      return NextResponse.json({ received: true })
+    const event = payload?.event
+    const call = payload?.call
+    const retellAgentId = call?.agent_id || payload?.agent_id
+    const retellCallId = call?.call_id || payload?.call_id
+
+    if (!retellAgentId) {
+      console.warn('[Retell Webhook] No agent_id in payload:', { event, retellCallId })
+      return NextResponse.json({ error: 'No agent_id in payload' }, { status: 400 })
     }
 
-    const { call } = payload
+    const supabaseAdmin = getServiceSupabase()
+
+    // 1. Find the agent in our database to get forward_webhook_url and client config
+    const { data: agentData, error: agentError } = await supabaseAdmin
+      .from('agents')
+      .select('id, client_id, forward_webhook_url, clients(billing_rate_per_min, stripe_customer_id, stripe_subscription_id)')
+      .eq('retell_agent_id', retellAgentId)
+      .single()
+
+    if (agentError || !agentData) {
+      console.error('[Retell Webhook] Agent not linked to any client:', { retellAgentId, agentError })
+      return NextResponse.json({ error: 'Agent not linked to any client' }, { status: 404 })
+    }
+
+    // 2. FORWARD WEBHOOK IMMEDIATELY FOR ALL EVENTS (call_started, call_ended, call_analyzed, etc.)
+    // We forward BEFORE any event filtering so the secondary platform receives every single event in real-time.
+    let relayStatus: number | null = null
+    let relayResponse: string | null = null
+    if (agentData.forward_webhook_url) {
+      try {
+        console.log(`[Retell Webhook Relay] Relaying event "${event}" (call: ${retellCallId}) to: ${agentData.forward_webhook_url}`)
+        
+        const forwardRes = await fetch(agentData.forward_webhook_url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-retell-signature': signature,
+            'X-Retell-Signature': signature
+          },
+          body: rawBody
+        })
+
+        relayStatus = forwardRes.status
+        relayResponse = await forwardRes.text().catch(() => '')
+        console.log(`[Retell Webhook Relay] Response from ${agentData.forward_webhook_url}: ${relayStatus} - ${relayResponse.slice(0, 300)}`)
+
+        if (!forwardRes.ok) {
+          console.warn(`[Retell Webhook Relay Warning] Target returned non-2xx status: ${relayStatus}`)
+        }
+      } catch (proxyErr) {
+        console.error('[Retell Webhook Relay Error] Failed to proxy webhook:', proxyErr)
+        // We continue processing so our internal database and Retell stay healthy
+      }
+    }
+
+    // 3. For BerinAgents internal logging & billing, we only need call_ended and call_analyzed
+    if (event !== 'call_analyzed' && event !== 'call_ended') {
+      return NextResponse.json({ 
+        success: true, 
+        relayed: !!agentData.forward_webhook_url,
+        relayStatus,
+        event 
+      })
+    }
+
     if (!call) {
       return NextResponse.json({ error: 'No call data' }, { status: 400 })
     }
 
-    const retellAgentId = call.agent_id
-    const retellCallId = call.call_id
-    const duration = Math.floor((call.end_timestamp - call.start_timestamp) / 1000)
-    const recordingUrl = call.recording_url
+    // Calculate duration in seconds
+    let duration = 0
+    if (typeof call.duration_ms === 'number' && call.duration_ms > 0) {
+      duration = Math.floor(call.duration_ms / 1000)
+    } else if (call.end_timestamp && call.start_timestamp) {
+      duration = Math.floor((call.end_timestamp - call.start_timestamp) / 1000)
+    }
+
+    const recordingUrl = call.recording_url || null
     const callSummary = call.call_analysis?.call_summary || null
     const userSentiment = call.call_analysis?.user_sentiment || null
     const fromNumber = call.from_number || null
@@ -65,58 +131,46 @@ export async function POST(req: Request) {
           }
         }
       } catch {
-        console.error('Failed to fetch transcript fallback from Retell API')
+        console.error('[Retell Webhook] Failed to fetch transcript fallback from Retell API')
       }
     }
 
-    const supabaseAdmin = getServiceSupabase()
-
-    // 1. Find the agent in our database to link it to a client
-    const { data: agentData, error: agentError } = await supabaseAdmin
-      .from('agents')
-      .select('id, client_id, forward_webhook_url, clients(billing_rate_per_min, stripe_customer_id, stripe_subscription_id)')
-      .eq('retell_agent_id', retellAgentId)
-      .single()
-
-    if (agentError || !agentData) {
-      console.error('Agent not found or error:', agentError)
-      return NextResponse.json({ error: 'Agent not linked to any client' }, { status: 404 })
-    }
-
-    // 2. Calculate the cost based on the client's custom rate
+    // 4. Calculate the cost based on the client's custom rate
     const clientRecord: any = agentData.clients
-    const billingRate = clientRecord.billing_rate_per_min || 0
+    const billingRate = clientRecord?.billing_rate_per_min || 0
     const minutes = duration / 60
     const cost = Math.round(minutes * billingRate * 100) / 100 // au centime près
     const retellCost = call.call_cost?.combined_cost ? call.call_cost.combined_cost / 100 : 0 // cents -> euros
 
-    // 3. Upsert the call to prevent duplicates
+    // 5. Upsert the call to prevent duplicates
+    const upsertPayload: any = {
+      retell_call_id: retellCallId,
+      client_id: agentData.client_id,
+      agent_id: agentData.id,
+      duration_secs: duration,
+      cost: cost,
+      from_number: fromNumber,
+    }
+
+    if (recordingUrl) upsertPayload.recording_url = recordingUrl
+    if (transcript) upsertPayload.transcript = transcript
+    if (callSummary) upsertPayload.call_summary = callSummary
+    if (userSentiment) upsertPayload.user_sentiment = userSentiment
+    if (retellCost) upsertPayload.retell_cost = retellCost
+
     const { error: insertError } = await supabaseAdmin
       .from('calls')
-      .upsert({
-        retell_call_id: retellCallId,
-        client_id: agentData.client_id,
-        agent_id: agentData.id,
-        duration_secs: duration,
-        cost: cost,
-        retell_cost: retellCost,
-        transcript: transcript,
-        recording_url: recordingUrl,
-        call_summary: callSummary,
-        user_sentiment: userSentiment,
-        from_number: fromNumber,
-      }, { onConflict: 'retell_call_id' })
+      .upsert(upsertPayload, { onConflict: 'retell_call_id' })
 
     if (insertError) {
-      console.error('Failed to insert call:', insertError)
+      console.error('[Retell Webhook] Failed to insert call:', insertError)
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
-    // 3b. Report Usage to Stripe for Automated Metered Billing
-    if (clientRecord.stripe_subscription_id) {
+    // 6. Report Usage to Stripe for Automated Metered Billing (only on call_analyzed to avoid double reporting)
+    if (event === 'call_analyzed' && clientRecord?.stripe_subscription_id && duration > 0) {
       try {
-        const Stripe = require('stripe').default || require('stripe')
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy')
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
         const sub = await stripe.subscriptions.retrieve(clientRecord.stripe_subscription_id)
         const meteredItems = sub.items.data.filter((item: any) => item.price.recurring?.usage_type === 'metered')
         const targetPerSec = parseFloat(((billingRate * 100) / 60).toFixed(12))
@@ -128,40 +182,34 @@ export async function POST(req: Request) {
         }) || meteredItems[meteredItems.length - 1]
         
         if (meteredItem) {
-          await stripe.subscriptionItems.createUsageRecord(meteredItem.id, {
-            quantity: duration, // Billed per second
-            timestamp: Math.floor(Date.now() / 1000),
-            action: 'increment'
-          }, {
-            idempotencyKey: retellCallId // Prevents duplicate billing if webhook retries
-          })
+          await stripe.rawRequest(
+            'POST',
+            `/v1/subscription_items/${meteredItem.id}/usage_records`,
+            {
+              quantity: duration, // Billed per second
+              timestamp: Math.floor(Date.now() / 1000),
+              action: 'increment'
+            },
+            {
+              idempotencyKey: retellCallId // Prevents duplicate billing if webhook retries
+            }
+          )
+          console.log(`[Retell Webhook] Reported Stripe usage: ${duration}s for item ${meteredItem.id}`)
         }
       } catch (stripeErr) {
-        console.error("Failed to report usage to Stripe:", stripeErr)
+        console.error('[Retell Webhook] Failed to report usage to Stripe:', stripeErr)
       }
     }
 
-    // 4. Relay the webhook if configured (Raw Transfer)
-    if (agentData.forward_webhook_url) {
-      try {
-        await fetch(agentData.forward_webhook_url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-retell-signature': signature
-          },
-          body: rawBody
-        })
-      } catch (proxyErr) {
-        console.error('Failed to proxy webhook:', proxyErr)
-        // We still return success to Retell so it doesn't retry infinitely
-      }
-    }
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ 
+      success: true, 
+      relayed: !!agentData.forward_webhook_url,
+      relayStatus,
+      event 
+    })
 
   } catch (err: any) {
-    console.error('Webhook processing error:', err)
+    console.error('[Retell Webhook] Processing error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
