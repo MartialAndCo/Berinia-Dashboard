@@ -102,8 +102,8 @@ export default function NewClientPage() {
         <form onSubmit={handleCreateClient} className="space-y-8">
           
           {/* Card 1: Company Profile */}
-          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-            <CardHeader className="pb-4 border-b border-[#f0ece4]">
+          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+            <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
               <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
                 <span>•</span> STEP 1
               </div>
@@ -146,8 +146,8 @@ export default function NewClientPage() {
           </Card>
 
           {/* Card 2: Billing & Rates */}
-          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-            <CardHeader className="pb-4 border-b border-[#f0ece4]">
+          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+            <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
               <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
                 <span>•</span> STEP 2
               </div>
@@ -193,8 +193,8 @@ export default function NewClientPage() {
           </Card>
 
           {/* Card 3: Voice Agent Assignment */}
-          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-            <CardHeader className="pb-4 border-b border-[#f0ece4]">
+          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+            <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
               <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
                 <span>•</span> STEP 3 (OPTIONAL)
               </div>

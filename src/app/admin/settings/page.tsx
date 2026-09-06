@@ -77,9 +77,9 @@ export default function AdminSettingsPage() {
 
         <div className="grid md:grid-cols-2 gap-8">
           <form onSubmit={handleUpdateEmail}>
-            <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full flex flex-col justify-between">
+            <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full flex flex-col justify-between overflow-hidden">
               <div>
-                <CardHeader className="pb-4 border-b border-[#f0ece4]">
+                <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
                   <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
                     <span>•</span> CREDENTIALS
                   </div>
@@ -110,9 +110,9 @@ export default function AdminSettingsPage() {
           </form>
 
           <form onSubmit={handleUpdatePassword}>
-            <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full flex flex-col justify-between">
+            <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full flex flex-col justify-between overflow-hidden">
               <div>
-                <CardHeader className="pb-4 border-b border-[#f0ece4]">
+                <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
                   <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
                     <span>•</span> AUTHENTICATION
                   </div>

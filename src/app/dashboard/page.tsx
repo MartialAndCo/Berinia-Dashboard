@@ -488,8 +488,8 @@ export default function ClientDashboard() {
         )}
 
         {/* Calls Trend Chart */}
-        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-          <CardHeader className="pb-4 border-b border-[#f0ece4]">
+        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+          <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
             <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
               <span>•</span> CALL ACTIVITY
             </div>
@@ -580,8 +580,8 @@ export default function ClientDashboard() {
 
 
         {/* Calls Table */}
-        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-          <CardHeader className="pb-4 border-b border-[#f0ece4]">
+        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+          <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
