@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import Retell from 'retell-sdk'
-import { getDemoSettings, logDemoLead, formatToE164 } from '@/lib/demo-settings'
+import { getDemoSettings, logDemoLead, formatToE164, resolveOutboundPhoneNumber } from '@/lib/demo-settings'
 import { Resend } from 'resend'
 
 export async function POST(req: Request) {
@@ -27,13 +27,18 @@ export async function POST(req: Request) {
     let callError: string | undefined = undefined
 
     // 2. Trigger outbound phone call if active and configured
-    if (settings.enabled && settings.agent_id && settings.from_number && retellApiKey) {
+    if (settings.enabled && settings.agent_id && retellApiKey) {
       try {
+        const fromNumber = (settings.from_number ? formatToE164(settings.from_number) : null) || await resolveOutboundPhoneNumber(settings.agent_id)
+        
+        if (!fromNumber) {
+          throw new Error('No active phone number found on Retell account.')
+        }
+
         const retell = new Retell({ apiKey: retellApiKey })
-        const fromNumber = formatToE164(settings.from_number)
 
         const callResponse = await retell.call.createPhoneCall({
-          from_number: fromNumber,
+          from_number: formatToE164(fromNumber),
           to_number: e164Phone,
           override_agent_id: settings.agent_id,
           retell_llm_dynamic_variables: {
@@ -62,8 +67,8 @@ export async function POST(req: Request) {
     } else {
       if (!settings.enabled) {
         callError = 'Instant callback currently toggled off'
-      } else if (!settings.agent_id || !settings.from_number) {
-        callError = 'Agent ID or Outbound number not yet configured in admin settings'
+      } else if (!settings.agent_id) {
+        callError = 'No demo agent selected in admin settings'
       }
     }
 

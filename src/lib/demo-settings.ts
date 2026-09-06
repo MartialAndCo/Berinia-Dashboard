@@ -2,7 +2,7 @@ import { getServiceSupabase } from '@/lib/supabase'
 
 export interface DemoSettings {
   agent_id: string
-  from_number: string
+  from_number?: string
   calendar_url: string
   enabled: boolean
   owner_name: string
@@ -23,7 +23,7 @@ export interface DemoLead {
 const DEFAULT_SETTINGS: DemoSettings = {
   agent_id: process.env.RETELL_DEMO_AGENT_ID || '',
   from_number: process.env.RETELL_DEMO_FROM_NUMBER || '',
-  calendar_url: process.env.CALENDAR_URL || 'https://cal.com',
+  calendar_url: process.env.CALENDAR_URL || '',
   enabled: true,
   owner_name: 'Martin'
 }
@@ -47,6 +47,41 @@ export function formatToE164(phone: string, defaultCountryCode = '+1'): string {
   }
   const prefix = defaultCountryCode.startsWith('+') ? defaultCountryCode : `+${defaultCountryCode}`
   return `${prefix}${cleaned.replace(/^\+/, '')}`
+}
+
+/**
+ * Automatically resolve the outbound phone number from Retell
+ * Checks if a number is assigned to the agent, otherwise falls back to the first available Retell number
+ */
+export async function resolveOutboundPhoneNumber(agentId?: string): Promise<string | null> {
+  try {
+    const apiKey = process.env.RETELL_API_KEY
+    if (!apiKey) return null
+
+    const res = await fetch('https://api.retellai.com/list-phone-numbers', {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!res.ok) return null
+    const numbers = await res.json()
+    if (!Array.isArray(numbers) || numbers.length === 0) return null
+
+    // 1. Try to find a number bound to this agent
+    if (agentId) {
+      const bound = numbers.find(n => 
+        (n.inbound_agents && n.inbound_agents.some((a: any) => a.agent_id === agentId)) ||
+        n.outbound_agent_id === agentId
+      )
+      if (bound?.phone_number) return bound.phone_number
+    }
+
+    // 2. Default to the first available number on the account
+    return numbers[0].phone_number || null
+  } catch (err) {
+    console.error('Failed to resolve Retell phone number automatically:', err)
+    return null
+  }
 }
 
 /**
@@ -74,7 +109,7 @@ export async function getDemoSettings(): Promise<DemoSettings> {
     return {
       agent_id: stored?.agent_id || process.env.RETELL_DEMO_AGENT_ID || '',
       from_number: stored?.from_number || process.env.RETELL_DEMO_FROM_NUMBER || '',
-      calendar_url: stored?.calendar_url || process.env.CALENDAR_URL || 'https://cal.com',
+      calendar_url: stored?.calendar_url || process.env.CALENDAR_URL || '',
       enabled: stored?.enabled !== undefined ? Boolean(stored.enabled) : true,
       owner_name: stored?.owner_name || 'Martin'
     }

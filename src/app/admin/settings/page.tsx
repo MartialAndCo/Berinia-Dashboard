@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react'
-import { fetchDemoConfigAction, saveDemoConfigAction, testDemoCallAction } from './actions'
+import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded } from 'lucide-react'
+import { fetchDemoConfigAction, saveDemoConfigAction, testDemoCallAction, RetellAgentOption } from './actions'
 import { DemoSettings, DemoLead } from '@/lib/demo-settings'
 
 export default function AdminSettingsPage() {
@@ -23,6 +23,8 @@ export default function AdminSettingsPage() {
     enabled: true,
     owner_name: 'Martin'
   })
+  const [retellAgents, setRetellAgents] = useState<RetellAgentOption[]>([])
+  const [detectedNumber, setDetectedNumber] = useState<string | null>(null)
   const [demoLeads, setDemoLeads] = useState<DemoLead[]>([])
   const [savingDemo, setSavingDemo] = useState(false)
   
@@ -49,9 +51,11 @@ export default function AdminSettingsPage() {
 
   const loadDemoConfig = async () => {
     const res = await fetchDemoConfigAction()
-    if (res.success && res.settings) {
-      setDemoSettings(res.settings)
+    if (res.success) {
+      if (res.settings) setDemoSettings(res.settings)
       if (res.leads) setDemoLeads(res.leads)
+      if (res.retellAgents) setRetellAgents(res.retellAgents)
+      if (res.detectedNumber) setDetectedNumber(res.detectedNumber)
     }
   }
 
@@ -126,6 +130,8 @@ export default function AdminSettingsPage() {
     }
   }
 
+  const selectedAgentObj = retellAgents.find(a => a.agent_id === demoSettings.agent_id)
+
   if (loading) return <div className="p-8 text-[#73706b]">Loading admin settings...</div>
 
   return (
@@ -137,13 +143,13 @@ export default function AdminSettingsPage() {
               <span>•</span> ADMIN SETTINGS
             </div>
             <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">Platform Settings</h1>
-            <p className="text-sm text-[#73706b]">Configure your automated outbound demo agent and administrative security</p>
+            <p className="text-sm text-[#73706b]">Configure your automated outbound demo agent and administrative credentials</p>
           </div>
 
           <Button 
             variant="outline" 
             onClick={loadDemoConfig} 
-            className="text-xs border-[#e2dfd8] text-[#73706b] hover:text-[#1a1918]"
+            className="text-xs border-[#e2dfd8] text-[#73706b] hover:text-[#1a1918] cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
           </Button>
@@ -161,7 +167,7 @@ export default function AdminSettingsPage() {
                   <Bot className="w-5 h-5 text-[#9e4733]"/> Instant Demo Voice Agent
                 </CardTitle>
                 <CardDescription className="text-xs text-[#73706b]">
-                  When a prospect submits the form on berinagents.com, this Retell agent will call them immediately.
+                  Choose which agent calls back visitors when they request a demo on berinagents.com.
                 </CardDescription>
               </div>
 
@@ -172,7 +178,7 @@ export default function AdminSettingsPage() {
                     : 'bg-amber-50 text-amber-700 border-amber-200'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${demoSettings.enabled && demoSettings.agent_id ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                  {demoSettings.enabled && demoSettings.agent_id ? 'Active & Ready' : 'Setup Incomplete / Paused'}
+                  {demoSettings.enabled && demoSettings.agent_id ? 'Active & Ready' : 'Select an agent'}
                 </span>
               </div>
             </div>
@@ -181,44 +187,36 @@ export default function AdminSettingsPage() {
           <form onSubmit={handleSaveDemoSettings}>
             <CardContent className="space-y-6 pt-6 px-6">
               <div className="grid md:grid-cols-2 gap-6">
-                {/* Agent ID */}
-                <div className="space-y-1.5">
+                {/* Agent Dropdown */}
+                <div className="space-y-1.5 md:col-span-2">
                   <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
-                    Retell Agent ID *
+                    Select Retell Agent *
                   </Label>
-                  <Input 
+                  <select 
+                    className="flex h-11 w-full items-center justify-between rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 px-3.5 py-2 text-sm text-[#1a1918] focus:outline-none focus:ring-1 focus:ring-[#1a1918]"
                     value={demoSettings.agent_id}
                     onChange={e => setDemoSettings({ ...demoSettings, agent_id: e.target.value })}
-                    placeholder="agent_xxxxxxxxxxxxxxxxxxxxxx" 
-                    className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs font-mono"
                     required
-                  />
-                  <p className="text-[10px] text-[#8c8880]">
-                    From your Retell dashboard. Copy the ID of the agent trained to book calls.
-                  </p>
+                  >
+                    <option value="">-- Select an existing Retell Agent --</option>
+                    {retellAgents.map(a => (
+                      <option key={a.agent_id} value={a.agent_id}>
+                        {a.agent_name} ({a.agent_id})
+                      </option>
+                    ))}
+                  </select>
+                  {detectedNumber && (
+                    <p className="text-[11px] text-[#73706b] flex items-center gap-1.5 pt-1">
+                      <PhoneForwarded className="w-3.5 h-3.5 text-emerald-600" />
+                      Outbound Caller ID handled via Retell: <span className="font-mono font-medium text-[#1a1918]">{detectedNumber}</span>
+                    </p>
+                  )}
                 </div>
 
-                {/* From Number */}
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
-                    Outbound Caller ID (From Number) *
-                  </Label>
-                  <Input 
-                    value={demoSettings.from_number}
-                    onChange={e => setDemoSettings({ ...demoSettings, from_number: e.target.value })}
-                    placeholder="+14155550199" 
-                    className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs font-mono"
-                    required
-                  />
-                  <p className="text-[10px] text-[#8c8880]">
-                    Must be in E.164 format (e.g. +14155550199) purchased or imported into Retell.
-                  </p>
-                </div>
-
-                {/* Calendar URL */}
+                {/* Calendar URL (Optional) */}
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-[#9e4733]" /> Calendar Booking Link
+                    <Calendar className="w-3.5 h-3.5 text-[#9e4733]" /> Calendar Booking Link (Optional)
                   </Label>
                   <Input 
                     value={demoSettings.calendar_url}
@@ -227,11 +225,11 @@ export default function AdminSettingsPage() {
                     className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs"
                   />
                   <p className="text-[10px] text-[#8c8880]">
-                    Passed into the agent prompt as dynamic variable <code className="bg-[#f0ece4] px-1 py-0.5 rounded text-[10px]">{'{{calendar_url}}'}</code>.
+                    Your booking link if the agent needs to send or refer to a calendar.
                   </p>
                 </div>
 
-                {/* Owner Name */}
+                {/* Founder / Owner Name */}
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
                     Founder / Your Name
@@ -243,7 +241,7 @@ export default function AdminSettingsPage() {
                     className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs"
                   />
                   <p className="text-[10px] text-[#8c8880]">
-                    Passed as <code className="bg-[#f0ece4] px-1 py-0.5 rounded text-[10px]">{'{{owner_name}}'}</code> (e.g. "Martin will speak with you").
+                    Your name for booking referrals (e.g. "Martin will talk with you").
                   </p>
                 </div>
               </div>
@@ -255,7 +253,7 @@ export default function AdminSettingsPage() {
                     Enable Instant Outbound Callback
                   </div>
                   <div className="text-[11px] text-[#73706b]">
-                    When checked, submitting the landing page modal triggers a live phone call to the prospect immediately.
+                    When active, submitting the landing page modal triggers a live phone call to the prospect immediately.
                   </div>
                 </div>
 
@@ -269,25 +267,11 @@ export default function AdminSettingsPage() {
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1a1918]"></div>
                 </label>
               </div>
-
-              {/* Dynamic Variables explanation box */}
-              <div className="p-3.5 bg-[#f6f4f0] border border-[#e6e2d6] rounded-sm text-xs text-[#5a5751] space-y-1">
-                <span className="font-semibold text-[#1a1918]">Dynamic Variables Available in Retell LLM Prompt:</span>
-                <div className="flex flex-wrap gap-2 pt-1 font-mono text-[11px] text-[#1a1918]">
-                  <span className="bg-white px-2 py-0.5 border border-[#e2dfd8] rounded">{'{{customer_name}}'}</span>
-                  <span className="bg-white px-2 py-0.5 border border-[#e2dfd8] rounded">{'{{first_name}}'}</span>
-                  <span className="bg-white px-2 py-0.5 border border-[#e2dfd8] rounded">{'{{company_name}}'}</span>
-                  <span className="bg-white px-2 py-0.5 border border-[#e2dfd8] rounded">{'{{email}}'}</span>
-                  <span className="bg-white px-2 py-0.5 border border-[#e2dfd8] rounded">{'{{phone}}'}</span>
-                  <span className="bg-white px-2 py-0.5 border border-[#e2dfd8] rounded">{'{{calendar_url}}'}</span>
-                  <span className="bg-white px-2 py-0.5 border border-[#e2dfd8] rounded">{'{{owner_name}}'}</span>
-                </div>
-              </div>
             </CardContent>
 
             <CardFooter className="py-4 px-6 border-t border-[#f0ece4] bg-[#faf9f7]/30 flex items-center justify-between">
               <span className="text-[11px] text-[#8c8880]">
-                All settings are saved directly to your Supabase admin profile.
+                Selected: <span className="font-semibold text-[#1a1918]">{selectedAgentObj ? selectedAgentObj.agent_name : (demoSettings.agent_id ? demoSettings.agent_id : 'None')}</span>
               </span>
               <Button 
                 type="submit" 
@@ -308,10 +292,10 @@ export default function AdminSettingsPage() {
               <span>•</span> LIVE TEST TOOL
             </div>
             <CardTitle className="font-serif text-lg font-bold text-[#1a1918] flex items-center gap-2">
-              <PhoneCall className="w-4 h-4 text-[#9e4733]"/> Test Your Voice Agent Now
+              <PhoneCall className="w-4 h-4 text-[#9e4733]"/> Test Selected Agent Now
             </CardTitle>
             <CardDescription className="text-xs text-[#73706b]">
-              Enter your personal phone number below to receive an instant live outbound test call with your agent settings.
+              Enter your personal phone number to receive an instant test call from your selected agent.
             </CardDescription>
           </CardHeader>
 
@@ -320,7 +304,7 @@ export default function AdminSettingsPage() {
               <Input 
                 value={testPhone}
                 onChange={e => setTestPhone(e.target.value)}
-                placeholder="(555) 234-5678 or +14155550199" 
+                placeholder="(555) 234-5678 or +33612345678" 
                 className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs font-mono flex-1"
                 required
               />
@@ -344,7 +328,7 @@ export default function AdminSettingsPage() {
             </form>
             {!demoSettings.agent_id && (
               <p className="text-[11px] text-amber-600 mt-2 flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5" /> Please set and save your Retell Agent ID above before testing.
+                <AlertCircle className="w-3.5 h-3.5" /> Select an agent in the dropdown above first.
               </p>
             )}
           </CardContent>
