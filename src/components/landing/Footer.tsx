@@ -2,144 +2,113 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 
 interface FooterProps {
-  onOpenConsultation: () => void
+  onOpenDemo: () => void
 }
 
-export default function Footer({ onOpenConsultation }: FooterProps) {
+export default function Footer({ onOpenDemo }: FooterProps) {
   return (
     <footer className="bg-[#1a1918] text-[#f6f4f0] pt-16 pb-12 border-t border-[#2d2d2d]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Pre-Footer Call to Action Banner */}
-        <div className="border-b border-[#33312e] pb-14 mb-14 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <h3 className="font-serif text-3xl font-bold text-[#ffffff]">
-              Ready to automate your telephone operations?
+        {/* Simple Call to Action Banner */}
+        <div className="border-b border-[#33312e] pb-12 mb-12 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5 max-w-xl">
+            <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#ffffff]">
+              Stop letting missed calls go to your competitors.
             </h3>
             <p className="text-sm text-[#a8a49c]">
-              Deploy latency-free voice AI agents customized to your exact enterprise knowledge base.
+              Answer 100% of your customer calls, 24/7/365, without hiring expensive staff.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={onOpenConsultation}
-              className="bg-[#ffffff] hover:bg-[#eae6dc] text-[#1a1918] text-xs font-semibold tracking-wider uppercase px-6 py-3 rounded-sm transition-all cursor-pointer"
+              onClick={onOpenDemo}
+              className="bg-[#ffffff] hover:bg-[#eae6dc] text-[#1a1918] text-xs font-semibold tracking-wider uppercase px-6 py-3 rounded-sm transition-all cursor-pointer flex items-center gap-2"
             >
-              Book Consultation
+              <span>Request a Demo</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#9e4733]" />
             </button>
             <Link
               href="/login"
-              className="border border-[#474440] hover:border-[#ffffff] text-[#ffffff] text-xs font-semibold tracking-wider uppercase px-6 py-3 rounded-sm transition-all flex items-center gap-1.5"
+              className="border border-[#474440] hover:border-[#ffffff] text-[#ffffff] text-xs font-semibold tracking-wider uppercase px-6 py-3 rounded-sm transition-all"
             >
-              <span>Client Portal</span>
-              <ArrowUpRight className="w-3.5 h-3.5 opacity-70" />
+              Sign In
             </Link>
           </div>
         </div>
 
-        {/* 4-Column Navigation */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-14 text-xs">
+        {/* 3-Column Clean Navigation */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 text-xs">
           {/* Brand Info */}
-          <div className="space-y-4 md:col-span-1">
+          <div className="space-y-3">
             <Image
               src="/logo-horizontal-white.png"
               alt="BerinAgents"
-              width={180}
-              height={36}
-              className="h-8 w-auto object-contain opacity-95"
+              width={170}
+              height={34}
+              className="h-7 w-auto object-contain opacity-95"
             />
-            <p className="text-[#a8a49c] leading-relaxed text-xs">
-              Enterprise voice AI agents, automated calling, and real-time intelligence analytics.
+            <p className="text-[#a8a49c] leading-relaxed text-xs max-w-xs">
+              24/7 Voice AI agents that answer every call, book jobs on your calendar, and capture every customer for your business.
             </p>
-            <div className="flex items-center gap-2 text-[11px] text-[#9e4733]">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[#a8a49c]">SIP Trunks: All Systems Operational</span>
-            </div>
           </div>
 
-          {/* Column: Platform */}
-          <div className="space-y-3">
+          {/* Column: Navigation */}
+          <div className="space-y-2.5">
             <h4 className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#9e4733]">
-              Platform
+              Navigation
             </h4>
             <ul className="space-y-2 text-[#b0aba2]">
               <li>
-                <a href="#solutions" className="hover:text-white transition-colors">
-                  Autonomous Capabilities
+                <a href="#why-us" className="hover:text-white transition-colors">
+                  Why BerinAgents
                 </a>
               </li>
               <li>
-                <a href="#voice-demo" className="hover:text-white transition-colors">
-                  Interactive Audio Showcase
+                <a href="#voice-demos" className="hover:text-white transition-colors">
+                  Hear Real Call Audio
                 </a>
               </li>
               <li>
-                <a href="#portal-preview" className="hover:text-white transition-colors">
-                  Client Intelligence Suite
+                <a href="#comparison" className="hover:text-white transition-colors">
+                  Cost Comparison &amp; ROI
                 </a>
               </li>
               <li>
-                <a href="#security" className="hover:text-white transition-colors">
-                  Telephony SLA & Latency
+                <a href="#how-it-works" className="hover:text-white transition-colors">
+                  How It Works
                 </a>
               </li>
             </ul>
           </div>
 
-          {/* Column: Client Access */}
-          <div className="space-y-3">
+          {/* Column: Access */}
+          <div className="space-y-2.5">
             <h4 className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#9e4733]">
-              Client Access
+              Account
             </h4>
             <ul className="space-y-2 text-[#b0aba2]">
               <li>
-                <Link href="/login" className="hover:text-white transition-colors flex items-center gap-1">
-                  <span>Sign In to Dashboard</span>
-                  <ArrowUpRight className="w-3 h-3 opacity-60" />
+                <Link href="/login" className="hover:text-white transition-colors">
+                  Sign In to Dashboard
                 </Link>
               </li>
               <li>
                 <Link href="/forgot-password" className="hover:text-white transition-colors">
-                  Reset Account Password
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin" className="hover:text-white transition-colors">
-                  Admin Console
+                  Reset Password
                 </Link>
               </li>
               <li>
                 <button
-                  onClick={onOpenConsultation}
+                  onClick={onOpenDemo}
                   className="hover:text-white transition-colors text-left cursor-pointer"
                 >
-                  Request Telephony Provisioning
+                  Schedule an Onboarding Call
                 </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Column: Trust & Compliance */}
-          <div className="space-y-3">
-            <h4 className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#9e4733]">
-              Compliance & Security
-            </h4>
-            <ul className="space-y-2 text-[#b0aba2]">
-              <li>
-                <span className="text-[#a8a49c]">SOC2 Type II Standard</span>
-              </li>
-              <li>
-                <span className="text-[#a8a49c]">HIPAA Compliant Data Handling</span>
-              </li>
-              <li>
-                <span className="text-[#a8a49c]">End-to-End Encryption (AES-256)</span>
-              </li>
-              <li>
-                <span className="text-[#a8a49c]">Strict Zero-Hallucination Guardrails</span>
               </li>
             </ul>
           </div>
@@ -153,7 +122,7 @@ export default function Footer({ onOpenConsultation }: FooterProps) {
           <div className="flex items-center space-x-6">
             <span className="hover:text-white cursor-pointer">Privacy Policy</span>
             <span className="hover:text-white cursor-pointer">Terms of Service</span>
-            <span className="hover:text-white cursor-pointer">Carrier Compliance</span>
+            <Link href="/login" className="hover:text-white">Sign In</Link>
           </div>
         </div>
 

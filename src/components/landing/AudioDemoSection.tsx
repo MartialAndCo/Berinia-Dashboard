@@ -1,20 +1,18 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Play, Pause, RotateCcw, Sparkles, PhoneIncoming, Clock, Cpu } from 'lucide-react'
+import { Play, Pause, RotateCcw, PhoneIncoming, CheckCircle2, Calendar, Wrench, Stethoscope, Building2, Briefcase } from 'lucide-react'
 
 interface Scenario {
   id: string
   title: string
-  category: string
-  persona: string
+  businessType: string
+  icon: any
+  callerSituation: string
+  businessOutcome: string
   duration: number
-  latency: string
-  sentiment: 'Positive' | 'Neutral' | 'Urgent'
-  toolExecuted: string
-  description: string
   dialogue: {
-    speaker: 'Caller' | 'BerinAgent'
+    speaker: 'Customer' | 'BerinAgent'
     text: string
     time: number
   }[]
@@ -22,83 +20,77 @@ interface Scenario {
 
 const scenarios: Scenario[] = [
   {
-    id: 'support',
-    title: 'Customer Care & Return Handling',
-    category: 'E-Commerce & Retail',
-    persona: 'Sarah (Support Specialist)',
-    duration: 34,
-    latency: '390ms',
-    sentiment: 'Positive',
-    toolExecuted: 'shopify_issue_return_label',
-    description: 'Instant customer order lookup, empathy-driven problem solving, and automated return label dispatch.',
-    dialogue: [
-      { speaker: 'Caller', text: "Hi, I received my order yesterday but it's the wrong color. I need to exchange it before Friday.", time: 0 },
-      { speaker: 'BerinAgent', text: "I'm so sorry about that mix-up! I can definitely help you get the right color expedited. May I have your order number or phone number?", time: 6 },
-      { speaker: 'Caller', text: "Sure, the order number is B-R-8-8-4-1.", time: 13 },
-      { speaker: 'BerinAgent', text: "Thank you. I found your order for the Wool Overcoat in Charcoal. I've initiated an immediate exchange for Midnight Navy and emailed a prepaid return label. Anything else I can assist you with?", time: 18 },
-      { speaker: 'Caller', text: "That was so fast, thank you so much!", time: 27 },
-      { speaker: 'BerinAgent', text: "You're very welcome! Have a wonderful rest of your day.", time: 30 },
-    ]
-  },
-  {
-    id: 'booking',
-    title: 'Dental Clinic Appointment Booking',
-    category: 'Healthcare & Clinics',
-    persona: 'Elena (Reception Specialist)',
-    duration: 38,
-    latency: '410ms',
-    sentiment: 'Positive',
-    toolExecuted: 'calendar_book_appointment',
-    description: 'Autonomous patient verification, real-time schedule conflict resolution, and calendar reservation.',
-    dialogue: [
-      { speaker: 'Caller', text: "Hello, I have a toothache and was wondering if Dr. Vance has any openings tomorrow afternoon?", time: 0 },
-      { speaker: 'BerinAgent', text: "Hello! I'm sorry to hear you're experiencing pain. Let me check Dr. Vance's calendar right now... I have an opening tomorrow at 2:30 PM or 4:15 PM. Would either work for you?", time: 7 },
-      { speaker: 'Caller', text: "2:30 PM is perfect.", time: 16 },
-      { speaker: 'BerinAgent', text: "Wonderful. Are you a returning patient with our clinic?", time: 20 },
-      { speaker: 'Caller', text: "Yes, Marcus Vance.", time: 24 },
-      { speaker: 'BerinAgent', text: "Great, Marcus. You're booked for tomorrow, Wednesday at 2:30 PM with Dr. Vance. I've sent an SMS confirmation to your mobile. Please arrive 10 minutes early.", time: 27 },
-    ]
-  },
-  {
-    id: 'sales',
-    title: 'B2B Lead Qualification & Routing',
-    category: 'SaaS & Enterprise',
-    persona: 'Alexander (Inbound AE)',
+    id: 'hvac',
+    title: 'Emergency AC Repair Booking',
+    businessType: 'HVAC & Home Services',
+    icon: Wrench,
+    callerSituation: 'Friday 7:45 PM — Homeowner has an AC breakdown in 90°F heat.',
+    businessOutcome: '$650 Repair Job Captured & Booked into Calendar (Saved from Competitor)',
     duration: 32,
-    latency: '360ms',
-    sentiment: 'Positive',
-    toolExecuted: 'hubspot_crm_create_deal',
-    description: 'BANT qualification, firmographic data enrichment, and calendar invite synchronization.',
     dialogue: [
-      { speaker: 'BerinAgent', text: "Thanks for calling BerinAgents enterprise desk. This is Alexander. How can I help your team today?", time: 0 },
-      { speaker: 'Caller', text: "Hi Alexander, we're looking to automate roughly 5,000 inbound support calls per month for our logistics company.", time: 5 },
-      { speaker: 'BerinAgent', text: "That's exactly what we specialize in. Are you currently using a specific telephony provider like Twilio, or looking for turnkey carrier numbers?", time: 13 },
-      { speaker: 'Caller', text: "We already have Twilio SIP trunks set up.", time: 21 },
-      { speaker: 'BerinAgent', text: "Excellent, our zero-latency SIP gateway connects in under 10 minutes. I can lock in a 20-minute architecture deep dive with our lead engineer tomorrow at 10 AM EST. Does that suit you?", time: 24 },
+      { speaker: 'Customer', text: "Hi, our AC just shut off and it's 85 degrees inside. Do you have someone who can come out tomorrow morning?", time: 0 },
+      { speaker: 'BerinAgent', text: "I'm so sorry to hear that! We can definitely get a technician out to help. What's the best service address?", time: 6 },
+      { speaker: 'Customer', text: "1420 Highland Crest Drive in North Austin.", time: 12 },
+      { speaker: 'BerinAgent', text: "Got it. I have an emergency repair slot open tomorrow between 8:00 AM and 10:00 AM. Does that work for you?", time: 16 },
+      { speaker: 'Customer', text: "Yes, that's a lifesaver, thank you!", time: 24 },
+      { speaker: 'BerinAgent', text: "You're all set! I've reserved the slot and sent a confirmation text with your technician's dispatch window.", time: 27 },
     ]
   },
   {
-    id: 'dispatch',
-    title: 'Emergency Dispatch & Warm Handoff',
-    category: 'Logistics & Field Services',
-    persona: 'David (Priority Dispatch)',
+    id: 'dental',
+    title: 'Patient Appointment Scheduling',
+    businessType: 'Dental & Healthcare Clinics',
+    icon: Stethoscope,
+    callerSituation: 'Busy Monday 12:30 PM — Staff is at lunch, front desk phone is ringing.',
+    businessOutcome: 'New Patient Booked & Insurance Verified Without Putting Anyone on Hold',
     duration: 30,
-    latency: '420ms',
-    sentiment: 'Urgent',
-    toolExecuted: 'telephony_warm_transfer',
-    description: 'High-urgency triage, sentiment de-escalation, and context-preserved transfer to on-call manager.',
     dialogue: [
-      { speaker: 'Caller', text: "One of our refrigerated transit trucks broke down on Highway 10 and the cooling temperature is rising!", time: 0 },
-      { speaker: 'BerinAgent', text: "I understand this is time-critical. I am alerting our roadside rapid response unit right now. What is your vehicle ID or license plate?", time: 6 },
-      { speaker: 'Caller', text: "Truck number is TX-409, driver is Robert.", time: 14 },
-      { speaker: 'BerinAgent', text: "Captured TX-409. I am patching you directly to Dispatch Supervisor Martinez with this incident brief attached. Connecting you in 3 seconds.", time: 18 },
-      { speaker: 'Caller', text: "Thank you, stay on the line.", time: 26 },
+      { speaker: 'Customer', text: "Hi there, I need to schedule a cleaning and have a dentist look at a chipped molar this week.", time: 0 },
+      { speaker: 'BerinAgent', text: "Hello! We'd be glad to help you take care of that. Are you an existing patient with Oakwood Dental, or will this be your first visit?", time: 6 },
+      { speaker: 'Customer', text: "First time. I just moved into the area.", time: 14 },
+      { speaker: 'BerinAgent', text: "Welcome to the area! Dr. Miller has an opening this Thursday at 2:30 PM. Would that afternoon time work for you?", time: 17 },
+      { speaker: 'Customer', text: "Thursday at 2:30 PM works great.", time: 24 },
+      { speaker: 'BerinAgent', text: "Perfect. You're booked for Thursday at 2:30 PM. I'm texting you our quick digital intake link right now.", time: 27 },
+    ]
+  },
+  {
+    id: 'realestate',
+    title: 'Weekend Buyer Lead & Showing',
+    businessType: 'Real Estate & Property Management',
+    icon: Building2,
+    callerSituation: 'Sunday 3:15 PM — High-intent buyer calling from a yard sign.',
+    businessOutcome: '$12,000 Commission Opportunity Saved from Going to the Next Zillow Agent',
+    duration: 34,
+    dialogue: [
+      { speaker: 'Customer', text: "Hello, I'm parked in front of the home on 742 Maplewood. Is it still on the market and can I tour it today?", time: 0 },
+      { speaker: 'BerinAgent', text: "Hi! Yes, 742 Maplewood is active. It's a 4-bedroom listed at $575,000. Our listing agent has private tour slots tomorrow at 11:00 AM or 4:30 PM. Would either fit your schedule?", time: 6 },
+      { speaker: 'Customer', text: "Tomorrow at 4:30 PM would be great for my wife and me.", time: 17 },
+      { speaker: 'BerinAgent', text: "Excellent. Are you already pre-approved with a lender?", time: 21 },
+      { speaker: 'Customer', text: "Yes, we have a pre-approval letter from Chase.", time: 25 },
+      { speaker: 'BerinAgent', text: "Wonderful. I've locked in your private showing for tomorrow at 4:30 PM with Agent Sarah. You'll receive a calendar invite via text shortly.", time: 28 },
+    ]
+  },
+  {
+    id: 'lawfirm',
+    title: 'Legal Intake & Consultation Booking',
+    businessType: 'Law Firms & Professional Services',
+    icon: Briefcase,
+    callerSituation: 'Wednesday 6:00 PM — Prospective client needing a contract dispute consultation.',
+    businessOutcome: 'Client Intake Qualified & Paid Consultation Scheduled Automatically',
+    duration: 28,
+    dialogue: [
+      { speaker: 'Customer', text: "Hello, I need to speak with a business attorney regarding a partnership contract dispute.", time: 0 },
+      { speaker: 'BerinAgent', text: "Thank you for reaching out to Sterling Law. We specialize in commercial litigation. Is the dispute currently based in Texas?", time: 6 },
+      { speaker: 'Customer', text: "Yes, here in Dallas.", time: 13 },
+      { speaker: 'BerinAgent', text: "Understood. Managing partner Evans has an initial consultation slot open tomorrow at 1:00 PM via Zoom or phone. Would that work?", time: 16 },
+      { speaker: 'Customer', text: "Tomorrow at 1:00 PM works perfectly.", time: 23 },
+      { speaker: 'BerinAgent', text: "Great. I have your name and email on file. I've sent you the meeting confirmation and preliminary case intake questionnaire.", time: 25 },
     ]
   }
 ]
 
 export default function AudioDemoSection() {
-  const [activeScenarioId, setActiveScenarioId] = useState<string>('support')
+  const [activeScenarioId, setActiveScenarioId] = useState<string>('hvac')
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
   const [currentTime, setCurrentTime] = useState<number>(0)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
@@ -147,40 +139,46 @@ export default function AudioDemoSection() {
   }
 
   return (
-    <section id="voice-demo" className="py-20 md:py-28 bg-[#f0ede6] border-y border-[#e6e2d6]">
+    <section id="voice-demos" className="py-20 md:py-28 bg-[#f0ede6] border-y border-[#e6e2d6]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="text-center max-w-2xl mx-auto space-y-3 mb-14">
+        <div className="text-center max-w-2xl mx-auto space-y-3 mb-12">
           <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-            <span>•</span> Interactive Voice Showcase
+            <span>•</span> Real Business Calls
           </div>
           <h2 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-[#1a1918]">
-            Experience Real-Time Conversational AI
+            Hear How It Sounds on Real Customer Calls
           </h2>
           <p className="text-sm sm:text-base text-[#66635e]">
-            Listen to live enterprise simulations with natural inflections, sub-500ms conversational turn-taking, and automated tool executions.
+            Listen to how BerinAgents speaks with natural emotion, handles interruptions, and locks in paying customers without sounding robotic.
           </p>
         </div>
 
-        {/* Scenario Switcher Tabs */}
-        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-10">
+        {/* Industry Scenario Switcher */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 max-w-4xl mx-auto mb-8">
           {scenarios.map(s => {
             const isActive = s.id === activeScenarioId
+            const Icon = s.icon
             return (
               <button
                 key={s.id}
                 onClick={() => handleSelectScenario(s.id)}
-                className={`px-4 py-2.5 rounded-sm text-xs font-semibold tracking-wider uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                className={`p-3.5 rounded-sm text-left transition-all border cursor-pointer ${
                   isActive
-                    ? 'bg-[#1a1918] text-[#f6f4f0] shadow-sm'
-                    : 'bg-[#ffffff] text-[#55524d] border border-[#e2dfd8] hover:border-[#1a1918] hover:text-[#1a1918]'
+                    ? 'bg-[#1a1918] text-[#f6f4f0] border-[#1a1918] shadow-md'
+                    : 'bg-[#ffffff] text-[#55524d] border-[#e2dfd8] hover:border-[#1a1918]'
                 }`}
               >
-                <span>{s.title.split(' ')[0]}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-xs ${isActive ? 'bg-[#9e4733] text-white' : 'bg-[#edeae4] text-[#73706b]'}`}>
-                  {s.category.split(' ')[0]}
-                </span>
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#9e4733]' : 'text-[#85817a]'}`} />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider opacity-80">
+                    {s.businessType.split('&')[0]}
+                  </span>
+                </div>
+                <div className="font-medium text-xs truncate">
+                  {s.title}
+                </div>
               </button>
             )
           })}
@@ -189,45 +187,31 @@ export default function AudioDemoSection() {
         {/* Main Audio Player Card */}
         <div className="max-w-4xl mx-auto bg-[#ffffff] border border-[#e6e2d6] rounded-sm shadow-[0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden">
           
-          {/* Player Header Bar */}
-          <div className="bg-[#faf9f7] border-b border-[#e6e2d6] px-6 py-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-sm bg-[#1a1918] text-white flex items-center justify-center">
-                <PhoneIncoming className="w-4 h-4 text-[#9e4733]" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-[#1a1918]">
-                  {activeScenario.title}
-                </h3>
-                <p className="text-xs text-[#73706b]">
-                  {activeScenario.persona} &middot; {activeScenario.category}
-                </p>
+          {/* Situation & Outcome Bar */}
+          <div className="bg-[#faf9f7] border-b border-[#e6e2d6] p-5 sm:p-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs font-semibold text-[#1a1918] flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#9e4733]" />
+                <span>The Situation:</span>
+                <span className="text-[#615e58] font-normal">{activeScenario.callerSituation}</span>
               </div>
             </div>
 
-            {/* Live Telemetry Badges */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#f6f4f0] border border-[#e6e2d6] text-[11px] font-mono text-[#55524d]">
-                <Clock className="w-3 h-3 text-[#9e4733]" />
-                <span>Latency: {activeScenario.latency}</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xs bg-[#fdf2f0] border border-[#f5c6cb] text-[11px] font-semibold text-[#9e4733]">
-                <Sparkles className="w-3 h-3" />
-                <span>{activeScenario.sentiment} Sentiment</span>
-              </div>
+            <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-sm text-xs text-emerald-900 flex items-center gap-2 font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span>{activeScenario.businessOutcome}</span>
             </div>
           </div>
 
-          {/* Interactive Player Controls & Soundwave */}
+          {/* Player Controls & Visualizer */}
           <div className="p-6 sm:p-8 space-y-6">
             
-            {/* Playback Control Bar */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#faf9f7] p-4 rounded-sm border border-[#e6e2d6]">
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <button
                   onClick={togglePlay}
                   className="w-12 h-12 rounded-sm bg-[#1a1918] hover:bg-[#2d2d2d] text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-sm"
-                  aria-label={isPlaying ? 'Pause simulation' : 'Play simulation'}
+                  aria-label={isPlaying ? 'Pause call audio' : 'Play call audio'}
                 >
                   {isPlaying ? (
                     <Pause className="w-5 h-5 fill-current text-[#9e4733]" />
@@ -246,7 +230,7 @@ export default function AudioDemoSection() {
 
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wider text-[#1a1918]">
-                    {isPlaying ? 'Call Active (Audio Simulated)' : 'Ready to Audition'}
+                    {isPlaying ? 'Call in Progress (Demo)' : 'Ready to Audition'}
                   </div>
                   <div className="text-xs font-mono text-[#73706b]">
                     {formatTime(currentTime)} / {formatTime(activeScenario.duration)}
@@ -254,7 +238,7 @@ export default function AudioDemoSection() {
                 </div>
               </div>
 
-              {/* Animated Waveform Bars */}
+              {/* Dynamic Soundwave Bars */}
               <div className="flex items-center gap-1 h-8 px-4 w-full sm:w-64 justify-center sm:justify-end">
                 {[12, 28, 16, 32, 20, 10, 26, 18, 30, 14, 22, 10, 24, 16, 28, 12, 20, 30].map((h, i) => {
                   const animatedHeight = isPlaying 
@@ -275,7 +259,7 @@ export default function AudioDemoSection() {
               </div>
             </div>
 
-            {/* Progress Slider */}
+            {/* Scrubber Bar */}
             <div className="w-full bg-[#edeae4] h-1.5 rounded-full overflow-hidden">
               <div
                 className="bg-[#1a1918] h-full transition-all duration-300"
@@ -283,19 +267,19 @@ export default function AudioDemoSection() {
               />
             </div>
 
-            {/* Live Synchronized Transcript */}
+            {/* Synchronized Call Conversation */}
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-[#73706b]">
                 <span className="font-semibold uppercase tracking-wider text-[11px] text-[#1a1918]">
-                  Live Synchronized Transcript
+                  Live Call Dialogue
                 </span>
-                <span className="font-mono text-[11px] flex items-center gap-1 text-[#9e4733]">
-                  <Cpu className="w-3 h-3" />
-                  Tool: {activeScenario.toolExecuted}
+                <span className="text-[11px] text-[#9e4733] font-medium flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Auto-books into your schedule
                 </span>
               </div>
 
-              <div className="space-y-3 max-h-64 overflow-y-auto pr-2 border border-[#e6e2d6] rounded-sm p-4 bg-[#faf9f7]/40">
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-2 border border-[#e6e2d6] rounded-sm p-4 bg-[#faf9f7]/40">
                 {activeScenario.dialogue.map((item, idx) => {
                   const isCurrent = currentTime >= item.time && (idx === activeScenario.dialogue.length - 1 || currentTime < activeScenario.dialogue[idx + 1].time)
                   const isPast = currentTime > item.time
@@ -308,7 +292,7 @@ export default function AudioDemoSection() {
                         isCurrent && isPlaying
                           ? 'bg-[#ffffff] border-l-4 border-[#9e4733] shadow-xs'
                           : isPast
-                          ? 'opacity-80'
+                          ? 'opacity-85'
                           : 'opacity-50'
                       }`}
                     >
@@ -316,7 +300,7 @@ export default function AudioDemoSection() {
                         <span className={`font-semibold tracking-wider uppercase text-[10px] ${
                           isAgent ? 'text-[#9e4733]' : 'text-[#1a1918]'
                         }`}>
-                          {item.speaker === 'BerinAgent' ? '✦ BerinAgent' : 'Caller'}
+                          {item.speaker === 'BerinAgent' ? '✦ Your AI Receptionist' : 'Customer (Caller)'}
                         </span>
                         <span className="text-[10px] font-mono text-[#85817a]">
                           {formatTime(item.time)}
@@ -328,18 +312,6 @@ export default function AudioDemoSection() {
                     </div>
                   )
                 })}
-              </div>
-            </div>
-
-            {/* Action Tool Box Execution */}
-            <div className="p-3.5 rounded-sm bg-[#faf9f7] border border-[#e6e2d6] flex flex-wrap items-center justify-between gap-3 text-xs text-[#5c5852]">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                <span className="font-semibold text-[#1a1918]">Zero-Delay Tool Calling:</span>
-                <span>{activeScenario.description}</span>
-              </div>
-              <div className="font-mono text-[11px] text-[#73706b]">
-                Retell / Twilio / Webhook Gateway
               </div>
             </div>
 

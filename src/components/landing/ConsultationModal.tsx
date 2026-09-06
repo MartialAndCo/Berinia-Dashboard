@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, CheckCircle2 } from 'lucide-react'
+import { X, CheckCircle2, ArrowRight } from 'lucide-react'
 
 interface ConsultationModalProps {
   isOpen: boolean
@@ -12,12 +12,12 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    company: '',
+    businessName: '',
+    fullName: '',
     phone: '',
-    callVolume: '1,000 - 10,000 calls/mo',
-    useCase: 'Inbound Customer Care',
+    email: '',
+    businessType: 'Home Services (HVAC, Plumbing, Roofing, etc.)',
+    callVolume: '10 - 50 calls / day',
     notes: '',
   })
 
@@ -27,29 +27,29 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
     e.preventDefault()
     setLoading(true)
 
-    // Simulate submission (can be wired to webhook or database)
+    // Simulate submission (can easily be connected to an API or webhook)
     setTimeout(() => {
       setLoading(false)
       setSubmitted(true)
-    }, 800)
+    }, 700)
   }
 
   const handleReset = () => {
     setSubmitted(false)
     setFormData({
-      name: '',
-      email: '',
-      company: '',
+      businessName: '',
+      fullName: '',
       phone: '',
-      callVolume: '1,000 - 10,000 calls/mo',
-      useCase: 'Inbound Customer Care',
+      email: '',
+      businessType: 'Home Services (HVAC, Plumbing, Roofing, etc.)',
+      callVolume: '10 - 50 calls / day',
       notes: '',
     })
     onClose()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
         className="relative w-full max-w-lg bg-[#ffffff] border border-[#e6e2d6] rounded-sm shadow-[0_20px_60px_rgba(0,0,0,0.15)] overflow-hidden"
         onClick={e => e.stopPropagation()}
@@ -65,50 +65,80 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
 
         {submitted ? (
           <div className="p-8 sm:p-10 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-[#fdf2f0] border border-[#f5c6cb] text-[#9e4733] flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-6 h-6 text-[#9e4733]" />
+            <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
             <h3 className="font-serif text-2xl font-bold text-[#1a1918]">
-              Consultation Request Received
+              Demo Request Received!
             </h3>
             <p className="text-sm text-[#66635e] max-w-sm mx-auto leading-relaxed">
-              Thank you, <span className="font-semibold text-[#1a1918]">{formData.name}</span>. A BerinAgents solutions engineer will contact your team at <span className="font-semibold text-[#1a1918]">{formData.email}</span> within 2 business hours.
+              Thanks <span className="font-semibold text-[#1a1918]">{formData.fullName}</span>! We will prepare a live sample agent for <span className="font-semibold text-[#1a1918]">{formData.businessName}</span> and call you at <span className="font-semibold text-[#1a1918]">{formData.phone}</span> within 1 business day.
             </p>
             <div className="pt-4">
               <button
                 onClick={handleReset}
                 className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] text-xs font-semibold tracking-wider uppercase px-6 py-3 rounded-sm transition-all cursor-pointer"
               >
-                Return to Site
+                Done
               </button>
             </div>
           </div>
         ) : (
-          <div className="p-6 sm:p-8 space-y-6">
-            <div className="space-y-1.5">
+          <div className="p-6 sm:p-8 space-y-5">
+            <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-                <span>•</span> Enterprise Solutions Desk
+                <span>•</span> See It Work For Your Business
               </div>
               <h3 className="font-serif text-2xl font-bold text-[#1a1918]">
-                Schedule an Architecture Consultation
+                Request a Free Live Demo
               </h3>
               <p className="text-xs text-[#73706b]">
-                Discuss your telephony volume, custom CRM integrations, and voice latency benchmarks.
+                Fill out the quick form below. We will show you how an agent handles your calls and books appointments in real time.
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Full Name *
+                    Business Name *
                   </label>
                   <input
                     type="text"
                     required
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Jane Doe"
+                    value={formData.businessName}
+                    onChange={e => setFormData({ ...formData, businessName: e.target.value })}
+                    placeholder="e.g. Apex Heating & Air"
+                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
+                    Your Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.fullName}
+                    onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+                    placeholder="e.g. John Miller"
+                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
+                    Phone Number (To Call You) *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={formData.phone}
+                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="(555) 000-0000"
                     className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
                   />
                 </div>
@@ -122,85 +152,57 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
                     required
                     value={formData.email}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="jane@company.com"
+                    placeholder="john@apexheating.com"
                     className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Company Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.company}
-                    onChange={e => setFormData({ ...formData, company: e.target.value })}
-                    placeholder="Acme Corp"
-                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+1 (555) 000-0000"
-                    className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Primary Use Case
+                    Industry / Business Type
                   </label>
                   <select
-                    value={formData.useCase}
-                    onChange={e => setFormData({ ...formData, useCase: e.target.value })}
+                    value={formData.businessType}
+                    onChange={e => setFormData({ ...formData, businessType: e.target.value })}
                     className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
                   >
-                    <option>Inbound Customer Care</option>
-                    <option>Appointment Scheduling</option>
-                    <option>Outbound Sales & Qualification</option>
-                    <option>Emergency Dispatch & Handoff</option>
-                    <option>Custom Telephony Architecture</option>
+                    <option>Home Services (HVAC, Plumbing, Roofing, etc.)</option>
+                    <option>Dental &amp; Healthcare Clinics</option>
+                    <option>Real Estate &amp; Property Management</option>
+                    <option>Legal &amp; Professional Services</option>
+                    <option>Auto Repair &amp; Dealerships</option>
+                    <option>Other Business</option>
                   </select>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                    Monthly Call Volume
+                    Daily Call Volume
                   </label>
                   <select
                     value={formData.callVolume}
                     onChange={e => setFormData({ ...formData, callVolume: e.target.value })}
                     className="w-full text-xs px-3 py-2.5 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none"
                   >
-                    <option>&lt; 1,000 calls/mo</option>
-                    <option>1,000 - 10,000 calls/mo</option>
-                    <option>10,000 - 50,000 calls/mo</option>
-                    <option>50,000+ calls/mo</option>
+                    <option>Under 10 calls / day</option>
+                    <option>10 - 50 calls / day</option>
+                    <option>50 - 150 calls / day</option>
+                    <option>150+ calls / day</option>
                   </select>
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
-                  Additional Requirements / Notes
+                  Biggest Phone Frustration (Optional)
                 </label>
                 <textarea
                   rows={2}
                   value={formData.notes}
                   onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Tell us about your current telephony stack (Twilio, Retell, Genesys) or desired integrations..."
+                  placeholder="e.g. Missing calls while on job sites, or losing after-hours leads to competitors..."
                   className="w-full text-xs px-3 py-2 rounded-sm border border-[#e2dfd8] bg-[#faf9f7]/60 text-[#1a1918] focus:border-[#1a1918] outline-none resize-none"
                 />
               </div>
@@ -209,14 +211,14 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] text-xs font-semibold tracking-wider uppercase py-3 rounded-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] text-xs font-semibold tracking-wider uppercase py-3.5 rounded-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {loading ? (
-                    'Transmitting Request...'
+                    'Sending Request...'
                   ) : (
                     <>
-                      <span>Confirm Consultation Request</span>
-                      <span className="text-[#9e4733]">•</span>
+                      <span>Get My Free Demo Call</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-[#9e4733]" />
                     </>
                   )}
                 </button>
@@ -224,7 +226,7 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
 
               <div className="text-center">
                 <p className="text-[11px] text-[#8c8880]">
-                  NDA protected &middot; Enterprise SLA guaranteed
+                  Zero obligation &middot; No credit card required &middot; 100% confidential
                 </p>
               </div>
             </form>

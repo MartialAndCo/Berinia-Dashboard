@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Menu, X, ArrowUpRight } from 'lucide-react'
+import { Menu, X, ArrowRight } from 'lucide-react'
 
 interface NavbarProps {
-  onOpenConsultation: () => void
+  onOpenDemo: () => void
 }
 
-export default function Navbar({ onOpenConsultation }: NavbarProps) {
+export default function Navbar({ onOpenDemo }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -25,7 +25,7 @@ export default function Navbar({ onOpenConsultation }: NavbarProps) {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 ${
         scrolled
-          ? 'bg-[#f6f4f0]/92 backdrop-blur-md border-b border-[#e6e2d6] shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
+          ? 'bg-[#f6f4f0]/95 backdrop-blur-md border-b border-[#e6e2d6] shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
           : 'bg-transparent border-b border-[#e6e2d6]/60'
       }`}
     >
@@ -43,59 +43,58 @@ export default function Navbar({ onOpenConsultation }: NavbarProps) {
             />
           </Link>
 
-          {/* Desktop Navigation Links */}
+          {/* Clean Navigation Links */}
           <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-[#5c5852]">
             <a
-              href="#solutions"
+              href="#why-us"
               className="hover:text-[#1a1918] transition-colors"
             >
-              Capabilities
+              Why BerinAgents
             </a>
             <a
-              href="#voice-demo"
+              href="#voice-demos"
               className="hover:text-[#1a1918] transition-colors flex items-center gap-1.5"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-[#9e4733] animate-pulse" />
-              Live Demos
+              Hear Live Calls
             </a>
             <a
-              href="#portal-preview"
+              href="#comparison"
               className="hover:text-[#1a1918] transition-colors"
             >
-              Client Portal
+              Cost &amp; ROI
             </a>
             <a
-              href="#security"
+              href="#how-it-works"
               className="hover:text-[#1a1918] transition-colors"
             >
-              Enterprise Security
+              How It Works
             </a>
           </nav>
 
-          {/* Action CTAs */}
-          <div className="hidden md:flex items-center gap-4">
+          {/* Action Area: Simple Discrete Sign In + Request Demo */}
+          <div className="hidden md:flex items-center gap-5">
             <Link
               href="/login"
-              className="text-xs font-semibold tracking-wider uppercase text-[#1a1918] hover:text-[#9e4733] px-3 py-2 transition-colors flex items-center gap-1"
+              className="text-xs font-semibold tracking-wider uppercase text-[#66635e] hover:text-[#1a1918] transition-colors"
             >
-              Client Sign In
-              <ArrowUpRight className="w-3.5 h-3.5 opacity-70" />
+              Sign In
             </Link>
 
             <button
-              onClick={onOpenConsultation}
+              onClick={onOpenDemo}
               className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] text-xs font-semibold tracking-wider uppercase px-5 py-2.5 rounded-sm transition-all shadow-none flex items-center gap-2 group cursor-pointer"
             >
-              <span>Book Consultation</span>
-              <span className="text-[#9e4733] group-hover:translate-x-0.5 transition-transform">•</span>
+              <span>Request a Demo</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform text-[#9e4733]" />
             </button>
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="flex md:hidden items-center gap-2">
+          {/* Mobile Navigation Trigger */}
+          <div className="flex md:hidden items-center gap-3">
             <Link
               href="/login"
-              className="text-xs font-semibold tracking-wider uppercase text-[#1a1918] px-2.5 py-1.5"
+              className="text-xs font-semibold tracking-wider uppercase text-[#66635e] px-2 py-1"
             >
               Sign In
             </Link>
@@ -116,52 +115,46 @@ export default function Navbar({ onOpenConsultation }: NavbarProps) {
         <div className="md:hidden border-b border-[#e6e2d6] bg-[#ffffff] px-4 pt-3 pb-6 space-y-4 shadow-lg">
           <div className="flex flex-col space-y-3 text-sm font-medium text-[#5c5852]">
             <a
-              href="#solutions"
+              href="#why-us"
               onClick={() => setMobileMenuOpen(false)}
               className="px-2 py-1.5 hover:text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm transition-colors"
             >
-              Capabilities
+              Why BerinAgents
             </a>
             <a
-              href="#voice-demo"
+              href="#voice-demos"
               onClick={() => setMobileMenuOpen(false)}
               className="px-2 py-1.5 hover:text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm transition-colors flex items-center gap-2"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-[#9e4733]" />
-              Live Demos
+              Hear Live Calls
             </a>
             <a
-              href="#portal-preview"
+              href="#comparison"
               onClick={() => setMobileMenuOpen(false)}
               className="px-2 py-1.5 hover:text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm transition-colors"
             >
-              Client Portal
+              Cost &amp; ROI
             </a>
             <a
-              href="#security"
+              href="#how-it-works"
               onClick={() => setMobileMenuOpen(false)}
               className="px-2 py-1.5 hover:text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm transition-colors"
             >
-              Enterprise Security
+              How It Works
             </a>
           </div>
 
           <div className="pt-2 border-t border-[#e6e2d6] flex flex-col gap-2.5">
-            <Link
-              href="/login"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center py-2.5 text-xs font-semibold tracking-wider uppercase border border-[#e2dfd8] rounded-sm text-[#1a1918] bg-[#f6f4f0]"
-            >
-              Client Portal Sign In
-            </Link>
             <button
               onClick={() => {
                 setMobileMenuOpen(false)
-                onOpenConsultation()
+                onOpenDemo()
               }}
-              className="w-full text-center py-2.5 text-xs font-semibold tracking-wider uppercase bg-[#1a1918] text-[#f6f4f0] rounded-sm"
+              className="w-full text-center py-3 text-xs font-semibold tracking-wider uppercase bg-[#1a1918] text-[#f6f4f0] rounded-sm flex items-center justify-center gap-2"
             >
-              Book Consultation
+              <span>Request a Demo</span>
+              <span className="text-[#9e4733]">•</span>
             </button>
           </div>
         </div>

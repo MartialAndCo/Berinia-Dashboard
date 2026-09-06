@@ -1,67 +1,67 @@
 'use client'
 
-import { Zap, Database, HeartHandshake, PhoneForwarded, Globe2, ShieldCheck } from 'lucide-react'
+import { PhoneCall, CalendarCheck, MessageSquareText, PhoneForwarded, HelpCircle, UserCheck } from 'lucide-react'
 
 const features = [
   {
-    icon: Zap,
-    tag: 'Ultra-Low Latency',
-    title: 'Sub-450ms Turn Taking',
+    icon: PhoneCall,
+    tag: '24/7 Answering',
+    title: 'Never Goes to Voicemail',
     description:
-      'Human conversations flow in milliseconds. Our optimized voice pipeline eliminates awkward pauses, robotic silences, and clunky conversational collisions.',
+      'Picks up on the first ring, 24 hours a day, 7 days a week. Whether you are on a job site, in a client meeting, or asleep, your business never closes.',
   },
   {
-    icon: Database,
-    tag: 'Bi-Directional Sync',
-    title: 'Live CRM & Tool Calling',
+    icon: CalendarCheck,
+    tag: 'Automated Booking',
+    title: 'Books Straight Into Your Calendar',
     description:
-      'Agents query databases, verify customer identities, update CRM records, and book calendar slots in real time during the call.',
+      'Checks your live schedule in Google Calendar, Outlook, or your CRM. It finds an open slot, reserves the job, and eliminates scheduling back-and-forth.',
   },
   {
-    icon: HeartHandshake,
-    tag: 'Emotion Intelligence',
-    title: 'Real-Time Sentiment Scoring',
+    icon: MessageSquareText,
+    tag: 'Instant Notifications',
+    title: 'SMS & Email Recaps in Seconds',
     description:
-      'Voice models dynamically assess caller inflection and frustration, automatically tailoring empathy and conversational tone on the fly.',
+      'The moment a call concludes, you get a clean text summary with the caller’s name, phone number, address, and the exact reason for the call.',
   },
   {
     icon: PhoneForwarded,
-    tag: 'Failsafe Protocol',
-    title: 'Zero-Interruption Warm Handoff',
+    tag: 'Zero Hassle',
+    title: 'Keep Your Existing Phone Number',
     description:
-      'When an issue requires human judgment, callers are seamlessly transferred with an instant synthesized briefing so customers never repeat themselves.',
+      'No complicated phone setup or hardware required. Simply turn on call forwarding when you are busy, on another line, or closed for the day.',
   },
   {
-    icon: Globe2,
-    tag: 'Global Telephony',
-    title: 'Multi-Lingual & Global SIP',
+    icon: HelpCircle,
+    tag: 'Business Knowledge',
+    title: 'Answers Common Questions Accurately',
     description:
-      'Connect your existing Twilio, Vonage, or private SIP trunks. Deploy native accents across English, Spanish, French, German, and 30+ languages.',
+      'Trained on your specific services, pricing guidelines, service territory, and business hours. Speaks politely and professionally every single time.',
   },
   {
-    icon: ShieldCheck,
-    tag: 'Enterprise Guardrails',
-    title: 'Zero Hallucination Architecture',
+    icon: UserCheck,
+    tag: 'Emergency Protocol',
+    title: 'Warm Transfers for Urgent Calls',
     description:
-      'Strict deterministic boundaries ensure agents strictly adhere to compliance standards, approved knowledge bases, and regulatory guidelines.',
+      'When an important client or true emergency calls, the agent immediately patches the call straight to your personal cell phone with a quick verbal heads-up.',
   },
 ]
 
 export default function FeatureGrid() {
   return (
-    <section id="solutions" className="py-20 md:py-28 bg-[#f6f4f0]">
+    <section id="why-us" className="py-20 md:py-28 bg-[#f6f4f0]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto space-y-3 mb-16">
           <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-            <span>•</span> Engineered for Reliability
+            <span>•</span> Built for Busy Business Owners
           </div>
           <h2 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-[#1a1918]">
-            Architected for Enterprise Voice Operations
+            Everything You Need to Run Your Phones on Autopilot
           </h2>
           <p className="text-sm sm:text-base text-[#66635e]">
-            Everything required to replace or augment your contact center with intelligent, compliant, and always-on autonomous telephony.
+            Designed specifically for home service contractors, healthcare clinics, real estate teams, and professional service firms.
           </p>
         </div>
 
@@ -94,7 +94,7 @@ export default function FeatureGrid() {
                 </div>
 
                 <div className="pt-4 border-t border-[#f0ede6] flex items-center text-[11px] font-semibold uppercase tracking-wider text-[#85817a]">
-                  <span>Production Ready</span>
+                  <span>Always On</span>
                   <span className="ml-auto text-[#9e4733]">•</span>
                 </div>
               </div>

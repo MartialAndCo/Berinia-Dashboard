@@ -3,45 +3,45 @@
 import { useState } from 'react'
 import Navbar from './Navbar'
 import HeroSection from './HeroSection'
-import AudioDemoSection from './AudioDemoSection'
 import FeatureGrid from './FeatureGrid'
-import DashboardTeaser from './DashboardTeaser'
-import EnterpriseSecurity from './EnterpriseSecurity'
+import AudioDemoSection from './AudioDemoSection'
+import CostComparison from './CostComparison'
+import HowItWorks from './HowItWorks'
 import Footer from './Footer'
 import ConsultationModal from './ConsultationModal'
 
 export default function LandingPage() {
-  const [isConsultationOpen, setIsConsultationOpen] = useState(false)
+  const [isDemoOpen, setIsDemoOpen] = useState(false)
 
-  const handleOpenConsultation = () => {
-    setIsConsultationOpen(true)
+  const handleOpenDemo = () => {
+    setIsDemoOpen(true)
   }
 
-  const handleCloseConsultation = () => {
-    setIsConsultationOpen(false)
+  const handleCloseDemo = () => {
+    setIsDemoOpen(false)
   }
 
   return (
     <div className="min-h-screen bg-[#f6f4f0] text-[#1a1918] flex flex-col selection:bg-[#9e4733] selection:text-white">
-      {/* Top Navbar */}
-      <Navbar onOpenConsultation={handleOpenConsultation} />
+      {/* Top Navbar with Discrete Sign In */}
+      <Navbar onOpenDemo={handleOpenDemo} />
 
-      {/* Main Page Flow */}
+      {/* Main High-Converting Page Sections */}
       <main className="flex-1">
-        <HeroSection onOpenConsultation={handleOpenConsultation} />
+        <HeroSection onOpenDemo={handleOpenDemo} />
         <AudioDemoSection />
         <FeatureGrid />
-        <DashboardTeaser />
-        <EnterpriseSecurity onOpenConsultation={handleOpenConsultation} />
+        <CostComparison onOpenDemo={handleOpenDemo} />
+        <HowItWorks onOpenDemo={handleOpenDemo} />
       </main>
 
       {/* Footer */}
-      <Footer onOpenConsultation={handleOpenConsultation} />
+      <Footer onOpenDemo={handleOpenDemo} />
 
-      {/* Enterprise Consultation Request Modal */}
+      {/* Live Demo Request Modal */}
       <ConsultationModal
-        isOpen={isConsultationOpen}
-        onClose={handleCloseConsultation}
+        isOpen={isDemoOpen}
+        onClose={handleCloseDemo}
       />
     </div>
   )
