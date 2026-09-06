@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Navbar from './Navbar'
 import HeroSection from './HeroSection'
-import FeatureGrid from './FeatureGrid'
 import AudioDemoSection from './AudioDemoSection'
+import BreakEvenCalculator from './BreakEvenCalculator'
+import FeatureGrid from './FeatureGrid'
 import CostComparison from './CostComparison'
 import HowItWorks from './HowItWorks'
 import Footer from './Footer'
@@ -30,6 +31,8 @@ export default function LandingPage() {
       <main className="flex-1">
         <HeroSection onOpenDemo={handleOpenDemo} />
         <AudioDemoSection />
+        {/* Placed immediately below AudioDemoSection as requested */}
+        <BreakEvenCalculator onOpenDemo={handleOpenDemo} />
         <FeatureGrid />
         <CostComparison onOpenDemo={handleOpenDemo} />
         <HowItWorks onOpenDemo={handleOpenDemo} />
