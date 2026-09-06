@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [loading, setLoading] = useState(true)
+  
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -19,12 +19,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       } else if (session.user.email !== 'admin@berinia.com') {
         router.push('/dashboard')
       } else {
-        setLoading(false)
+        
       }
     })
   }, [router])
 
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>
+  
 
   const handleLogout = async () => {
     await supabase.auth.signOut()

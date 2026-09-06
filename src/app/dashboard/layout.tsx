@@ -9,7 +9,7 @@ import Link from 'next/link'
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [loading, setLoading] = useState(true)
+  
 
   useEffect(() => {
     checkAuth()
@@ -20,7 +20,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!session) {
       router.push('/login')
     } else {
-      setLoading(false)
+      
     }
   }
 
@@ -29,19 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/login')
   }
 
-  if (loading) {
-    return (
-      <div className="h-screen w-screen bg-[#f6f4f0] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 rounded-full border-2 border-[#9e4733] border-t-transparent animate-spin" />
-          <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.2em] text-[#73706b] uppercase">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#9e4733] animate-ping" />
-            Chargement...
-          </div>
-        </div>
-      </div>
-    )
-  }
+
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col md:flex-row bg-[#f6f4f0] text-[#1a1918]">

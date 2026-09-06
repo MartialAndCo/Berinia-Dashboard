@@ -1,5 +1,7 @@
 'use server'
 
+import { checkAdminAuth } from '@/utils/supabase/server'
+
 import { getServiceSupabase } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
 
@@ -142,6 +144,8 @@ async function syncStripeSubscription(clientId: string, newBillingRate?: number,
 }
 
 export async function updateClientConfigAction(clientId: string, data: any) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   try {
     const { error } = await supabaseAdmin
       .from('clients')
@@ -165,6 +169,8 @@ export async function updateClientConfigAction(clientId: string, data: any) {
 }
 
 export async function recalculateClientCallsCostAction(clientId: string, rate: number) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   try {
     if (typeof rate !== 'number' || isNaN(rate) || rate < 0) {
       return { success: false, error: 'Tarif invalide' }
@@ -224,6 +230,8 @@ export async function recalculateClientCallsCostAction(clientId: string, rate: n
 }
 
 export async function resetClientPasswordAction(email: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   try {
     const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.berinagents.com'
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
@@ -246,6 +254,8 @@ export async function resetClientPasswordAction(email: string) {
 }
 
 export async function forceUpdateClientEmailAction(userId: string, clientId: string, newEmail: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   try {
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       email: newEmail,
@@ -264,6 +274,8 @@ export async function forceUpdateClientEmailAction(userId: string, clientId: str
 }
 
 export async function deleteClientAction(clientId: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   try {
     const { data: client, error: fetchError } = await supabaseAdmin
       .from('clients')

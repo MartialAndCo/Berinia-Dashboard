@@ -1,9 +1,13 @@
 'use server'
 
+import { checkAdminAuth } from '@/utils/supabase/server'
+
 const Stripe = require('stripe').default || require('stripe')
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 
 export async function getBillingStatsAction() {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   try {
     // Fetch last 100 invoices
     const invoices = await stripe.invoices.list({ limit: 100 })

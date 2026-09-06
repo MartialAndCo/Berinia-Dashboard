@@ -1,8 +1,12 @@
 'use server'
 
+import { checkUserAuth } from '@/utils/supabase/server'
+
 import { createClient } from '@supabase/supabase-js'
 
 export async function setClientActiveAction(userId: string) {
+  try { await checkUserAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   

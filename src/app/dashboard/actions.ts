@@ -1,9 +1,13 @@
 'use server'
 
+import { checkUserAuth } from '@/utils/supabase/server'
+
 const Stripe = require('stripe').default || require('stripe')
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 
 export async function getSubscriptionStatusAction(subscriptionId: string | null) {
+  try { await checkUserAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   if (!subscriptionId) {
     return { needsPaymentMethod: false, payUrl: null, cardInfo: null }
   }

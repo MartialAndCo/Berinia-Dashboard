@@ -1,8 +1,12 @@
 'use server'
 
+import { checkAdminAuth } from '@/utils/supabase/server'
+
 import { createClient } from '@supabase/supabase-js'
 
 export async function deleteClientAction(clientId: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
@@ -24,6 +28,8 @@ export async function deleteClientAction(clientId: string) {
 }
 
 export async function addAgentAction(clientId: string, agentName: string, retellAgentId: string, forwardWebhookUrl?: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
@@ -140,6 +146,8 @@ export async function addAgentAction(clientId: string, agentName: string, retell
 }
 
 export async function deleteAgentAction(agentId: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
@@ -150,6 +158,8 @@ export async function deleteAgentAction(agentId: string) {
 }
 
 export async function updateAgentWebhookAction(agentId: string, webhookUrl: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
@@ -160,6 +170,8 @@ export async function updateAgentWebhookAction(agentId: string, webhookUrl: stri
 }
 
 export async function syncRetellAgentWebhookAction(retellAgentId: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   const retellApiKey = process.env.RETELL_API_KEY
   if (!retellApiKey) return { success: false, error: 'Clé Retell non configurée' }
 
@@ -188,6 +200,8 @@ export async function syncRetellAgentWebhookAction(retellAgentId: string) {
 }
 
 export async function getRetellAgentsAction() {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
   const retellApiKey = process.env.RETELL_API_KEY
   if (!retellApiKey) return { success: false, error: 'Clé Retell non configurée' }
   
