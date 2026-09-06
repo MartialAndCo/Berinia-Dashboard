@@ -66,31 +66,36 @@ export default function UpdatePasswordPage() {
       }
     }
 
-    // 3. Check current session or wait if hash tokens exist
+    // 3. If access_token is present in URL hash, directly set the session
+    const accessToken = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
+
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }).then(({ data, error }) => {
+        if (!mounted) return
+        if (data?.session) {
+          setSessionChecked(true)
+        } else {
+          console.error('setSession error:', error)
+          setLinkError('Impossible de valider votre session d\'accès. Le lien est peut-être expiré.')
+        }
+      })
+      return () => {
+        mounted = false
+        subscription.unsubscribe()
+      }
+    }
+
+    // 4. Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       if (session) {
         setSessionChecked(true)
       } else {
-        const hasTokens = hash.includes('access_token') || hash.includes('type=invite') || hash.includes('type=recovery')
-        if (hasTokens) {
-          // Give Supabase client time to parse the hash fragment
-          const timeout = setTimeout(() => {
-            if (!mounted) return
-            supabase.auth.getSession().then(({ data: { session: retrySession } }) => {
-              if (!mounted) return
-              if (retrySession) {
-                setSessionChecked(true)
-              } else {
-                setLinkError('Impossible de valider votre session d\'accès. Le lien est peut-être expiré.')
-              }
-            })
-          }, 2500)
-          return () => clearTimeout(timeout)
-        } else {
-          // No session and no tokens in URL
-          router.push('/login')
-        }
+        router.push('/login')
       }
     })
 

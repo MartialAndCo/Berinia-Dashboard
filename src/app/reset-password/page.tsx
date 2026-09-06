@@ -28,33 +28,37 @@ export default function ResetPasswordPage() {
       }
     })
 
-    // 2. Check current session
+    // 2. Direct check for tokens in hash or code in query
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    const search = typeof window !== 'undefined' ? window.location.search : ''
+    const fullUrl = `${search}&${hash.replace(/^#/, '')}`
+    const params = new URLSearchParams(fullUrl)
+
+    const code = params.get('code')
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ data }) => {
+        if (!mounted) return
+        if (data?.session) setSessionChecked(true)
+      })
+    }
+
+    const accessToken = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ data }) => {
+        if (!mounted) return
+        if (data?.session) setSessionChecked(true)
+      })
+    }
+
+    // 3. Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       if (session) {
         setSessionChecked(true)
       } else {
-        // If there are tokens in the URL hash, allow Supabase client a moment to parse them
-        const hasTokens = typeof window !== 'undefined' && (
-          window.location.hash.includes('access_token') ||
-          window.location.hash.includes('type=recovery') ||
-          window.location.search.includes('code=')
-        )
-
-        if (hasTokens) {
-          const timeout = setTimeout(() => {
-            if (!mounted) return
-            supabase.auth.getSession().then(({ data: { session: retrySession } }) => {
-              if (!mounted) return
-              if (retrySession) {
-                setSessionChecked(true)
-              } else {
-                router.push('/login')
-              }
-            })
-          }, 2500)
-          return () => clearTimeout(timeout)
-        } else {
+        const hasTokens = hash.includes('access_token') || hash.includes('type=recovery') || search.includes('code=')
+        if (!hasTokens) {
           router.push('/login')
         }
       }
