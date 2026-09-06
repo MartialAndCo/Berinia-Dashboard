@@ -46,9 +46,9 @@ export async function POST(req: Request) {
         })
 
         const usageMinutes = Math.floor(usageSeconds / 60)
-        const totalPaidStr = (invoice.amount_paid / 100).toFixed(2).replace('.', ',')
-        const usageAmountStr = (usageAmount / 100).toFixed(2).replace('.', ',')
-        const retainerAmountStr = (retainerAmount / 100).toFixed(2).replace('.', ',')
+        const totalPaidStr = (invoice.amount_paid / 100).toFixed(2)
+        const usageAmountStr = (usageAmount / 100).toFixed(2)
+        const retainerAmountStr = (retainerAmount / 100).toFixed(2)
         const invoicePdf = invoice.invoice_pdf || invoice.hosted_invoice_url
 
         const contentHtml = `
@@ -68,16 +68,16 @@ export async function POST(req: Request) {
               ${retainerAmount > 0 ? `
               <tr>
                 <td>Monthly Platform Subscription</td>
-                <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">€${retainerAmountStr}</td>
+                <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">$${retainerAmountStr}</td>
               </tr>` : ''}
               ${usageAmount > 0 ? `
               <tr>
                 <td>Voice AI Usage (${usageMinutes} min)</td>
-                <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">€${usageAmountStr}</td>
+                <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">$${usageAmountStr}</td>
               </tr>` : ''}
               <tr style="border-top: 1px solid #dcd7ce;">
                 <td style="padding-top: 10px; font-weight: bold; font-size: 16px;">Total Billed</td>
-                <td align="right" style="padding-top: 10px; font-weight: bold; font-size: 18px; color: #9e4733; font-family: monospace;">€${totalPaidStr}</td>
+                <td align="right" style="padding-top: 10px; font-weight: bold; font-size: 18px; color: #9e4733; font-family: monospace;">$${totalPaidStr}</td>
               </tr>
             </table>
           </div>

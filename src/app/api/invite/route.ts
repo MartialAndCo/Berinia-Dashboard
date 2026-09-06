@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         const priceRetainer = await stripe.prices.create({
           product: productRetainer.id,
           unit_amount: Math.round(monthly_retainer * 100),
-          currency: 'eur',
+          currency: 'usd',
           recurring: { interval: 'month' }
         })
         items.push({ price: priceRetainer.id })
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
         const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${company_name}` })
         const priceUsage = await stripe.prices.create({
           product: productUsage.id,
-          currency: 'eur',
+          currency: 'usd',
           unit_amount_decimal: ((billing_rate * 100) / 60).toFixed(12),
           recurring: { 
             interval: 'month',

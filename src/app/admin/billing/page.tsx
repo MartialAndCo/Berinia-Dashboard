@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ExternalLink, Receipt, Banknote, Euro } from 'lucide-react'
+import { ExternalLink, Receipt, Banknote, DollarSign } from 'lucide-react'
 import { getBillingStatsAction } from './actions'
 
 export default function AdminBillingPage() {
@@ -75,7 +75,7 @@ export default function AdminBillingPage() {
               <Receipt className="h-4 w-4 text-[#73706b]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-3xl font-bold text-[#1a1918]">{stats.totalSent.toFixed(2)} €</div>
+              <div className="font-serif text-3xl font-bold text-[#1a1918]">${stats.totalSent.toFixed(2)}</div>
             </CardContent>
           </Card>
           
@@ -85,17 +85,17 @@ export default function AdminBillingPage() {
               <Banknote className="h-4 w-4 text-[#2e6930]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-3xl font-bold text-[#2e6930]">{stats.totalCollected.toFixed(2)} €</div>
+              <div className="font-serif text-3xl font-bold text-[#2e6930]">${stats.totalCollected.toFixed(2)}</div>
             </CardContent>
           </Card>
 
           <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-[#8a6519]">Outstanding (This month)</CardTitle>
-              <Euro className="h-4 w-4 text-[#8a6519]" />
+              <DollarSign className="h-4 w-4 text-[#8a6519]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-3xl font-bold text-[#8a6519]">{stats.totalUnpaid.toFixed(2)} €</div>
+              <div className="font-serif text-3xl font-bold text-[#8a6519]">${stats.totalUnpaid.toFixed(2)}</div>
             </CardContent>
           </Card>
         </div>
@@ -142,7 +142,7 @@ export default function AdminBillingPage() {
                       {new Date(inv.created).toLocaleDateString('en-US')}
                     </TableCell>
                     <TableCell className="font-semibold text-sm text-[#1a1918]">
-                      {inv.amount_due.toFixed(2)} €
+                      ${inv.amount_due.toFixed(2)}
                     </TableCell>
                     <TableCell>
                       {getStatusBadge(inv.status)}

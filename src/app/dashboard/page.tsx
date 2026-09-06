@@ -356,13 +356,13 @@ export default function ClientDashboard() {
                 {clientInfo?.billing_rate_per_min > 0 && (
                   <div className="flex justify-between items-center text-[#73706b]">
                     <span className="uppercase tracking-wider text-[10px] font-semibold">Rate per minute</span>
-                    <span className="font-mono font-medium text-[#1a1918]">{clientInfo.billing_rate_per_min} € / min</span>
+                    <span className="font-mono font-medium text-[#1a1918]">${clientInfo.billing_rate_per_min} / min</span>
                   </div>
                 )}
                 {clientInfo?.monthly_retainer > 0 && (
                   <div className="flex justify-between items-center text-[#73706b]">
                     <span className="uppercase tracking-wider text-[10px] font-semibold">Monthly retainer</span>
-                    <span className="font-mono font-medium text-[#1a1918]">{clientInfo.monthly_retainer} € / mo</span>
+                    <span className="font-mono font-medium text-[#1a1918]">${clientInfo.monthly_retainer} / mo</span>
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 text-[11px] text-[#73706b] pt-1.5 border-t border-[#e6e2d6]">
@@ -467,7 +467,7 @@ export default function ClientDashboard() {
                 <span className="text-[#9e4733]">•</span> YOUR PLAN
               </div>
               <div className="text-sm">
-                <span className="font-bold font-serif text-base text-[#1a1918]">{clientInfo?.billing_rate_per_min} €</span>
+                <span className="font-bold font-serif text-base text-[#1a1918]">${clientInfo?.billing_rate_per_min}</span>
                 <span className="text-xs text-[#73706b] ml-1">per minute</span>
               </div>
             </div>
@@ -557,7 +557,7 @@ export default function ClientDashboard() {
           <div className="p-6 space-y-1.5">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Billed</div>
             <div className="font-serif text-3xl sm:text-4xl font-bold text-[#9e4733]">
-              {totalCost.toFixed(2)} €
+              ${totalCost.toFixed(2)}
             </div>
             <p className="text-xs text-[#73706b]">usage revenue</p>
           </div>
@@ -657,7 +657,7 @@ export default function ClientDashboard() {
                         ) : '—'}
                       </TableCell>
                       <TableCell className="text-xs text-[#73706b] font-mono">{formatDuration(call.duration_secs)}</TableCell>
-                      <TableCell className="text-xs font-mono font-medium text-[#1a1918]">{Number(call.cost).toFixed(2)} €</TableCell>
+                      <TableCell className="text-xs font-mono font-medium text-[#1a1918]">${Number(call.cost).toFixed(2)}</TableCell>
                       <TableCell><SentimentBadge sentiment={call.user_sentiment} /></TableCell>
                       <TableCell className="text-right px-6" onClick={e => e.stopPropagation()}>
                         <CallPlayer recordingUrl={call.recording_url} />

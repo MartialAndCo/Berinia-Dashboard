@@ -84,7 +84,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       return
     }
 
-    if (!confirm(`Do you want to recalculate the cost of all past calls for "${companyName || 'this client'}" with the rate of ${rateNum} €/min?\n\nThis action will update past call costs for this client.`)) {
+    if (!confirm(`Do you want to recalculate the cost of all past calls for "${companyName || 'this client'}" with the rate of $${rateNum}/min?\n\nThis action will update past call costs for this client.`)) {
       return
     }
 
@@ -204,11 +204,11 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                 <Input value={companyName} onChange={e => setCompanyName(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Rate per minute (€)</Label>
+                <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Rate per minute ($)</Label>
                 <Input type="number" step="0.01" value={billingRate} onChange={e => setBillingRate(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Monthly Retainer (€)</Label>
+                <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Monthly Retainer ($)</Label>
                 <Input type="number" step="1" value={retainer} onChange={e => setRetainer(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" />
               </div>
               <Button onClick={handleUpdateConfig} className="w-full mt-4 bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10">
@@ -225,7 +225,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                   <RefreshCw className="w-4 h-4 mr-2 text-[#9e4733]" /> Recalculate past calls
                 </Button>
                 <p className="text-[11px] text-[#73706b] mt-1.5 text-center">
-                  Applies this rate ({billingRate || 0} €/min) to all past calls history for this client.
+                  Applies this rate (${billingRate || 0}/min) to all past calls history for this client.
                 </p>
               </div>
             </CardContent>

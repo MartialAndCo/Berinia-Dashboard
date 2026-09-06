@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Building2, KeyRound, Mail, ReceiptEuro } from 'lucide-react'
+import { Building2, KeyRound, Mail, ReceiptText } from 'lucide-react'
 
 export default function ClientSettingsPage() {
   const [loading, setLoading] = useState(true)
@@ -193,14 +193,14 @@ export default function ClientSettingsPage() {
                   <span>•</span> PRICING TERMS
                 </div>
                 <CardTitle className="font-serif text-xl font-bold text-[#1a1918] flex items-center gap-2">
-                  <ReceiptEuro className="w-5 h-5 text-[#9e4733]"/> Your Plan
+                  <ReceiptText className="w-5 h-5 text-[#9e4733]"/> Your Plan
                 </CardTitle>
                 <CardDescription className="text-xs text-[#73706b]">Details of your current usage rate.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 pt-6">
                 <div className="flex justify-between items-center py-2">
                   <span className="text-xs font-semibold uppercase tracking-wider text-[#73706b]">Rate per minute</span>
-                  <span className="font-serif font-bold text-lg text-[#1a1918]">{clientData?.billing_rate_per_min} € / min</span>
+                  <span className="font-serif font-bold text-lg text-[#1a1918]">${clientData?.billing_rate_per_min} / min</span>
                 </div>
               </CardContent>
             </Card>

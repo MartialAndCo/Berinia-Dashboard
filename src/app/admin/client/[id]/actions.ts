@@ -56,7 +56,7 @@ async function syncStripeSubscription(clientId: string, newBillingRate?: number,
 
             const newPriceUsage = await stripe.prices.create({
               product: productId,
-              currency: 'eur',
+              currency: 'usd',
               unit_amount_decimal: ((newBillingRate * 100) / 60).toFixed(12),
               recurring: { interval: 'month', usage_type: 'metered' }
             })
@@ -81,10 +81,10 @@ async function syncStripeSubscription(clientId: string, newBillingRate?: number,
           }
         }
       } else if (newBillingRate > 0) {
-        const productUsage = await stripe.products.create({ name: `Consommation Appels (Secondes) - ${resolvedCompanyName}` })
+        const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${resolvedCompanyName}` })
         const priceUsage = await stripe.prices.create({
           product: productUsage.id,
-          currency: 'eur',
+          currency: 'usd',
           unit_amount_decimal: ((newBillingRate * 100) / 60).toFixed(12),
           recurring: { interval: 'month', usage_type: 'metered' }
         })
@@ -110,7 +110,7 @@ async function syncStripeSubscription(clientId: string, newBillingRate?: number,
 
             const newPriceRetainer = await stripe.prices.create({
               product: productId,
-              currency: 'eur',
+              currency: 'usd',
               unit_amount: targetRetainerCents,
               recurring: { interval: 'month' }
             })
@@ -124,11 +124,11 @@ async function syncStripeSubscription(clientId: string, newBillingRate?: number,
           }
         }
       } else if (newRetainer > 0) {
-        const productRetainer = await stripe.products.create({ name: `Forfait Mensuel - ${resolvedCompanyName}` })
+        const productRetainer = await stripe.products.create({ name: `Monthly Retainer - ${resolvedCompanyName}` })
         const priceRetainer = await stripe.prices.create({
           product: productRetainer.id,
           unit_amount: Math.round(newRetainer * 100),
-          currency: 'eur',
+          currency: 'usd',
           recurring: { interval: 'month' }
         })
         await stripe.subscriptionItems.create({

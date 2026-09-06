@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Plus, Users, Euro, TrendingUp, Trash2 } from 'lucide-react'
+import { Plus, Users, DollarSign, TrendingUp, Trash2 } from 'lucide-react'
 import { deleteClientAction } from './actions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
@@ -185,10 +185,10 @@ export default function AdminDashboard() {
           <Card className="border border-[#e6e2d6] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] bg-[#ffffff]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">MRR (Retainers)</CardTitle>
-              <Euro className="h-4 w-4 text-[#73706b]" />
+              <DollarSign className="h-4 w-4 text-[#73706b]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-2xl font-bold text-[#1a1918]">{stats.mrr.toFixed(2)} €</div>
+              <div className="font-serif text-2xl font-bold text-[#1a1918]">${stats.mrr.toFixed(2)}</div>
               <p className="text-xs text-[#73706b] mt-1">Monthly recurring</p>
             </CardContent>
           </Card>
@@ -196,10 +196,10 @@ export default function AdminDashboard() {
           <Card className="border border-[#e6e2d6] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] bg-[#ffffff]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Usage Revenue</CardTitle>
-              <Euro className="h-4 w-4 text-[#73706b]" />
+              <DollarSign className="h-4 w-4 text-[#73706b]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-2xl font-bold text-[#1a1918]">{stats.usageRevenue.toFixed(2)} €</div>
+              <div className="font-serif text-2xl font-bold text-[#1a1918]">${stats.usageRevenue.toFixed(2)}</div>
               <p className="text-xs text-[#73706b] mt-1">{stats.totalCalls} calls / {stats.totalMinutes.toFixed(1)}m</p>
             </CardContent>
           </Card>
@@ -207,10 +207,10 @@ export default function AdminDashboard() {
           <Card className="border border-[#e6e2d6] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] bg-[#ffffff]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Retell Cost</CardTitle>
-              <Euro className="h-4 w-4 text-[#9e4733]" />
+              <DollarSign className="h-4 w-4 text-[#9e4733]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-2xl font-bold text-[#9e4733]">{stats.retellCost.toFixed(2)} €</div>
+              <div className="font-serif text-2xl font-bold text-[#9e4733]">${stats.retellCost.toFixed(2)}</div>
               <p className="text-xs text-[#73706b] mt-1">Actual API cost</p>
             </CardContent>
           </Card>
@@ -221,7 +221,7 @@ export default function AdminDashboard() {
               <TrendingUp className="h-4 w-4 text-[#73706b]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-2xl font-bold text-[#1a1918]">{(stats.mrr + stats.usageRevenue).toFixed(2)} €</div>
+              <div className="font-serif text-2xl font-bold text-[#1a1918]">${(stats.mrr + stats.usageRevenue).toFixed(2)}</div>
               <p className="text-xs text-[#73706b] mt-1">MRR + Usage</p>
             </CardContent>
           </Card>
@@ -232,7 +232,7 @@ export default function AdminDashboard() {
               <TrendingUp className="h-4 w-4 text-[#2e6930]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-2xl font-bold text-[#2e6930]">{stats.margin.toFixed(2)} €</div>
+              <div className="font-serif text-2xl font-bold text-[#2e6930]">${stats.margin.toFixed(2)}</div>
               <p className="text-xs text-[#73706b] mt-1">Revenue - Retell Cost</p>
             </CardContent>
           </Card>
@@ -279,13 +279,13 @@ export default function AdminDashboard() {
                         {client.status === 'Actif' || client.status === 'Active' ? 'Active' : (client.status === 'En attente' ? 'Pending' : (client.status || 'Active'))}
                       </span>
                     </TableCell>
-                    <TableCell className="text-[#55524d]">{client.billing_rate_per_min} €</TableCell>
-                    <TableCell className="text-[#55524d]">{client.monthly_retainer} €</TableCell>
+                    <TableCell className="text-[#55524d]">${client.billing_rate_per_min}</TableCell>
+                    <TableCell className="text-[#55524d]">${client.monthly_retainer}</TableCell>
                     <TableCell className="text-[#55524d]">{clientCallStats[client.id]?.calls || 0}</TableCell>
-                    <TableCell className="font-medium text-[#1a1918]">{(clientCallStats[client.id]?.revenue || 0).toFixed(2)} €</TableCell>
-                    <TableCell className="text-[#9e4733]">{(clientCallStats[client.id]?.retellCost || 0).toFixed(2)} €</TableCell>
+                    <TableCell className="font-medium text-[#1a1918]">${(clientCallStats[client.id]?.revenue || 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-[#9e4733]">${(clientCallStats[client.id]?.retellCost || 0).toFixed(2)}</TableCell>
                     <TableCell className="text-[#2e6930] font-semibold">
-                      {((clientCallStats[client.id]?.revenue || 0) - (clientCallStats[client.id]?.retellCost || 0)).toFixed(2)} €
+                      ${((clientCallStats[client.id]?.revenue || 0) - (clientCallStats[client.id]?.retellCost || 0)).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link href={`/admin/client/${client.id}`}>

@@ -162,7 +162,7 @@ export default function NewClientPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
-                    Rate per minute (€) <span className="text-[#9e4733]">*</span>
+                    Rate per minute ($) <span className="text-[#9e4733]">*</span>
                   </Label>
                   <Input 
                     required 
@@ -176,7 +176,7 @@ export default function NewClientPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
-                    Monthly Retainer (€) <span className="text-[#9e4733]">*</span>
+                    Monthly Retainer ($) <span className="text-[#9e4733]">*</span>
                   </Label>
                   <Input 
                     required 
