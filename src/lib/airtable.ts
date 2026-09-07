@@ -128,6 +128,16 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
   }
 }
 
+function normalizeDateToISO(dateInput?: string | null): string | null {
+  if (!dateInput) return null
+  const trimmed = dateInput.trim()
+  const parsed = Date.parse(trimmed)
+  if (!isNaN(parsed)) {
+    return new Date(parsed).toISOString()
+  }
+  return null
+}
+
 /**
  * Updates an Airtable Lead record with the Retell AI call summary once the call completes & is analyzed.
  */
@@ -209,22 +219,22 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
 
     // 3. Update the Airtable record
     const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${targetRecordId}`
-    
-    let finalNote = note
-    if (params.bookedTime) {
-      finalNote = `${finalNote}\n\n[RDV PROGRAMMÉ (Cal.com) : ${params.bookedTime}]`
-    }
-    if (params.bookingUrl) {
-      finalNote = `${finalNote}\n[Lien RDV : ${params.bookingUrl}]`
-    }
 
     const resolvedStatus = params.isBooked
       ? 'RDV Programmé'
       : (params.status || 'Démo Réalisée')
 
     const fieldsToUpdate: Record<string, any> = {
-      "Notes d'appel": finalNote,
+      "Notes d'appel": note,
       "Statut du Lead": resolvedStatus
+    }
+
+    // Populate Date RDV field if booking timestamp is present
+    if (params.bookedTime) {
+      const isoDate = normalizeDateToISO(params.bookedTime)
+      if (isoDate) {
+        fieldsToUpdate['Date RDV'] = isoDate
+      }
     }
 
     const patchRes = await fetch(patchUrl, {
@@ -466,25 +476,15 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
       'Statut du Lead': 'RDV Programmé'
     }
 
-    let bookingNote = ''
     if (params.startTime) {
-      let formattedDate = params.startTime
-      try {
-        formattedDate = new Date(params.startTime).toLocaleString('fr-FR', {
-          dateStyle: 'full',
-          timeStyle: 'short'
-        })
-      } catch {}
-      bookingNote = `[RDV Cal.com confirmé : ${formattedDate}]`
-    }
-    if (params.bookingUrl) {
-      bookingNote = bookingNote ? `${bookingNote} (${params.bookingUrl})` : `[Lien RDV : ${params.bookingUrl}]`
+      const isoDate = normalizeDateToISO(params.startTime)
+      if (isoDate) {
+        fieldsToUpdate['Date RDV'] = isoDate
+      }
     }
 
-    const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
-    if (bookingNote) {
-      fieldsToUpdate["Notes d'appel"] = existingNotes ? `${existingNotes}\n\n${bookingNote}` : bookingNote
-    } else if (params.notes) {
+    if (params.notes) {
+      const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
       fieldsToUpdate["Notes d'appel"] = existingNotes ? `${existingNotes}\n\n${params.notes}` : params.notes
     }
 
@@ -512,6 +512,20 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
     } else {
       // Create new lead if not exists
       const postUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
+      const newLeadFields: Record<string, any> = {
+        'Full Name': params.fullName || 'Prospect Cal.com',
+        'Email': params.email || '',
+        'Phone': params.phone || '',
+        'Source du Lead': 'Site Web (Démo)',
+        'Statut du Lead': 'RDV Programmé',
+        "Notes d'appel": params.notes || 'RDV réservé via Cal.com'
+      }
+
+      const isoDate = normalizeDateToISO(params.startTime)
+      if (isoDate) {
+        newLeadFields['Date RDV'] = isoDate
+      }
+
       const createRes = await fetch(postUrl, {
         method: 'POST',
         headers: {
@@ -521,14 +535,7 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
         body: JSON.stringify({
           records: [
             {
-              fields: {
-                'Full Name': params.fullName || 'Prospect Cal.com',
-                'Email': params.email || '',
-                'Phone': params.phone || '',
-                'Source du Lead': 'Site Web (Démo)',
-                'Statut du Lead': 'RDV Programmé',
-                "Notes d'appel": fieldsToUpdate["Notes d'appel"] || 'RDV réservé via Cal.com'
-              }
+              fields: newLeadFields
             }
           ],
           typecast: true

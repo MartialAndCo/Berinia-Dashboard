@@ -6,16 +6,18 @@ import Stripe from 'stripe'
 
 // Helper to detect if a meeting was booked during the call (via Cal.com in Retell)
 function detectMeetingBooking(call: any): { isBooked: boolean; bookedTime?: string | null } {
-  // 1. Check custom analysis data (GPT-4.1 post-call analysis schema: meeting_booked)
   const custom = call?.call_analysis?.custom_analysis_data
+  const collected = call?.collected_dynamic_variables || {}
+  const bookedTime = collected.booked_time ? String(collected.booked_time) : (custom?.booked_time || null)
+
+  // 1. Check custom analysis data (GPT-4.1 post-call analysis schema: meeting_booked)
   if (custom?.meeting_booked === true || custom?.meeting_booked === 'true') {
-    return { isBooked: true, bookedTime: custom?.booked_time || null }
+    return { isBooked: true, bookedTime }
   }
 
   // 2. Check collected dynamic variables from Retell conversation flow
-  const collected = call?.collected_dynamic_variables || {}
   if (collected.booked_time) {
-    return { isBooked: true, bookedTime: String(collected.booked_time) }
+    return { isBooked: true, bookedTime }
   }
 
   // 3. Check transcript_with_tool_calls for book_meeting tool or node transitions
