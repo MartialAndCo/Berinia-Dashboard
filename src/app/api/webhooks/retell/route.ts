@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
+import { ensureDemoClientAndAgent } from '@/lib/demo-settings'
 import Stripe from 'stripe'
 
 export async function POST(req: Request) {
@@ -28,13 +29,26 @@ export async function POST(req: Request) {
     const supabaseAdmin = getServiceSupabase()
 
     // 1. Find the agent in our database to get forward_webhook_url and client config
-    const { data: agentData, error: agentError } = await supabaseAdmin
+    let { data: agentData, error: agentError } = await supabaseAdmin
       .from('agents')
-      .select('id, client_id, forward_webhook_url, clients(billing_rate_per_min, stripe_customer_id, stripe_subscription_id)')
+      .select('id, client_id, agent_name, forward_webhook_url, clients(id, billing_rate_per_min, stripe_customer_id, stripe_subscription_id, email, company_name)')
       .eq('retell_agent_id', retellAgentId)
       .single()
 
     if (agentError || !agentData) {
+      // Auto-fallback: ensure demo agent is registered if this is the demo agent
+      const demoRes = await ensureDemoClientAndAgent(retellAgentId)
+      if (demoRes) {
+        const { data: retryAgent } = await supabaseAdmin
+          .from('agents')
+          .select('id, client_id, agent_name, forward_webhook_url, clients(id, billing_rate_per_min, stripe_customer_id, stripe_subscription_id, email, company_name)')
+          .eq('retell_agent_id', retellAgentId)
+          .single()
+        agentData = retryAgent
+      }
+    }
+
+    if (!agentData) {
       console.error('[Retell Webhook] Agent not linked to any client:', { retellAgentId, agentError })
       return NextResponse.json({ error: 'Agent not linked to any client' }, { status: 404 })
     }
@@ -84,6 +98,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No call data' }, { status: 400 })
     }
 
+    // 3. For Demo Agent: ONLY process outbound calls (per user requirement)
+    const isDemoClient = (agentData.clients as any)?.email === 'demo@berinagents.com' || (agentData.clients as any)?.company_name?.includes('Demo')
+    if (isDemoClient && call.direction && call.direction !== 'outbound') {
+      console.log('[Retell Webhook] Skipping non-outbound call for Demo Agent:', retellCallId)
+      return NextResponse.json({ success: true, skipped: 'inbound_demo_call' })
+    }
+
     // Calculate duration in seconds
     let duration = 0
     if (typeof call.duration_ms === 'number' && call.duration_ms > 0) {
@@ -95,7 +116,10 @@ export async function POST(req: Request) {
     const recordingUrl = call.recording_url || null
     const callSummary = call.call_analysis?.call_summary || null
     const userSentiment = call.call_analysis?.user_sentiment || null
-    const fromNumber = call.from_number || null
+    // In outbound calls, the contact/prospect is to_number
+    const contactNumber = call.direction === 'outbound'
+      ? (call.to_number || call.from_number || null)
+      : (call.from_number || call.to_number || null)
 
     // Normalize transcript: handle string, array of {role, content/text}, or missing
     let transcript: string | null = null
@@ -139,8 +163,8 @@ export async function POST(req: Request) {
     const clientRecord: any = agentData.clients
     const billingRate = clientRecord?.billing_rate_per_min || 0
     const minutes = duration / 60
-    const cost = Math.round(minutes * billingRate * 100) / 100 // au centime près
-    const retellCost = call.call_cost?.combined_cost ? call.call_cost.combined_cost / 100 : 0 // cents -> euros
+    const retellCost = call.call_cost?.combined_cost ? call.call_cost.combined_cost / 100 : 0 // cents -> euros/dollars
+    const cost = billingRate > 0 ? Math.round(minutes * billingRate * 100) / 100 : retellCost
 
     // 5. Upsert the call to prevent duplicates
     const upsertPayload: any = {
@@ -149,7 +173,7 @@ export async function POST(req: Request) {
       agent_id: agentData.id,
       duration_secs: duration,
       cost: cost,
-      from_number: fromNumber,
+      from_number: contactNumber,
     }
 
     if (recordingUrl) upsertPayload.recording_url = recordingUrl
@@ -167,8 +191,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
-    // 6. Report Usage to Stripe for Automated Metered Billing (only on call_analyzed to avoid double reporting)
-    if (event === 'call_analyzed' && clientRecord?.stripe_subscription_id && duration > 0) {
+    // 6. Report Usage to Stripe for Automated Metered Billing (only on call_analyzed for paying clients with active subscriptions)
+    if (!isDemoClient && event === 'call_analyzed' && clientRecord?.stripe_subscription_id && duration > 0) {
       try {
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
         const sub = await stripe.subscriptions.retrieve(clientRecord.stripe_subscription_id)

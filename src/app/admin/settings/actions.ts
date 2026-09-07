@@ -1,7 +1,7 @@
 'use server'
 
 import { checkAdminAuth } from '@/utils/supabase/server'
-import { getDemoSettings, saveDemoSettings, getDemoLeads, formatToE164, resolveOutboundPhoneNumber, DemoSettings } from '@/lib/demo-settings'
+import { getDemoSettings, saveDemoSettings, getDemoLeads, formatToE164, resolveOutboundPhoneNumber, ensureDemoClientAndAgent, DemoSettings } from '@/lib/demo-settings'
 import Retell from 'retell-sdk'
 
 export interface RetellAgentOption {
@@ -71,6 +71,12 @@ export async function saveDemoConfigAction(settings: Partial<DemoSettings>) {
     if (!ok) {
       return { success: false, error: 'Failed to update settings in Supabase' }
     }
+
+    // Automatically ensure Demo client/agent are in DB and Retell webhook is synced
+    if (settings.agent_id) {
+      await ensureDemoClientAndAgent(settings.agent_id)
+    }
+
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err?.message || 'Unauthorized' }
@@ -116,13 +122,13 @@ export async function testDemoCallAction(testPhone: string) {
       to_number: e164To,
       override_agent_id: settings.agent_id,
       retell_llm_dynamic_variables: {
-        customer_name: 'Martin (Admin Test)',
-        first_name: 'Martin',
+        customer_name: 'Yann (Admin Test)',
+        first_name: 'Yann',
         company_name: 'Berin AI Test',
         email: 'admin@berinia.com',
         phone: e164To,
         calendar_url: settings.calendar_url || '',
-        owner_name: settings.owner_name || 'Martin'
+        owner_name: settings.owner_name || 'Yann'
       }
     })
 

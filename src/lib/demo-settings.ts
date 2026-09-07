@@ -1,4 +1,5 @@
 import { getServiceSupabase } from '@/lib/supabase'
+import Retell from 'retell-sdk'
 
 export interface DemoSettings {
   agent_id: string
@@ -25,7 +26,7 @@ const DEFAULT_SETTINGS: DemoSettings = {
   from_number: process.env.RETELL_DEMO_FROM_NUMBER || '',
   calendar_url: process.env.CALENDAR_URL || '',
   enabled: true,
-  owner_name: 'Martin'
+  owner_name: 'Yann'
 }
 
 /**
@@ -111,7 +112,7 @@ export async function getDemoSettings(): Promise<DemoSettings> {
       from_number: stored?.from_number || process.env.RETELL_DEMO_FROM_NUMBER || '',
       calendar_url: stored?.calendar_url || process.env.CALENDAR_URL || '',
       enabled: stored?.enabled !== undefined ? Boolean(stored.enabled) : true,
-      owner_name: stored?.owner_name || 'Martin'
+      owner_name: stored?.owner_name || 'Yann'
     }
   } catch (err) {
     console.error('Failed to get demo settings, falling back to defaults:', err)
@@ -135,7 +136,7 @@ export async function saveDemoSettings(newSettings: Partial<DemoSettings>): Prom
       from_number: newSettings.from_number !== undefined ? newSettings.from_number.trim() : (existingSettings.from_number || ''),
       calendar_url: newSettings.calendar_url !== undefined ? newSettings.calendar_url.trim() : (existingSettings.calendar_url || ''),
       enabled: newSettings.enabled !== undefined ? Boolean(newSettings.enabled) : (existingSettings.enabled ?? true),
-      owner_name: newSettings.owner_name !== undefined ? newSettings.owner_name.trim() : (existingSettings.owner_name || 'Martin')
+      owner_name: newSettings.owner_name !== undefined ? newSettings.owner_name.trim() : (existingSettings.owner_name || 'Yann')
     }
 
     const supabase = getServiceSupabase()
@@ -205,5 +206,111 @@ export async function getDemoLeads(): Promise<DemoLead[]> {
   } catch (err) {
     console.error('Failed to get demo leads:', err)
     return []
+  }
+}
+
+/**
+ * Ensure Demo Client and Demo Agent exist in Supabase and sync Retell webhook
+ */
+export async function ensureDemoClientAndAgent(agentId: string): Promise<{ clientId: string; agentRecordId: string } | null> {
+  try {
+    if (!agentId) return null
+    const supabase = getServiceSupabase()
+    const admin = await getAdminUser()
+    if (!admin) return null
+
+    // 1. Find or create demo client in clients table
+    let { data: client } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('email', 'demo@berinagents.com')
+      .single()
+
+    if (!client) {
+      const { data: newClient, error: clientErr } = await supabase
+        .from('clients')
+        .insert({
+          user_id: admin.id,
+          company_name: 'Berin AI (Demo Outbound)',
+          email: 'demo@berinagents.com',
+          status: 'Demo',
+          billing_rate_per_min: 0,
+          monthly_retainer: 0
+        })
+        .select()
+        .single()
+
+      if (clientErr || !newClient) {
+        console.error('Failed to create demo client in clients table:', clientErr)
+        return null
+      }
+      client = newClient
+    }
+
+    // 2. Fetch agent name from Retell if possible and configure webhook
+    let agentName = 'Demo Voice Agent'
+    const retellApiKey = process.env.RETELL_API_KEY
+    if (retellApiKey && agentId) {
+      try {
+        const retell = new Retell({ apiKey: retellApiKey })
+        const agentDetail = await retell.agent.retrieve(agentId)
+        if (agentDetail?.agent_name) {
+          agentName = `${agentDetail.agent_name} (Demo)`
+        }
+
+        // Automatic Webhook setup on Retell
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.berinagents.com'
+        const webhookUrl = `${siteUrl}/api/webhooks/retell`
+        await retell.agent.update(agentId, { webhook_url: webhookUrl })
+        console.log(`[Demo Setup] Configured Retell webhook for ${agentId} -> ${webhookUrl}`)
+      } catch (err) {
+        console.error('Error syncing Retell agent webhook in ensureDemoClientAndAgent:', err)
+      }
+    }
+
+    // 3. Find or update agent in agents table
+    let { data: existingAgent } = await supabase
+      .from('agents')
+      .select('*')
+      .eq('client_id', client.id)
+      .single()
+
+    let agentRecordId = ''
+    if (existingAgent) {
+      agentRecordId = existingAgent.id
+      if (existingAgent.retell_agent_id !== agentId || existingAgent.agent_name !== agentName) {
+        await supabase
+          .from('agents')
+          .update({
+            retell_agent_id: agentId,
+            agent_name: agentName
+          })
+          .eq('id', existingAgent.id)
+      }
+    } else {
+      const { data: newAgent, error: agentErr } = await supabase
+        .from('agents')
+        .insert({
+          client_id: client.id,
+          retell_agent_id: agentId,
+          agent_name: agentName
+        })
+        .select()
+        .single()
+
+      if (agentErr || !newAgent) {
+        console.error('Failed to create demo agent in agents table:', agentErr)
+        return null
+      }
+      agentRecordId = newAgent.id
+    }
+
+    return {
+      clientId: client.id,
+      agentRecordId
+    }
+  } catch (err) {
+    console.error('Failed to ensure demo client and agent:', err)
+    return null
   }
 }

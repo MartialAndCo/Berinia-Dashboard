@@ -48,7 +48,7 @@ export async function POST(req: Request) {
             email: email.trim().toLowerCase(),
             phone: e164Phone,
             calendar_url: settings.calendar_url || '',
-            owner_name: settings.owner_name || 'Martin'
+            owner_name: settings.owner_name || 'Yann'
           },
           metadata: {
             source: 'berinagents_landing_demo',

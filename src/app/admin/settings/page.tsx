@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded } from 'lucide-react'
+import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded, PhoneOutgoing } from 'lucide-react'
 import { fetchDemoConfigAction, saveDemoConfigAction, testDemoCallAction, RetellAgentOption } from './actions'
 import { DemoSettings, DemoLead } from '@/lib/demo-settings'
 
@@ -21,7 +22,7 @@ export default function AdminSettingsPage() {
     from_number: '',
     calendar_url: '',
     enabled: true,
-    owner_name: 'Martin'
+    owner_name: 'Yann'
   })
   const [retellAgents, setRetellAgents] = useState<RetellAgentOption[]>([])
   const [detectedNumber, setDetectedNumber] = useState<string | null>(null)
@@ -171,7 +172,18 @@ export default function AdminSettingsPage() {
                 </CardDescription>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
+                <Link href="/admin/demo-calls">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-7 text-[11px] font-semibold border-[#e2dfd8] bg-[#ffffff] text-[#1a1918] hover:bg-[#faf8f5] cursor-pointer shadow-none"
+                  >
+                    <PhoneOutgoing className="w-3.5 h-3.5 mr-1 text-[#9e4733]" />
+                    View Outbound Demo Calls &rarr;
+                  </Button>
+                </Link>
                 <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
                   demoSettings.enabled && demoSettings.agent_id
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
@@ -221,7 +233,7 @@ export default function AdminSettingsPage() {
                   <Input 
                     value={demoSettings.calendar_url}
                     onChange={e => setDemoSettings({ ...demoSettings, calendar_url: e.target.value })}
-                    placeholder="https://cal.com/martin/15min" 
+                    placeholder="https://cal.com/yann/15min" 
                     className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs"
                   />
                   <p className="text-[10px] text-[#8c8880]">
@@ -237,11 +249,11 @@ export default function AdminSettingsPage() {
                   <Input 
                     value={demoSettings.owner_name}
                     onChange={e => setDemoSettings({ ...demoSettings, owner_name: e.target.value })}
-                    placeholder="Martin" 
+                    placeholder="Yann" 
                     className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs"
                   />
                   <p className="text-[10px] text-[#8c8880]">
-                    Your name for booking referrals (e.g. "Martin will talk with you").
+                    Your name for booking referrals (e.g. "Yann will talk with you").
                   </p>
                 </div>
               </div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Receipt, LogOut, Settings } from 'lucide-react'
+import { LayoutDashboard, Receipt, LogOut, Settings, PhoneOutgoing } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 
@@ -69,6 +69,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <Receipt className="h-4 w-4" />
             Billing (Stripe)
+          </Link>
+          <Link 
+            href="/admin/demo-calls" 
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide transition-all ${
+              pathname === '/admin/demo-calls' 
+                ? 'bg-[#f0ede6] text-[#1a1918] font-semibold border-l-2 border-[#9e4733]' 
+                : 'text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5]'
+            }`}
+          >
+            <PhoneOutgoing className="h-4 w-4 text-[#9e4733]" />
+            Demo Calls
           </Link>
           <Link 
             href="/admin/settings" 
