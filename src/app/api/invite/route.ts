@@ -42,6 +42,7 @@ export async function POST(req: Request) {
       const customer = await stripe.customers.create({
         email: email,
         name: company_name,
+        preferred_locales: ['en'],
       })
       stripeCustomerId = customer.id
 

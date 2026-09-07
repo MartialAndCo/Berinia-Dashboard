@@ -39,6 +39,7 @@ export async function POST(req: Request) {
       const customer = await stripe.customers.create({
         email: client.email || user.email || undefined,
         name: client.company_name,
+        preferred_locales: ['en'],
         metadata: {
           clientId: client.id,
           userId: user.id
@@ -47,6 +48,9 @@ export async function POST(req: Request) {
       stripeCustomerId = customer.id
 
       await supabaseAdmin.from('clients').update({ stripe_customer_id: stripeCustomerId }).eq('id', client.id)
+    } else {
+      // Ensure existing customer has English preferred_locales
+      stripe.customers.update(stripeCustomerId, { preferred_locales: ['en'] }).catch(() => {})
     }
 
     // Generate a billing portal session
@@ -55,6 +59,7 @@ export async function POST(req: Request) {
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
       return_url: `${origin}${returnPath}`,
+      locale: 'en',
     })
 
     return NextResponse.json({ url: session.url })

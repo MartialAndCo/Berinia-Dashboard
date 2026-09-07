@@ -223,6 +223,9 @@ export async function getClientInvoicesAction(targetClientId?: string) {
       return { success: true, invoices: [], currentCycle: null }
     }
 
+    // Auto-heal: Ensure customer preferred_locales is English for all future invoices & PDFs
+    stripe.customers.update(stripeCustomerId, { preferred_locales: ['en'] }).catch(() => {})
+
     // Retrieve last 50 invoices for this customer from Stripe
     const invoices = await stripe.invoices.list({
       customer: stripeCustomerId,
