@@ -236,3 +236,143 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
   }
 }
 
+export interface MarkAirtableSubscriptionActiveParams {
+  email?: string | null
+  phone?: string | null
+  companyName?: string | null
+  fullName?: string | null
+}
+
+/**
+ * Validates "Abonnement actif" on Airtable when a client adds their card / pays their 1st subscription.
+ */
+export async function markAirtableSubscriptionActive(params: MarkAirtableSubscriptionActiveParams): Promise<{ success: boolean; recordId?: string; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  const cleanEmail = params.email?.trim().toLowerCase()
+  const cleanPhone = (params.phone || '').replace(/\D/g, '')
+  const cleanCompany = params.companyName?.trim().toLowerCase()
+  const cleanName = params.fullName?.trim().toLowerCase()
+
+  try {
+    // 1. Fetch recent records from Airtable (up to 100)
+    const searchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const listRes = await fetch(searchUrl, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!listRes.ok) {
+      const err = await listRes.text().catch(() => '')
+      return { success: false, error: `Failed to fetch Airtable records: ${err}` }
+    }
+
+    const data = await listRes.json()
+    const records = data.records || []
+
+    // 2. Find matching record by Email, Company Name, Phone, or Full Name
+    let matchedRecord = records.find((r: any) => {
+      const rEmail = (r.fields?.['Email'] || '').trim().toLowerCase()
+      if (cleanEmail && rEmail && rEmail === cleanEmail) return true
+      return false
+    })
+
+    if (!matchedRecord && cleanCompany) {
+      matchedRecord = records.find((r: any) => {
+        const rComp = (r.fields?.['Business Name'] || '').trim().toLowerCase()
+        return rComp && (rComp === cleanCompany || rComp.includes(cleanCompany) || cleanCompany.includes(rComp))
+      })
+    }
+
+    if (!matchedRecord && cleanPhone) {
+      matchedRecord = records.find((r: any) => {
+        const rPhone = (r.fields?.['Phone'] || '').replace(/\D/g, '')
+        return rPhone && (rPhone === cleanPhone || rPhone.endsWith(cleanPhone) || cleanPhone.endsWith(rPhone))
+      })
+    }
+
+    if (!matchedRecord && cleanName) {
+      matchedRecord = records.find((r: any) => {
+        const rName = (r.fields?.['Full Name'] || '').trim().toLowerCase()
+        return rName && (rName === cleanName || rName.includes(cleanName) || cleanName.includes(rName))
+      })
+    }
+
+    // 3. If matched, update the record with "Abonnement actif: true"
+    if (matchedRecord) {
+      const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
+      const patchRes = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields: {
+            'Abonnement actif': true,
+            'Statut du Lead': 'GAGNÉ (Client)'
+          },
+          typecast: true
+        })
+      })
+
+      if (!patchRes.ok) {
+        const errText = await patchRes.text().catch(() => '')
+        console.error('[Airtable markActive Error]', patchRes.status, errText)
+        return { success: false, error: errText }
+      }
+
+      console.log(`[Airtable] Successfully validated 'Abonnement actif' for record ${matchedRecord.id} (${cleanEmail || cleanCompany})`)
+      return { success: true, recordId: matchedRecord.id }
+    }
+
+    // 4. If no existing record in Airtable, create one with active subscription
+    console.log(`[Airtable] No existing lead found for ${cleanEmail || cleanCompany}. Creating new active client record...`)
+    const postUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
+    const createRes = await fetch(postUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        records: [
+          {
+            fields: {
+              'Full Name': params.fullName || params.companyName || 'Nouveau Client',
+              'Business Name': params.companyName || params.fullName || 'Nouveau Client',
+              'Email': params.email || '',
+              'Phone': params.phone || '',
+              'Source du Lead': 'Plateforme BerinAgents',
+              'Statut du Lead': 'GAGNÉ (Client)',
+              'Abonnement actif': true,
+              "Notes d'appel": 'Compte activé et premier abonnement réglé par CB'
+            }
+          }
+        ],
+        typecast: true
+      })
+    })
+
+    if (!createRes.ok) {
+      const errText = await createRes.text().catch(() => '')
+      return { success: false, error: errText }
+    }
+
+    const createData = await createRes.json()
+    const newId = createData.records?.[0]?.id
+    return { success: true, recordId: newId }
+  } catch (err: any) {
+    console.error('[Airtable markActive Exception]', err)
+    return { success: false, error: err?.message }
+  }
+}
+
+

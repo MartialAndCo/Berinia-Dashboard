@@ -1,6 +1,7 @@
 'use server'
 
 import { checkUserAuth } from '@/utils/supabase/server'
+import { markAirtableSubscriptionActive } from '@/lib/airtable'
 
 const Stripe = require('stripe').default || require('stripe')
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
@@ -71,6 +72,20 @@ export async function getSubscriptionStatusAction(subscriptionId: string | null)
       } else {
         cardInfo = { brand: pm.type, last4: '***' }
       }
+    }
+
+    if (pm && !needsPaymentMethod) {
+      try {
+        const customer = subscription.customer
+        const customerEmail = typeof customer !== 'string' ? customer?.email : null
+        const customerName = typeof customer !== 'string' ? customer?.name : null
+        if (customerEmail) {
+          markAirtableSubscriptionActive({
+            email: customerEmail,
+            companyName: customerName
+          }).catch(() => {})
+        }
+      } catch {}
     }
 
     return { needsPaymentMethod, payUrl, cardInfo }

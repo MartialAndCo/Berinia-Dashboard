@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { getEmailTemplate } from '@/lib/email-template'
+import { getServiceSupabase } from '@/lib/supabase'
+import { markAirtableSubscriptionActive } from '@/lib/airtable'
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy')
 
@@ -27,76 +29,169 @@ export async function POST(req: Request) {
       event = JSON.parse(rawBody)
     }
 
+    const supabaseAdmin = getServiceSupabase()
+
+    // 1. Invoice Payment Succeeded (Initial subscription charge or recurring invoice)
     if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object
 
-      // We only send emails for subscription invoices (where amount > 0)
-      if (invoice.subscription && invoice.amount_paid > 0 && invoice.customer_email) {
-        let usageSeconds = 0
-        let usageAmount = 0
-        let retainerAmount = 0
+      // If subscription invoice was paid
+      if (invoice.subscription && invoice.amount_paid > 0) {
+        // Find matching client in Supabase
+        const { data: client } = await supabaseAdmin
+          .from('clients')
+          .select('*')
+          .or(`stripe_customer_id.eq.${invoice.customer},stripe_subscription_id.eq.${invoice.subscription}${invoice.customer_email ? `,email.eq.${invoice.customer_email}` : ''}`)
+          .limit(1)
+          .maybeSingle()
 
-        invoice.lines.data.forEach((line: any) => {
-          if (line.price?.recurring?.usage_type === 'metered') {
-            usageSeconds += line.quantity || 0
-            usageAmount += line.amount
-          } else {
-            retainerAmount += line.amount
+        if (client) {
+          if (client.status !== 'Active') {
+            await supabaseAdmin.from('clients').update({ status: 'Active' }).eq('id', client.id)
           }
-        })
+          await markAirtableSubscriptionActive({
+            email: client.email || invoice.customer_email,
+            companyName: client.company_name
+          }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
+        } else if (invoice.customer_email) {
+          await markAirtableSubscriptionActive({
+            email: invoice.customer_email,
+            fullName: invoice.customer_name
+          }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
+        }
 
-        const usageMinutes = Math.floor(usageSeconds / 60)
-        const totalPaidStr = (invoice.amount_paid / 100).toFixed(2)
-        const usageAmountStr = (usageAmount / 100).toFixed(2)
-        const retainerAmountStr = (retainerAmount / 100).toFixed(2)
-        const invoicePdf = invoice.invoice_pdf || invoice.hosted_invoice_url
+        // Send email notification for the invoice
+        if (invoice.customer_email) {
+          let usageSeconds = 0
+          let usageAmount = 0
+          let retainerAmount = 0
 
-        const contentHtml = `
-          <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
-            <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
-          </div>
-          <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #1a1918; margin: 0 0 24px 0; letter-spacing: -0.5px;">Your invoice is ready</h1>
-          <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
-          
-          <p style="margin: 0 0 28px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Your usage for this billing period has been calculated. Your card on file will be charged automatically — no action required on your part.</p>
-          
-          <div style="background-color: #f0ede6; border: 1px solid #e2dfd8; padding: 20px 24px; margin-bottom: 36px;">
-            <div style="font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #73706b; margin-bottom: 12px;">
-              Billing Summary
+          invoice.lines.data.forEach((line: any) => {
+            if (line.price?.recurring?.usage_type === 'metered') {
+              usageSeconds += line.quantity || 0
+              usageAmount += line.amount
+            } else {
+              retainerAmount += line.amount
+            }
+          })
+
+          const usageMinutes = Math.floor(usageSeconds / 60)
+          const totalPaidStr = (invoice.amount_paid / 100).toFixed(2)
+          const usageAmountStr = (usageAmount / 100).toFixed(2)
+          const retainerAmountStr = (retainerAmount / 100).toFixed(2)
+          const invoicePdf = invoice.invoice_pdf || invoice.hosted_invoice_url
+
+          const contentHtml = `
+            <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
+              <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
             </div>
-            <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 15px; color: #1a1918; line-height: 2;">
-              ${retainerAmount > 0 ? `
-              <tr>
-                <td>Monthly Platform Subscription</td>
-                <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">$${retainerAmountStr}</td>
-              </tr>` : ''}
-              ${usageAmount > 0 ? `
-              <tr>
-                <td>Voice AI Usage (${usageMinutes} min)</td>
-                <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">$${usageAmountStr}</td>
-              </tr>` : ''}
-              <tr style="border-top: 1px solid #dcd7ce;">
-                <td style="padding-top: 10px; font-weight: bold; font-size: 16px;">Total Billed</td>
-                <td align="right" style="padding-top: 10px; font-weight: bold; font-size: 18px; color: #9e4733; font-family: monospace;">$${totalPaidStr}</td>
-              </tr>
-            </table>
-          </div>
-          
-          <div>
-            <a href="${invoicePdf}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
-              <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> VIEW INVOICE
-            </a>
-          </div>
-        `
+            <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #1a1918; margin: 0 0 24px 0; letter-spacing: -0.5px;">Your invoice is ready</h1>
+            <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
+            
+            <p style="margin: 0 0 28px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Your payment has been processed successfully. Your voice AI platform is fully active.</p>
+            
+            <div style="background-color: #f0ede6; border: 1px solid #e2dfd8; padding: 20px 24px; margin-bottom: 36px;">
+              <div style="font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #73706b; margin-bottom: 12px;">
+                Billing Summary
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 15px; color: #1a1918; line-height: 2;">
+                ${retainerAmount > 0 ? `
+                <tr>
+                  <td>Monthly Platform Subscription</td>
+                  <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">$${retainerAmountStr}</td>
+                </tr>` : ''}
+                ${usageAmount > 0 ? `
+                <tr>
+                  <td>Voice AI Usage (${usageMinutes} min)</td>
+                  <td align="right" style="font-weight: 600; font-family: monospace; font-size: 15px;">$${usageAmountStr}</td>
+                </tr>` : ''}
+                <tr style="border-top: 1px solid #dcd7ce;">
+                  <td style="padding-top: 10px; font-weight: bold; font-size: 16px;">Total Billed</td>
+                  <td align="right" style="padding-top: 10px; font-weight: bold; font-size: 18px; color: #9e4733; font-family: monospace;">$${totalPaidStr}</td>
+                </tr>
+              </table>
+            </div>
+            
+            <div>
+              <a href="${invoicePdf}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
+                <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> VIEW INVOICE
+              </a>
+            </div>
+          `
 
-        const htmlEmail = getEmailTemplate('Your BerinAgents Invoice', contentHtml)
+          const htmlEmail = getEmailTemplate('Your BerinAgents Invoice', contentHtml)
 
-        await resend.emails.send({
-          from: 'BerinAgents Billing <billing@berinagents.com>',
-          to: [invoice.customer_email],
-          subject: 'Your Monthly Invoice - BerinAgents',
-          html: htmlEmail,
-        })
+          await resend.emails.send({
+            from: 'BerinAgents Billing <billing@berinagents.com>',
+            to: [invoice.customer_email],
+            subject: 'Your Monthly Invoice - BerinAgents',
+            html: htmlEmail,
+          }).catch(e => console.error('Error sending invoice email:', e))
+        }
+      }
+    }
+
+    // 2. Subscription transitions to Active (Customer attached credit card / subscription activated)
+    if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
+      const subscription = event.data.object
+      if (subscription.status === 'active') {
+        const { data: client } = await supabaseAdmin
+          .from('clients')
+          .select('*')
+          .or(`stripe_customer_id.eq.${subscription.customer},stripe_subscription_id.eq.${subscription.id}`)
+          .limit(1)
+          .maybeSingle()
+
+        if (client) {
+          if (client.status !== 'Active') {
+            await supabaseAdmin.from('clients').update({ status: 'Active' }).eq('id', client.id)
+          }
+          await markAirtableSubscriptionActive({
+            email: client.email,
+            companyName: client.company_name
+          }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
+        } else {
+          try {
+            const customer = await stripe.customers.retrieve(subscription.customer)
+            if (customer && !customer.deleted && customer.email) {
+              await markAirtableSubscriptionActive({
+                email: customer.email,
+                companyName: customer.name
+              }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
+            }
+          } catch (e) {
+            console.error('[Stripe Webhook] Error fetching customer for subscription update:', e)
+          }
+        }
+      }
+    }
+
+    // 3. Checkout Session Completed
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object
+      const email = session.customer_details?.email || session.customer_email
+      const customerId = session.customer
+      const subscriptionId = session.subscription
+
+      if (customerId || subscriptionId || email) {
+        const { data: client } = await supabaseAdmin
+          .from('clients')
+          .select('*')
+          .or(`stripe_customer_id.eq.${customerId},stripe_subscription_id.eq.${subscriptionId}${email ? `,email.eq.${email}` : ''}`)
+          .limit(1)
+          .maybeSingle()
+
+        if (client) {
+          if (client.status !== 'Active') {
+            await supabaseAdmin.from('clients').update({ status: 'Active' }).eq('id', client.id)
+          }
+          await markAirtableSubscriptionActive({
+            email: client.email || email,
+            companyName: client.company_name
+          }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
+        } else if (email) {
+          await markAirtableSubscriptionActive({ email }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
+        }
       }
     }
 
