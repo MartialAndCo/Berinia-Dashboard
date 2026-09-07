@@ -558,7 +558,7 @@ function ClientDashboardContent() {
     const lines = rawTranscript.split('\n').filter(l => l.trim().length > 0)
 
     return (
-      <div className="space-y-3 max-h-80 overflow-y-auto pr-2 py-2 w-full max-w-2xl">
+      <div className="w-full bg-[#faf9f7] border border-[#e6e2d6] rounded-sm p-4 space-y-3.5 max-h-96 overflow-y-auto overflow-x-hidden">
         {lines.map((line, idx) => {
           const isAgent = line.startsWith('Agent:')
           const isUser = line.startsWith('User:') || line.startsWith('Customer:') || line.startsWith('Caller:')
@@ -566,13 +566,13 @@ function ClientDashboardContent() {
 
           if (isAgent) {
             return (
-              <div key={idx} className="flex gap-2.5 items-start">
-                <div className="h-6 w-6 rounded-full bg-[#1a1918] text-white flex items-center justify-center shrink-0 mt-0.5 text-[10px]">
+              <div key={idx} className="flex items-start gap-2.5 w-full min-w-0">
+                <div className="h-7 w-7 rounded-full bg-[#1a1918] text-white flex items-center justify-center shrink-0 mt-0.5 text-xs shadow-xs">
                   <Bot className="h-3.5 w-3.5 text-[#9e4733]" />
                 </div>
-                <div className="bg-[#faf8f5] border border-[#e6e2d6] rounded-sm rounded-tl-none p-3 text-xs text-[#1a1918] leading-relaxed max-w-[80%] break-words">
+                <div className="min-w-0 max-w-[85%] sm:max-w-[75%] bg-white border border-[#e6e2d6] rounded-sm rounded-tl-none p-3 text-xs text-[#1a1918] leading-relaxed shadow-xs">
                   <div className="text-[9px] uppercase font-bold text-[#9e4733] mb-1">AI Assistant</div>
-                  {content}
+                  <p className="whitespace-pre-wrap break-words">{content}</p>
                 </div>
               </div>
             )
@@ -580,12 +580,12 @@ function ClientDashboardContent() {
 
           if (isUser) {
             return (
-              <div key={idx} className="flex gap-2.5 items-start justify-end">
-                <div className="bg-white border border-[#e6e2d6] rounded-sm rounded-tr-none p-3 text-xs text-[#1a1918] leading-relaxed max-w-[80%] shadow-xs break-words">
+              <div key={idx} className="flex items-start justify-end gap-2.5 w-full min-w-0">
+                <div className="min-w-0 max-w-[85%] sm:max-w-[75%] bg-[#f4f1ea] border border-[#e2ddd3] rounded-sm rounded-tr-none p-3 text-xs text-[#1a1918] leading-relaxed shadow-xs">
                   <div className="text-[9px] uppercase font-bold text-[#73706b] mb-1 text-right">Caller</div>
-                  {content}
+                  <p className="whitespace-pre-wrap break-words">{content}</p>
                 </div>
-                <div className="h-6 w-6 rounded-full bg-[#f0ede6] text-[#73706b] flex items-center justify-center shrink-0 mt-0.5 text-[10px]">
+                <div className="h-7 w-7 rounded-full bg-[#e6e2d6] text-[#73706b] flex items-center justify-center shrink-0 mt-0.5 text-xs shadow-xs">
                   <User className="h-3.5 w-3.5" />
                 </div>
               </div>
@@ -593,7 +593,7 @@ function ClientDashboardContent() {
           }
 
           return (
-            <div key={idx} className="text-xs text-[#73706b] italic font-mono bg-[#faf8f5] p-2 rounded-sm border border-[#f0ece4] break-words">
+            <div key={idx} className="w-full min-w-0 text-xs text-[#73706b] italic font-mono bg-white p-2.5 rounded-sm border border-[#e6e2d6] break-words">
               {line}
             </div>
           )
@@ -1182,7 +1182,7 @@ function ClientDashboardContent() {
                                 <h4 className="text-[10px] font-semibold text-[#9e4733] uppercase tracking-wider mb-1 flex items-center gap-1.5">
                                   <span>•</span> AI Call Summary
                                 </h4>
-                                <p className="text-xs text-[#2d2d2d] leading-relaxed bg-[#faf8f5] p-3 rounded-sm border border-[#e6e2d6]">{call.call_summary}</p>
+                                <p className="text-xs text-[#2d2d2d] leading-relaxed bg-[#faf8f5] p-3 rounded-sm border border-[#e6e2d6] break-words">{call.call_summary}</p>
                               </div>
                             )}
 
