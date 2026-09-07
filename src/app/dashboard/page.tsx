@@ -570,9 +570,9 @@ function ClientDashboardContent() {
                 <div className="h-7 w-7 rounded-full bg-[#1a1918] text-white flex items-center justify-center shrink-0 mt-0.5 text-xs shadow-xs">
                   <Bot className="h-3.5 w-3.5 text-[#9e4733]" />
                 </div>
-                <div className="min-w-0 max-w-[85%] sm:max-w-[75%] bg-white border border-[#e6e2d6] rounded-sm rounded-tl-none p-3 text-xs text-[#1a1918] leading-relaxed shadow-xs">
+                <div className="min-w-0 max-w-[85%] sm:max-w-[70%] bg-white border border-[#e6e2d6] rounded-sm rounded-tl-none p-3 text-xs text-[#1a1918] leading-relaxed shadow-xs">
                   <div className="text-[9px] uppercase font-bold text-[#9e4733] mb-1">AI Assistant</div>
-                  <p className="whitespace-pre-wrap break-words">{content}</p>
+                  <p className="whitespace-normal break-words">{content}</p>
                 </div>
               </div>
             )
@@ -581,9 +581,9 @@ function ClientDashboardContent() {
           if (isUser) {
             return (
               <div key={idx} className="flex items-start justify-end gap-2.5 w-full min-w-0">
-                <div className="min-w-0 max-w-[85%] sm:max-w-[75%] bg-[#f4f1ea] border border-[#e2ddd3] rounded-sm rounded-tr-none p-3 text-xs text-[#1a1918] leading-relaxed shadow-xs">
+                <div className="min-w-0 max-w-[85%] sm:max-w-[70%] bg-[#f4f1ea] border border-[#e2ddd3] rounded-sm rounded-tr-none p-3 text-xs text-[#1a1918] leading-relaxed shadow-xs">
                   <div className="text-[9px] uppercase font-bold text-[#73706b] mb-1 text-right">Caller</div>
-                  <p className="whitespace-pre-wrap break-words">{content}</p>
+                  <p className="whitespace-normal break-words">{content}</p>
                 </div>
                 <div className="h-7 w-7 rounded-full bg-[#e6e2d6] text-[#73706b] flex items-center justify-center shrink-0 mt-0.5 text-xs shadow-xs">
                   <User className="h-3.5 w-3.5" />
@@ -593,7 +593,7 @@ function ClientDashboardContent() {
           }
 
           return (
-            <div key={idx} className="w-full min-w-0 text-xs text-[#73706b] italic font-mono bg-white p-2.5 rounded-sm border border-[#e6e2d6] break-words">
+            <div key={idx} className="w-full min-w-0 text-xs text-[#73706b] italic font-mono bg-white p-2.5 rounded-sm border border-[#e6e2d6] whitespace-normal break-words">
               {line}
             </div>
           )
@@ -1108,24 +1108,24 @@ function ClientDashboardContent() {
           </CardHeader>
 
           {/* Desktop Table View */}
-          <CardContent className="p-0 hidden md:block">
-            <Table className="w-full">
+          <CardContent className="p-0 hidden md:block overflow-hidden">
+            <Table className="w-full table-fixed" containerClassName="overflow-x-hidden w-full">
               <TableHeader>
                 <TableRow className="bg-[#faf8f5] hover:bg-[#faf8f5] border-b border-[#e6e2d6]">
-                  <TableHead className="w-8 px-3"></TableHead>
-                  <TableHead className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('created_at')}>
+                  <TableHead className="w-10 px-3"></TableHead>
+                  <TableHead className="w-36 cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('created_at')}>
                     <span className="flex items-center gap-1">Date <ArrowUpDown className="h-3 w-3" /></span>
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Agent</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Caller</TableHead>
-                  <TableHead className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('duration_secs')}>
+                  <TableHead className="w-48 text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Agent</TableHead>
+                  <TableHead className="w-36 text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Caller</TableHead>
+                  <TableHead className="w-24 cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('duration_secs')}>
                     <span className="flex items-center gap-1">Duration <ArrowUpDown className="h-3 w-3" /></span>
                   </TableHead>
-                  <TableHead className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('cost')}>
+                  <TableHead className="w-20 cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('cost')}>
                     <span className="flex items-center gap-1">Cost <ArrowUpDown className="h-3 w-3" /></span>
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Sentiment</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11 text-right px-4">Audio</TableHead>
+                  <TableHead className="w-28 text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Sentiment</TableHead>
+                  <TableHead className="w-28 text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11 text-right px-4">Audio</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1145,7 +1145,7 @@ function ClientDashboardContent() {
                       <TableCell className="text-xs font-mono text-[#1a1918] whitespace-nowrap">
                         {new Date(call.created_at).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}
                       </TableCell>
-                      <TableCell className="font-semibold text-xs text-[#1a1918]">{call.agents?.agent_name}</TableCell>
+                      <TableCell className="font-semibold text-xs text-[#1a1918] truncate">{call.agents?.agent_name}</TableCell>
                       <TableCell className="font-mono text-xs text-[#73706b] whitespace-nowrap">
                         {call.from_number ? (
                           <span className="flex items-center gap-1">
@@ -1163,8 +1163,8 @@ function ClientDashboardContent() {
 
                     {expandedCall === call.id && (
                       <TableRow key={`${call.id}-detail`}>
-                        <TableCell colSpan={8} className="bg-[#faf9f7]/60 p-0 border-b border-[#e6e2d6]">
-                          <div className="p-5 sm:p-6 space-y-5 w-full bg-white border-l-2 border-[#1a1918]">
+                        <TableCell colSpan={8} className="bg-[#faf9f7]/60 p-0 border-b border-[#e6e2d6] whitespace-normal">
+                          <div className="p-5 sm:p-6 space-y-5 w-full max-w-full overflow-hidden bg-white border-l-2 border-[#1a1918]">
                             
                             {/* Full Audio Player with scrubber & speed (Item #9) */}
                             {call.recording_url && (
