@@ -125,7 +125,7 @@ async function syncStripeSubscription(clientId: string, newBillingRate?: number,
           }
         }
       } else if (newRetainer > 0) {
-        const productRetainer = await stripe.products.create({ name: `Monthly Retainer - ${resolvedCompanyName}` })
+        const productRetainer = await stripe.products.create({ name: `Monthly Subscription - ${resolvedCompanyName}` })
         const priceRetainer = await stripe.prices.create({
           product: productRetainer.id,
           unit_amount: Math.round(newRetainer * 100),

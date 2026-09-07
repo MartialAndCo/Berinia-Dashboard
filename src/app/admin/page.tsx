@@ -195,7 +195,7 @@ export default function AdminDashboard() {
           
           <Card className="border border-[#e6e2d6] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] bg-[#ffffff]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">MRR (Retainers)</CardTitle>
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">MRR (Subscriptions)</CardTitle>
               <DollarSign className="h-4 w-4 text-[#73706b]" />
             </CardHeader>
             <CardContent>
@@ -266,7 +266,7 @@ export default function AdminDashboard() {
                   <TableHead className="text-[11px] uppercase tracking-wider text-[#73706b] font-semibold">Client</TableHead>
                   <TableHead className="text-[11px] uppercase tracking-wider text-[#73706b] font-semibold">Status</TableHead>
                   <TableHead className="text-[11px] uppercase tracking-wider text-[#73706b] font-semibold">Rate/min</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider text-[#73706b] font-semibold">Retainer</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider text-[#73706b] font-semibold">Subscription</TableHead>
                   <TableHead className="text-[11px] uppercase tracking-wider text-[#73706b] font-semibold">Calls</TableHead>
                   <TableHead className="text-[11px] uppercase tracking-wider text-[#73706b] font-semibold">Usage Revenue</TableHead>
                   <TableHead className="text-[11px] uppercase tracking-wider text-[#73706b] font-semibold">Retell Cost</TableHead>

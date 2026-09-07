@@ -654,7 +654,7 @@ function ClientDashboardContent() {
                 )}
                 {clientInfo?.monthly_retainer > 0 && (
                   <div className="flex justify-between items-center text-[#73706b]">
-                    <span className="uppercase tracking-wider text-[10px] font-semibold">Monthly retainer</span>
+                    <span className="uppercase tracking-wider text-[10px] font-semibold">Monthly subscription</span>
                     <span className="font-mono font-medium text-[#1a1918]">${clientInfo.monthly_retainer} / mo</span>
                   </div>
                 )}
@@ -811,10 +811,10 @@ function ClientDashboardContent() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-4">
               <div>
                 <div className="text-[11px] font-semibold tracking-widest text-[#73706b] uppercase mb-1">
-                  RETAINER & BILLING
+                  SUBSCRIPTION & BILLING
                 </div>
                 <div className="text-xs text-[#73706b]">
-                  Monthly Retainer: <strong className="text-[#1a1918] font-mono">${clientInfo?.monthly_retainer || 0} / mo</strong> · Status: <span className="font-medium text-[#2e6b34] capitalize">{clientInfo?.status || 'Active'}</span>
+                  Monthly Subscription: <strong className="text-[#1a1918] font-mono">${clientInfo?.monthly_retainer || 0} / mo</strong> · Status: <span className="font-medium text-[#2e6b34] capitalize">{clientInfo?.status || 'Active'}</span>
                 </div>
               </div>
               <div>

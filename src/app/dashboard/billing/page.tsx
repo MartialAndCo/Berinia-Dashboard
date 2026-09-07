@@ -135,7 +135,7 @@ function BillingContent() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#f0ece4] p-6 gap-6 md:gap-0">
             <div className="md:pr-6 space-y-1.5">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Monthly Retainer</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Monthly Subscription</div>
               <div className="font-serif text-2xl font-bold text-[#1a1918]">
                 ${clientInfo?.monthly_retainer || 0} <span className="text-xs font-normal text-[#73706b]">/ month</span>
               </div>

@@ -177,7 +177,7 @@ export default function NewClientPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
-                    Monthly Retainer ($) <span className="text-[#9e4733]">*</span>
+                    Monthly Subscription ($) <span className="text-[#9e4733]">*</span>
                   </Label>
                   <Input 
                     required 

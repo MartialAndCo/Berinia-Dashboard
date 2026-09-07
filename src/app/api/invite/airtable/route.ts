@@ -68,10 +68,10 @@ async function processAirtableInvite(params: ProcessInviteParams) {
         phone = extractAirtableString(airtableFields['Phone'] || airtableFields['Téléphone']) || ''
       }
 
-      // Exact fields from Airtable: "Monthly Retainer (from Abonnement)", "Cost Per Min (from Abonnement)", "Setup Fee (from Abonnement)"
+      // Exact fields from Airtable: "Monthly Subscription (from Abonnement)" or "Monthly Retainer (from Abonnement)", "Cost Per Min (from Abonnement)", "Setup Fee (from Abonnement)"
       if (monthly_retainer === undefined) {
-        const fromAbonnement = extractAirtableNumber(airtableFields['Monthly Retainer (from Abonnement)'])
-        const direct = extractAirtableNumber(airtableFields['Monthly Retainer'] || airtableFields['Retainer'] || airtableFields['Abonnement mensuel'])
+        const fromAbonnement = extractAirtableNumber(airtableFields['Monthly Subscription (from Abonnement)'] || airtableFields['Monthly Retainer (from Abonnement)'])
+        const direct = extractAirtableNumber(airtableFields['Monthly Subscription'] || airtableFields['Subscription'] || airtableFields['Monthly Retainer'] || airtableFields['Retainer'] || airtableFields['Abonnement mensuel'])
         monthly_retainer = fromAbonnement ?? direct ?? 500
       }
 
@@ -239,16 +239,16 @@ async function processAirtableInvite(params: ProcessInviteParams) {
 
     const items: any[] = []
 
-    // Monthly Retainer product & price (from "Monthly Retainer (from Abonnement)")
+    // Monthly Subscription product & price
     if (monthly_retainer > 0) {
-      const productRetainer = await stripe.products.create({ name: `Monthly Retainer - ${company_name}` })
-      const priceRetainer = await stripe.prices.create({
-        product: productRetainer.id,
+      const productSub = await stripe.products.create({ name: `Monthly Subscription - ${company_name}` })
+      const priceSub = await stripe.prices.create({
+        product: productSub.id,
         unit_amount: Math.round(monthly_retainer * 100),
         currency: 'usd',
         recurring: { interval: 'month' }
       })
-      items.push({ price: priceRetainer.id })
+      items.push({ price: priceSub.id })
     }
 
     // Usage calls metered per second (from "Cost Per Min (from Abonnement)")
@@ -341,7 +341,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
   if (recordId) {
     const nowStr = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })
     const feeText = setup_fee > 0 ? `, Setup: ${setup_fee} $` : ''
-    const noteAppend = `[BerinAgents] Dashboard créé (Retainer: ${monthly_retainer} $/mois${feeText}, Min: ${billing_rate} $/min) et invitation envoyée le ${nowStr}.`
+    const noteAppend = `[BerinAgents] Dashboard créé (Subscription: ${monthly_retainer} $/mois${feeText}, Min: ${billing_rate} $/min) et invitation envoyée le ${nowStr}.`
     await updateAirtableLeadRecord(recordId, {
       'Statut du Lead': 'Client Invité',
       "Notes d'appel": existingAirtableNotes ? `${existingAirtableNotes}\n\n${noteAppend}` : noteAppend
@@ -536,7 +536,7 @@ function renderHtmlResponse(result: {
         </div>
         ${result.monthly_retainer !== undefined ? `
         <div class="info-row">
-          <span class="info-label">Monthly Retainer</span>
+          <span class="info-label">Monthly Subscription</span>
           <span class="info-val">${result.monthly_retainer} $ / mois</span>
         </div>
         ` : ''}
@@ -546,12 +546,10 @@ function renderHtmlResponse(result: {
           <span class="info-val">${result.setup_fee} $ (facturé sur 1ère facture)</span>
         </div>
         ` : ''}
-        ${result.billing_rate !== undefined ? `
         <div class="info-row">
           <span class="info-label">Cost Per Min</span>
           <span class="info-val">${result.billing_rate} $ / min</span>
         </div>
-        ` : ''}
         <div class="info-row">
           <span class="info-label">Statut Stripe & Supabase</span>
           <span class="info-val" style="color: #2e6930;">✓ Configuré</span>
@@ -599,7 +597,7 @@ export async function GET(req: Request) {
   const full_name = searchParams.get('full_name') || searchParams.get('name') || undefined
   const phone = searchParams.get('phone') || undefined
   const rawRate = searchParams.get('billing_rate') || searchParams.get('rate')
-  const rawRetainer = searchParams.get('monthly_retainer') || searchParams.get('retainer')
+  const rawRetainer = searchParams.get('monthly_subscription') || searchParams.get('subscription') || searchParams.get('monthly_retainer') || searchParams.get('retainer')
   const rawSetup = searchParams.get('setup_fee') || searchParams.get('setup')
   const billing_rate = rawRate ? parseFloat(rawRate) : undefined
   const monthly_retainer = rawRetainer ? parseFloat(rawRetainer) : undefined
@@ -638,6 +636,14 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}))
     const origin = req.headers.get('origin') || new URL(req.url).origin
 
+    const rawMonthlySub = body.monthly_subscription !== undefined 
+      ? body.monthly_subscription 
+      : (body.subscription !== undefined 
+          ? body.subscription 
+          : (body.monthly_retainer !== undefined 
+              ? body.monthly_retainer 
+              : body.retainer))
+
     const result = await processAirtableInvite({
       recordId: body.recordId || body.id,
       email: body.email,
@@ -645,7 +651,7 @@ export async function POST(req: Request) {
       full_name: body.full_name || body.fullName || body.name,
       phone: body.phone,
       billing_rate: body.billing_rate !== undefined ? parseFloat(body.billing_rate) : undefined,
-      monthly_retainer: body.monthly_retainer !== undefined ? parseFloat(body.monthly_retainer) : undefined,
+      monthly_retainer: rawMonthlySub !== undefined ? parseFloat(rawMonthlySub) : undefined,
       setup_fee: body.setup_fee !== undefined ? parseFloat(body.setup_fee) : undefined,
       origin
     })

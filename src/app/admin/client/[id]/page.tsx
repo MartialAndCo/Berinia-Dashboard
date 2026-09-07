@@ -256,7 +256,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                 <span>•</span> RATES & PRICING
               </div>
               <CardTitle className="font-serif text-xl font-bold text-[#1a1918]">Configuration & Billing</CardTitle>
-              <CardDescription className="text-xs text-[#73706b]">Adjust usage rates and retainer fee</CardDescription>
+              <CardDescription className="text-xs text-[#73706b]">Adjust usage rates and subscription fee</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-6">
               <div className="space-y-1.5">
@@ -268,7 +268,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                 <Input type="number" step="0.01" value={billingRate} onChange={e => setBillingRate(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Monthly Retainer ($)</Label>
+                <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Monthly Subscription ($)</Label>
                 <Input type="number" step="1" value={retainer} onChange={e => setRetainer(e.target.value)} className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" />
               </div>
               <Button onClick={handleUpdateConfig} className="w-full mt-4 bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10">

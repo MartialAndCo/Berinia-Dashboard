@@ -363,7 +363,7 @@ export default function ClientSettingsPage() {
                   <span className="font-serif font-bold text-lg text-[#1a1918]">${clientData?.billing_rate_per_min} / min</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-t border-[#f0ece4]">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-[#73706b]">Monthly Retainer</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#73706b]">Monthly Subscription</span>
                   <span className="font-serif font-bold text-lg text-[#1a1918]">${clientData?.monthly_retainer} / mo</span>
                 </div>
               </CardContent>
