@@ -20,6 +20,7 @@ export default function NewClientPage() {
   const [retainer, setRetainer] = useState('500')
   const [initialAgentToAssign, setInitialAgentToAssign] = useState('')
   const [forwardWebhookUrl, setForwardWebhookUrl] = useState('')
+  const [backfillHistory, setBackfillHistory] = useState(false)
   const [retellAgents, setRetellAgents] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -59,8 +60,8 @@ export default function NewClientPage() {
         if (initialAgentToAssign && json.clientId) {
           const selectedRetellObj = retellAgents.find(a => a.agent_id === initialAgentToAssign)
           if (selectedRetellObj) {
-            await addAgentAction(json.clientId, selectedRetellObj.agent_name, selectedRetellObj.agent_id, forwardWebhookUrl)
-            toast.success("Agent assigned to client.")
+            await addAgentAction(json.clientId, selectedRetellObj.agent_name, selectedRetellObj.agent_id, forwardWebhookUrl, backfillHistory)
+            toast.success(backfillHistory ? "Agent assigned with past call history." : "Agent assigned (clean history starting from 0).")
           }
         }
 
@@ -225,20 +226,50 @@ export default function NewClientPage() {
               </div>
 
               {initialAgentToAssign && (
-                <div className="space-y-1.5 pt-2">
-                  <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
-                    Forward Webhook URL (Optional)
-                  </Label>
-                  <Input 
-                    value={forwardWebhookUrl} 
-                    onChange={e => setForwardWebhookUrl(e.target.value)} 
-                    placeholder="https://hook.eu1.make.com/... or https://n8n.yourdomain.com/webhook/..." 
-                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-xs font-mono" 
-                  />
-                  <p className="text-[11px] text-[#73706b]">
-                    Raw Retell call events will be forwarded to this webhook URL immediately upon call completion.
-                  </p>
-                </div>
+                <>
+                  <div className="space-y-1.5 pt-2">
+                    <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
+                      Forward Webhook URL (Optional)
+                    </Label>
+                    <Input 
+                      value={forwardWebhookUrl} 
+                      onChange={e => setForwardWebhookUrl(e.target.value)} 
+                      placeholder="https://hook.eu1.make.com/... or https://n8n.yourdomain.com/webhook/..." 
+                      className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-xs font-mono" 
+                    />
+                    <p className="text-[11px] text-[#73706b]">
+                      Raw Retell call events will be forwarded to this webhook URL immediately upon call completion.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-[#faf9f7] border border-[#e2dfd8] rounded-sm flex items-center justify-between mt-3">
+                    <div className="space-y-1 pr-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-[#1a1918]">
+                          Retro-pick past calls & billing history
+                        </span>
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${backfillHistory ? 'bg-[#9e4733]/10 border-[#9e4733]/20 text-[#9e4733]' : 'bg-[#e2dfd8]/50 border-[#e2dfd8] text-[#73706b]'}`}>
+                          {backfillHistory ? 'Retro-pick enabled' : 'Start from 0 (Default)'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#73706b] leading-relaxed">
+                        {backfillHistory
+                          ? "Existing calls from Retell AI will be imported and billed at the client's minute rate."
+                          : "Starts with a clean slate (0 calls, €0.00 invoiced). Past test or demo calls from Retell AI will NOT be imported."}
+                      </p>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input 
+                        type="checkbox" 
+                        checked={backfillHistory}
+                        onChange={e => setBackfillHistory(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1a1918]"></div>
+                    </label>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>

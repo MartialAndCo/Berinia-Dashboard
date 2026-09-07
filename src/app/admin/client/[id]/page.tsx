@@ -34,6 +34,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   const [newAgentId, setNewAgentId] = useState('')
   const [newAgentName, setNewAgentName] = useState('')
   const [newAgentWebhook, setNewAgentWebhook] = useState('')
+  const [backfillHistory, setBackfillHistory] = useState(false)
   const [agentWebhooks, setAgentWebhooks] = useState<Record<string, string>>({})
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
@@ -137,12 +138,13 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   const handleAddAgent = async () => {
     if (!newAgentId) return
     const toastId = toast.loading("Assigning agent...")
-    const res = await addAgentAction(clientId, newAgentName, newAgentId, newAgentWebhook)
+    const res = await addAgentAction(clientId, newAgentName, newAgentId, newAgentWebhook, backfillHistory)
     if (res.success) {
-      toast.success("Agent assigned.", { id: toastId })
+      toast.success(backfillHistory ? "Agent assigned with past call history." : "Agent assigned (clean history starting from 0).", { id: toastId })
       setNewAgentId('')
       setNewAgentName('')
       setNewAgentWebhook('')
+      setBackfillHistory(false)
       fetchData()
     } else {
       toast.error("Error: " + res.error, { id: toastId })
@@ -394,7 +396,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
               <div className="py-12 text-center text-sm text-[#73706b]">No voice agents assigned to this client yet.</div>
             )}
 
-            <div className="p-6 border-t border-[#f0ece4] bg-[#faf9f7]/40 space-y-3">
+            <div className="p-6 border-t border-[#f0ece4] bg-[#faf9f7]/40 space-y-4">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Assign New Retell Agent</div>
               <div className="flex flex-col md:flex-row gap-3">
                 <select 
@@ -422,6 +424,37 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                   Assign Agent <span className="ml-1.5 text-[#9e4733] text-[16px] leading-none">•</span>
                 </Button>
               </div>
+
+              {newAgentId && (
+                <div className="p-3.5 bg-white border border-[#e2dfd8] rounded-sm flex items-center justify-between">
+                  <div className="space-y-1 pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-[#1a1918]">
+                        Retro-pick past calls & billing history
+                      </span>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${backfillHistory ? 'bg-[#9e4733]/10 border-[#9e4733]/20 text-[#9e4733]' : 'bg-[#e2dfd8]/50 border-[#e2dfd8] text-[#73706b]'}`}>
+                        {backfillHistory ? 'Retro-pick enabled' : 'Start from 0 (Default)'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#73706b] leading-relaxed">
+                      {backfillHistory
+                        ? "Existing calls from Retell AI will be imported and billed at the client's minute rate."
+                        : "Starts with a clean slate (0 calls, €0.00 invoiced). Past test or demo calls from Retell AI will NOT be imported."}
+                    </p>
+                  </div>
+
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input 
+                      type="checkbox" 
+                      checked={backfillHistory}
+                      onChange={e => setBackfillHistory(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1a1918]"></div>
+                  </label>
+                </div>
+              )}
+
               <p className="text-[11px] text-[#73706b]">Retell call completion payloads will be forwarded raw to this webhook in addition to dashboard logging.</p>
             </div>
           </CardContent>

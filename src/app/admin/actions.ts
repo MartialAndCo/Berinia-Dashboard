@@ -27,7 +27,7 @@ export async function deleteClientAction(clientId: string) {
   return { success: true }
 }
 
-export async function addAgentAction(clientId: string, agentName: string, retellAgentId: string, forwardWebhookUrl?: string) {
+export async function addAgentAction(clientId: string, agentName: string, retellAgentId: string, forwardWebhookUrl?: string, backfillHistory: boolean = false) {
   try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -75,71 +75,73 @@ export async function addAgentAction(clientId: string, agentName: string, retell
     // Don't fail the agent assignment if webhook update fails
   }
 
-  // 4. Backfill old calls from Retell
-  try {
-    const retellApiKey = process.env.RETELL_API_KEY
-    if (retellApiKey) {
-      const res = await fetch('https://api.retellai.com/v3/list-calls', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${retellApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          filter_criteria: { agent_id: [retellAgentId] },
-          limit: 500 // Fetch up to 500 past calls
+  // 4. Backfill old calls from Retell (only if retro-pick toggle is explicitly checked)
+  if (backfillHistory) {
+    try {
+      const retellApiKey = process.env.RETELL_API_KEY
+      if (retellApiKey) {
+        const res = await fetch('https://api.retellai.com/v3/list-calls', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${retellApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            filter_criteria: { agent_id: [retellAgentId] },
+            limit: 500 // Fetch up to 500 past calls
+          })
         })
-      })
-      
-      if (res.ok) {
-        const data = await res.json()
-        const calls = data.items || []
         
-        const callsToInsert = calls.map((c: any) => {
-          if (!c.start_timestamp || !c.end_timestamp) return null
-          const duration = Math.floor((c.end_timestamp - c.start_timestamp) / 1000)
-          if (duration <= 0) return null
+        if (res.ok) {
+          const data = await res.json()
+          const calls = data.items || []
           
-          const minutes = duration / 60
-          const cost = Math.round(minutes * billingRate * 100) / 100 // au centime près
-          const retellCost = c.call_cost?.combined_cost ? c.call_cost.combined_cost / 100 : 0 // cents -> euros
+          const callsToInsert = calls.map((c: any) => {
+            if (!c.start_timestamp || !c.end_timestamp) return null
+            const duration = Math.floor((c.end_timestamp - c.start_timestamp) / 1000)
+            if (duration <= 0) return null
+            
+            const minutes = duration / 60
+            const cost = Math.round(minutes * billingRate * 100) / 100 // au centime près
+            const retellCost = c.call_cost?.combined_cost ? c.call_cost.combined_cost / 100 : 0 // cents -> euros
 
-          return {
-            client_id: clientId,
-            agent_id: agentData.id,
-            retell_call_id: c.call_id,
-            duration_secs: duration,
-            cost: cost,
-            retell_cost: retellCost,
-            transcript: c.transcript || '',
-            recording_url: c.recording_url || null,
-            call_summary: c.call_analysis?.call_summary || null,
-            user_sentiment: c.call_analysis?.user_sentiment || null,
-            from_number: c.from_number || null,
-            created_at: new Date(c.start_timestamp).toISOString()
-          }
-        }).filter(Boolean)
+            return {
+              client_id: clientId,
+              agent_id: agentData.id,
+              retell_call_id: c.call_id,
+              duration_secs: duration,
+              cost: cost,
+              retell_cost: retellCost,
+              transcript: c.transcript || '',
+              recording_url: c.recording_url || null,
+              call_summary: c.call_analysis?.call_summary || null,
+              user_sentiment: c.call_analysis?.user_sentiment || null,
+              from_number: c.from_number || null,
+              created_at: new Date(c.start_timestamp).toISOString()
+            }
+          }).filter(Boolean)
 
-        if (callsToInsert.length > 0) {
-          // Fetch transcripts individually (v3/list-calls omits them)
-          for (const c of callsToInsert) {
-            try {
-              const callRes = await fetch(`https://api.retellai.com/v2/get-call/${c.retell_call_id}`, {
-                headers: { 'Authorization': `Bearer ${retellApiKey}` }
-              })
-              if (callRes.ok) {
-                const callDetail = await callRes.json()
-                if (callDetail.transcript) c.transcript = callDetail.transcript
-              }
-            } catch { /* skip if fetch fails */ }
+          if (callsToInsert.length > 0) {
+            // Fetch transcripts individually (v3/list-calls omits them)
+            for (const c of callsToInsert) {
+              try {
+                const callRes = await fetch(`https://api.retellai.com/v2/get-call/${c.retell_call_id}`, {
+                  headers: { 'Authorization': `Bearer ${retellApiKey}` }
+                })
+                if (callRes.ok) {
+                  const callDetail = await callRes.json()
+                  if (callDetail.transcript) c.transcript = callDetail.transcript
+                }
+              } catch { /* skip if fetch fails */ }
+            }
+            await supabaseAdmin.from('calls').upsert(callsToInsert, { onConflict: 'retell_call_id' })
           }
-          await supabaseAdmin.from('calls').upsert(callsToInsert, { onConflict: 'retell_call_id' })
         }
       }
+    } catch (err) {
+      console.error("Failed to backfill calls:", err)
+      // We don't fail the agent creation if backfill fails
     }
-  } catch (err) {
-    console.error("Failed to backfill calls:", err)
-    // We don't fail the agent creation if backfill fails
   }
 
   return { success: true }
