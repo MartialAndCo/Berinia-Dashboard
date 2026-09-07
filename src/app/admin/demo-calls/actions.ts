@@ -179,6 +179,8 @@ export async function syncRetellDemoCallsAction() {
 
           const bookedTime = custom?.booked_time || (collected.booked_time ? String(collected.booked_time) : null)
 
+          const directCallLink = c.recording_url || (c.call_id ? `https://dashboard.retellai.com/call-detail/${c.call_id}` : null)
+
           updateAirtableLeadCallSummary({
             callId: c.call_id,
             phone: prospectNumber,
@@ -187,7 +189,9 @@ export async function syncRetellDemoCallsAction() {
             disconnectionReason: c.disconnection_reason,
             status: isBooked ? 'RDV Programmé' : 'Démo Réalisée',
             isBooked,
-            bookedTime
+            bookedTime,
+            recordingUrl: c.recording_url || null,
+            callLink: directCallLink
           }).catch(err => console.warn('[Sync Retell Demo Calls] Airtable sync warning:', err))
         }
       } else {

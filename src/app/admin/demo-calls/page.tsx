@@ -26,7 +26,8 @@ import {
   Settings, 
   CheckCircle2, 
   AlertCircle,
-  Loader2
+  Loader2,
+  ExternalLink
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { toast } from 'sonner'
@@ -535,29 +536,55 @@ export default function DemoCallsPage() {
                       <TableRow key={`${call.id || call.retell_call_id}-detail`}>
                         <TableCell colSpan={8} className="bg-[#faf9f7]/60 p-0 border-b border-[#e6e2d6]">
                           <div className="p-6 space-y-4 max-w-full overflow-hidden border-l-2 border-[#9e4733] ml-4 my-3 bg-white rounded-sm shadow-sm">
-                            {/* Contact summary header if lead attached */}
-                            {call.lead && (
-                              <div className="flex flex-wrap gap-4 pb-3 border-b border-[#f0ece4] text-xs">
-                                <span className="flex items-center gap-1.5 text-[#1a1918]">
-                                  <User className="w-3.5 h-3.5 text-[#9e4733]" />
-                                  <strong>Lead:</strong> {call.lead.fullName}
-                                </span>
-                                {call.lead.businessName && (
-                                  <span className="flex items-center gap-1.5 text-[#5a5751]">
-                                    <Briefcase className="w-3.5 h-3.5 text-[#73706b]" />
-                                    <strong>Business:</strong> {call.lead.businessName}
+                            {/* Contact summary header & direct links */}
+                            <div className="flex flex-wrap items-center gap-4 pb-3 border-b border-[#f0ece4] text-xs">
+                              {call.lead ? (
+                                <>
+                                  <span className="flex items-center gap-1.5 text-[#1a1918]">
+                                    <User className="w-3.5 h-3.5 text-[#9e4733]" />
+                                    <strong>Lead:</strong> {call.lead.fullName}
                                   </span>
+                                  {call.lead.businessName && (
+                                    <span className="flex items-center gap-1.5 text-[#5a5751]">
+                                      <Briefcase className="w-3.5 h-3.5 text-[#73706b]" />
+                                      <strong>Business:</strong> {call.lead.businessName}
+                                    </span>
+                                  )}
+                                  {call.lead.email && (
+                                    <span className="text-[#73706b]">
+                                      <strong>Email:</strong> {call.lead.email}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-[#73706b] italic">Appel Outbound Direct</span>
+                              )}
+
+                              <div className="ml-auto flex items-center gap-3">
+                                {call.recording_url && (
+                                  <a
+                                    href={call.recording_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#9e4733]/10 text-[#9e4733] hover:bg-[#9e4733]/20 font-medium text-[11px] transition-colors"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Lien direct audio
+                                  </a>
                                 )}
-                                {call.lead.email && (
-                                  <span className="text-[#73706b]">
-                                    <strong>Email:</strong> {call.lead.email}
-                                  </span>
+                                {call.retell_call_id && (
+                                  <a
+                                    href={`https://dashboard.retellai.com/call-detail/${call.retell_call_id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#f0ece4] text-[#73706b] hover:text-[#1a1918] hover:bg-[#e6e2d6] font-mono text-[11px] transition-colors"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    {call.retell_call_id.length > 18 ? `${call.retell_call_id.slice(0, 18)}...` : call.retell_call_id}
+                                  </a>
                                 )}
-                                <span className="text-[#73706b] font-mono text-[11px] ml-auto">
-                                  Call ID: {call.retell_call_id}
-                                </span>
                               </div>
-                            )}
+                            </div>
 
                             {/* Summary */}
                             {call.call_summary && (

@@ -21,6 +21,8 @@ export interface UpdateAirtableLeadSummaryParams {
   isBooked?: boolean
   bookedTime?: string | null
   bookingUrl?: string | null
+  recordingUrl?: string | null
+  callLink?: string | null
 }
 
 /**
@@ -88,6 +90,10 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
       'Statut du Lead': data.status === 'called' ? 'Appel lancé' : 'Nouveau Lead'
     }
 
+    if (data.callId) {
+      fields['Call Link'] = `https://dashboard.retellai.com/call-detail/${data.callId}`
+    }
+
     if (data.status === 'called') {
       fields["Notes d'appel"] = "Appel en cours... (en attente du résumé Retell)"
     } else if (data.error) {
@@ -96,7 +102,7 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
       fields["Notes d'appel"] = "Nouveau Lead (en attente d'appel)"
     }
 
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -111,6 +117,51 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
         typecast: true // Allows Airtable to create select options or convert formats automatically
       })
     })
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => null)
+      const errMsg = errJson?.error?.message || ''
+
+      // If 'Call Link' is unknown in Airtable, try 'Call link'
+      if (errJson?.error?.type === 'UNKNOWN_FIELD_NAME' && errMsg.includes('Call Link') && data.callId) {
+        delete fields['Call Link']
+        fields['Call link'] = `https://dashboard.retellai.com/call-detail/${data.callId}`
+
+        res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            records: [{ fields }],
+            typecast: true
+          })
+        })
+      }
+
+      // If 'Call link' is also unknown, retry without call link
+      if (!res.ok) {
+        const retryErr = await res.json().catch(() => null)
+        const retryMsg = retryErr?.error?.message || ''
+        if (retryErr?.error?.type === 'UNKNOWN_FIELD_NAME' && (retryMsg.includes('Call link') || retryMsg.includes('Call Link'))) {
+          delete fields['Call Link']
+          delete fields['Call link']
+
+          res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              records: [{ fields }],
+              typecast: true
+            })
+          })
+        }
+      }
+    }
 
     if (!res.ok) {
       const errorText = await res.text()
@@ -237,7 +288,13 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
       }
     }
 
-    const patchRes = await fetch(patchUrl, {
+    // Populate Call Link with direct recording audio link or Retell call detail link
+    const callDirectLink = params.callLink || params.recordingUrl || (params.callId ? `https://dashboard.retellai.com/call-detail/${params.callId}` : null)
+    if (callDirectLink) {
+      fieldsToUpdate['Call Link'] = callDirectLink
+    }
+
+    let patchRes = await fetch(patchUrl, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -250,12 +307,57 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
     })
 
     if (!patchRes.ok) {
+      const errJson = await patchRes.json().catch(() => null)
+      const errMsg = errJson?.error?.message || ''
+
+      // 1. If 'Call Link' is unknown in Airtable, try 'Call link'
+      if (errJson?.error?.type === 'UNKNOWN_FIELD_NAME' && errMsg.includes('Call Link') && callDirectLink) {
+        delete fieldsToUpdate['Call Link']
+        fieldsToUpdate['Call link'] = callDirectLink
+
+        patchRes = await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: fieldsToUpdate,
+            typecast: true
+          })
+        })
+      }
+
+      // 2. If 'Call link' is also unknown, remove the field so note, status, and Date RDV still update cleanly
+      if (!patchRes.ok) {
+        const retryErr = await patchRes.json().catch(() => null)
+        const retryMsg = retryErr?.error?.message || ''
+        if (retryErr?.error?.type === 'UNKNOWN_FIELD_NAME' && (retryMsg.includes('Call link') || retryMsg.includes('Call Link'))) {
+          delete fieldsToUpdate['Call Link']
+          delete fieldsToUpdate['Call link']
+
+          patchRes = await fetch(patchUrl, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              fields: fieldsToUpdate,
+              typecast: true
+            })
+          })
+        }
+      }
+    }
+
+    if (!patchRes.ok) {
       const errText = await patchRes.text().catch(() => '')
       console.error('[Airtable PATCH Error]', patchRes.status, errText)
       return { success: false, error: errText }
     }
 
-    console.log(`[Airtable] Successfully updated Notes d'appel for record ${targetRecordId} with Retell AI summary!`)
+    console.log(`[Airtable] Successfully updated lead for record ${targetRecordId}!`)
     return { success: true, recordId: targetRecordId }
   } catch (err: any) {
     console.error('[Airtable Update Error]', err)

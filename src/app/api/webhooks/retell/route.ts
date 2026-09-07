@@ -261,6 +261,8 @@ export async function POST(req: Request) {
         const bookingCheck = detectMeetingBooking(call)
         const leadStatus = bookingCheck.isBooked ? 'RDV Programmé' : (callSummary ? 'Démo Réalisée' : undefined)
 
+        const directCallLink = recordingUrl || (retellCallId ? `https://dashboard.retellai.com/call-detail/${retellCallId}` : null)
+
         await updateAirtableLeadCallSummary({
           callId: retellCallId,
           phone: contactNumber,
@@ -269,7 +271,9 @@ export async function POST(req: Request) {
           disconnectionReason: call.disconnection_reason,
           status: leadStatus,
           isBooked: bookingCheck.isBooked,
-          bookedTime: bookingCheck.bookedTime
+          bookedTime: bookingCheck.bookedTime,
+          recordingUrl: recordingUrl,
+          callLink: directCallLink
         })
       } catch (airtableErr) {
         console.error('[Retell Webhook] Failed to sync call summary to Airtable:', airtableErr)

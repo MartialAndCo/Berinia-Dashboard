@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { Button } from './ui/button'
-import { Play, Pause } from 'lucide-react'
+import { Play, Pause, ExternalLink } from 'lucide-react'
 
 export default function CallPlayer({ recordingUrl }: { recordingUrl: string }) {
   const [isPlaying, setIsPlaying] = useState(false)
@@ -44,6 +44,16 @@ export default function CallPlayer({ recordingUrl }: { recordingUrl: string }) {
           </>
         )}
       </Button>
+      <a
+        href={recordingUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Ouvrir le lien direct de l'enregistrement"
+        className="p-1 text-[#73706b] hover:text-[#9e4733] transition-colors rounded hover:bg-[#faf8f5]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+      </a>
     </div>
   )
 }
