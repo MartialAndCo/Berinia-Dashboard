@@ -65,19 +65,20 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
   try {
     const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
     
-    // Support standard column names
+    // Map to the user's exact Airtable schema
     const fields: Record<string, any> = {
       'Full Name': data.fullName,
       'Business Name': data.businessName,
       'Phone': data.phone,
       'Email': data.email,
-      'Status': data.status || 'Pending',
-      'Call ID': data.callId || '',
-      'Date': submittedAt
+      'Source du Lead': 'Site Web (Démo)',
+      'Statut du Lead': data.status === 'called' ? 'Appel lancé' : 'Nouveau Lead'
     }
 
-    if (data.error) {
-      fields['Error'] = data.error
+    if (data.callId) {
+      fields["Notes d'appel"] = `Appel IA Retell lancé (ID: ${data.callId})`
+    } else if (data.error) {
+      fields["Notes d'appel"] = `Erreur appel: ${data.error}`
     }
 
     const res = await fetch(url, {
