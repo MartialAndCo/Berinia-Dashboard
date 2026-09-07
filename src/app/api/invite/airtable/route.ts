@@ -91,7 +91,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
 
   // Defaults if still empty
   email = (email || '').trim().toLowerCase()
-  company_name = (company_name || full_name || 'Nouveau Client').trim()
+  company_name = (company_name || full_name || 'New Client').trim()
   billing_rate = typeof billing_rate === 'number' && !isNaN(billing_rate) ? billing_rate : 0.50
   monthly_retainer = typeof monthly_retainer === 'number' && !isNaN(monthly_retainer) ? monthly_retainer : 500
   setup_fee = typeof setup_fee === 'number' && !isNaN(setup_fee) ? setup_fee : 0
@@ -99,7 +99,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
   if (!email) {
     return {
       success: false,
-      error: 'Aucune adresse email trouvée pour ce contact dans Airtable. Veuillez renseigner le champ "Email" puis réessayer.',
+      error: 'No email address found for this contact in Airtable. Please fill in the "Email" field and try again.',
       company_name
     }
   }
@@ -131,38 +131,38 @@ async function processAirtableInvite(params: ProcessInviteParams) {
         <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
           <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
         </div>
-        <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #202020; margin: 0 0 24px 0; letter-spacing: -0.5px;">Accès à votre Portail</h1>
+        <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #202020; margin: 0 0 24px 0; letter-spacing: -0.5px;">Access Your Portal</h1>
         <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
         
-        <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6;">Bonjour ${existingClient.company_name || company_name},</p>
-        <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6;">Voici votre lien pour vous connecter et configurer votre mot de passe sur votre portail client BerinAgents :</p>
+        <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6;">Hello ${existingClient.company_name || company_name},</p>
+        <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6;">Here is your link to log in and set up your password for your BerinAgents client portal:</p>
         
         <div>
           <a href="${inviteUrl}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
-            <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Accéder à mon espace
+            <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Access My Portal
           </a>
         </div>
         
         <p style="color: #737373; font-size: 13px; margin-top: 32px; line-height: 1.5;">
-          Si le bouton ne fonctionne pas, copiez ce lien : <br/>
+          If the button does not work, copy this link into your browser: <br/>
           <a href="${inviteUrl}" style="color: #202020; text-decoration: underline; word-break: break-all;">${inviteUrl}</a>
         </p>
       `
 
-      const htmlEmail = getEmailTemplate('Accès à votre Portail BerinAgents', contentHtml)
+      const htmlEmail = getEmailTemplate('Access your BerinAgents Portal', contentHtml)
 
       await resend.emails.send({
         from: 'BerinAgents <onboarding@berinagents.com>',
         to: [email],
-        subject: 'Accès à votre Portail BerinAgents',
+        subject: 'Access your BerinAgents Portal',
         html: htmlEmail,
       })
     }
 
     // Update Airtable
     if (recordId) {
-      const nowStr = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })
-      const noteAppend = `[BerinAgents] Invitation renvoyée (client existant) le ${nowStr}.`
+      const nowStr = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' })
+      const noteAppend = `[BerinAgents] Invite re-sent (existing client) on ${nowStr}.`
       await updateAirtableLeadRecord(recordId, {
         'Statut du Lead': 'Client Invité',
         "Notes d'appel": existingAirtableNotes ? `${existingAirtableNotes}\n\n${noteAppend}` : noteAppend
@@ -175,7 +175,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
       clientId: existingClient.id,
       email,
       company_name: existingClient.company_name,
-      message: `Compte déjà existant. Un email d'accès au dashboard vient d'être renvoyé à ${email}.`
+      message: `Account already exists. A dashboard access email has been re-sent to ${email}.`
     }
   }
 
@@ -207,10 +207,10 @@ async function processAirtableInvite(params: ProcessInviteParams) {
 
   const userId = inviteData?.user?.id
   if (!userId) {
-    return { success: false, error: "Impossible de générer le compte utilisateur Supabase.", company_name }
+    return { success: false, error: "Unable to generate Supabase user account.", company_name }
   }
 
-  // 4. STRIPE INTEGRATION (Customer + Monthly Retainer + Usage)
+  // 4. STRIPE INTEGRATION (Customer + Monthly Subscription + Usage)
   let stripeCustomerId: string | null = null
   let stripeSubscriptionId: string | null = null
 
@@ -233,7 +233,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
         customer: customer.id,
         amount: Math.round(setup_fee * 100),
         currency: 'usd',
-        description: `Setup Fee (Frais de mise en place & configuration) - ${company_name}`
+        description: `Setup Fee (Setup & configuration) - ${company_name}`
       })
     }
 
@@ -309,39 +309,39 @@ async function processAirtableInvite(params: ProcessInviteParams) {
       <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
         <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
       </div>
-      <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #202020; margin: 0 0 24px 0; letter-spacing: -0.5px;">Bienvenue</h1>
+      <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #202020; margin: 0 0 24px 0; letter-spacing: -0.5px;">Welcome</h1>
       <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
       
-      <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6;">Bonjour ${company_name},</p>
-      <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6;">Votre portail client a été configuré avec succès. Vous pouvez désormais suivre vos appels, vos enregistrements et vos analyses d'appels en temps réel.</p>
+      <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6;">Hello ${company_name},</p>
+      <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6;">Your client portal has been successfully created. You can now monitor your calls, recordings, and call analytics in real-time.</p>
       
       <div>
         <a href="${inviteUrl}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
-          <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Définir mon mot de passe
+          <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Set Up My Password
         </a>
       </div>
       
       <p style="color: #737373; font-size: 13px; margin-top: 32px; line-height: 1.5;">
-        Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur : <br/>
+        If the button does not work, copy this link into your browser: <br/>
         <a href="${inviteUrl}" style="color: #202020; text-decoration: underline; word-break: break-all;">${inviteUrl}</a>
       </p>
     `
 
-    const htmlEmail = getEmailTemplate('Bienvenue sur BerinAgents', contentHtml)
+    const htmlEmail = getEmailTemplate('Welcome to BerinAgents', contentHtml)
 
     await resend.emails.send({
       from: 'BerinAgents <onboarding@berinagents.com>',
       to: [email],
-      subject: 'Accès à votre Portail BerinAgents',
+      subject: 'Access your BerinAgents Portal',
       html: htmlEmail,
     }).catch(e => console.error('Resend error:', e))
   }
 
   // 7. Update Airtable record
   if (recordId) {
-    const nowStr = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })
-    const feeText = setup_fee > 0 ? `, Setup: ${setup_fee} $` : ''
-    const noteAppend = `[BerinAgents] Dashboard créé (Subscription: ${monthly_retainer} $/mois${feeText}, Min: ${billing_rate} $/min) et invitation envoyée le ${nowStr}.`
+    const nowStr = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' })
+    const feeText = setup_fee > 0 ? `, Setup: $${setup_fee}` : ''
+    const noteAppend = `[BerinAgents] Dashboard created (Subscription: $${monthly_retainer}/mo${feeText}, Rate: $${billing_rate}/min) and invite sent on ${nowStr}.`
     await updateAirtableLeadRecord(recordId, {
       'Statut du Lead': 'Client Invité',
       "Notes d'appel": existingAirtableNotes ? `${existingAirtableNotes}\n\n${noteAppend}` : noteAppend
@@ -357,7 +357,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
     monthly_retainer,
     setup_fee,
     billing_rate,
-    message: `Client ${company_name} créé avec succès et invitation envoyée à ${email} !`
+    message: `Client ${company_name} successfully created and invite sent to ${email}!`
   }
 }
 
@@ -376,20 +376,20 @@ function renderHtmlResponse(result: {
 }) {
   const isSuccess = result.success
   const title = isSuccess 
-    ? (result.isExisting ? 'Accès renvoyé avec succès' : 'Invitation envoyée avec succès !')
-    : 'Erreur lors de l\'invitation'
+    ? (result.isExisting ? 'Access Re-sent Successfully' : 'Invitation Sent Successfully!')
+    : 'Invitation Error'
 
   const subtitle = isSuccess
     ? (result.isExisting 
-        ? `Un nouvel email d'accès au dashboard a été envoyé à <strong>${result.email}</strong>.` 
-        : `Le compte client a été créé et l'email d'activation a été expédié à <strong>${result.email}</strong>.`)
-    : (result.error || 'Une erreur inattendue est survenue.')
+        ? `A new dashboard access email has been sent to <strong>${result.email}</strong>.` 
+        : `The client account has been created and an invitation email has been sent to <strong>${result.email}</strong>.`)
+    : (result.error || 'An unexpected error occurred.')
 
   const clientAdminUrl = result.clientId ? `/admin/client/${result.clientId}` : '/admin'
 
   return `
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -518,7 +518,7 @@ function renderHtmlResponse(result: {
     </div>
 
     <div class="badge">
-      <span>•</span> ${isSuccess ? 'INVITATION ENVOYÉE' : 'ATTENTION REQUISE'}
+      <span>•</span> ${isSuccess ? 'INVITATION SENT' : 'ATTENTION REQUIRED'}
     </div>
 
     <h1>${title}</h1>
@@ -527,58 +527,58 @@ function renderHtmlResponse(result: {
     ${isSuccess ? `
       <div class="info-box">
         <div class="info-row">
-          <span class="info-label">Entreprise</span>
+          <span class="info-label">Company</span>
           <span class="info-val">${result.company_name}</span>
         </div>
         <div class="info-row">
-          <span class="info-label">Email de connexion</span>
+          <span class="info-label">Login Email</span>
           <span class="info-val">${result.email}</span>
         </div>
         ${result.monthly_retainer !== undefined ? `
         <div class="info-row">
           <span class="info-label">Monthly Subscription</span>
-          <span class="info-val">${result.monthly_retainer} $ / mois</span>
+          <span class="info-val">$${result.monthly_retainer} / month</span>
         </div>
         ` : ''}
         ${result.setup_fee !== undefined && result.setup_fee > 0 ? `
         <div class="info-row">
-          <span class="info-label">Setup Fee (Mise en service)</span>
-          <span class="info-val">${result.setup_fee} $ (facturé sur 1ère facture)</span>
+          <span class="info-label">Setup Fee</span>
+          <span class="info-val">$${result.setup_fee} (billed on 1st invoice)</span>
         </div>
         ` : ''}
         <div class="info-row">
           <span class="info-label">Cost Per Min</span>
-          <span class="info-val">${result.billing_rate} $ / min</span>
+          <span class="info-val">$${result.billing_rate} / min</span>
         </div>
         <div class="info-row">
-          <span class="info-label">Statut Stripe & Supabase</span>
-          <span class="info-val" style="color: #2e6930;">✓ Configuré</span>
+          <span class="info-label">Stripe &amp; Supabase Status</span>
+          <span class="info-val" style="color: #2e6930;">✓ Configured</span>
         </div>
         <div class="info-row">
-          <span class="info-label">Statut Airtable</span>
-          <span class="info-val" style="color: #2e6930;">✓ Mis à jour (Client Invité)</span>
+          <span class="info-label">Airtable Status</span>
+          <span class="info-val" style="color: #2e6930;">✓ Updated (Client Invité)</span>
         </div>
       </div>
 
       <div class="btn-group">
         <a href="${clientAdminUrl}" class="btn btn-primary">
-          Ouvrir la fiche client dans l'Admin &rarr;
+          Open Client Profile in Admin &rarr;
         </a>
         <button onclick="window.close()" class="btn btn-secondary">
-          Fermer cet onglet
+          Close This Tab
         </button>
       </div>
     ` : `
       <div class="info-box" style="background: #fdf2f0; border-color: #f5c6cb; color: #9e4733;">
-        ${result.error || 'Erreur'}
+        ${result.error || 'Error'}
       </div>
 
       <div class="btn-group">
         <a href="/admin" class="btn btn-primary">
-          Retour au Dashboard Admin
+          Back to Admin Dashboard
         </a>
         <button onclick="window.close()" class="btn btn-secondary">
-          Fermer cet onglet
+          Close This Tab
         </button>
       </div>
     `}
