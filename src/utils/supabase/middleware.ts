@@ -56,9 +56,11 @@ export async function updateSession(request: NextRequest) {
     return res
   }
 
+  const isUserAdmin = user && (user.email?.toLowerCase() === 'admin@berinia.com' || user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin')
+
   // Protect Admin routes
   if (pathname.startsWith('/admin')) {
-    if (!user || user.email !== 'admin@berinia.com') {
+    if (!isUserAdmin) {
       return redirectWithCookies('/login')
     }
   }
@@ -73,7 +75,7 @@ export async function updateSession(request: NextRequest) {
   // Root route
   if (pathname === '/') {
     if (user) {
-      return redirectWithCookies(user.email === 'admin@berinia.com' ? '/admin' : '/dashboard')
+      return redirectWithCookies(isUserAdmin ? '/admin' : '/dashboard')
     }
     return supabaseResponse
   }

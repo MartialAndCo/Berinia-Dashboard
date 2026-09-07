@@ -25,10 +25,17 @@ export async function createClient() {
   )
 }
 
+export function isAdminUser(user: { email?: string | null; app_metadata?: Record<string, any>; user_metadata?: Record<string, any> } | null): boolean {
+  if (!user) return false
+  if (user.email?.toLowerCase() === 'admin@berinia.com') return true
+  if (user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin') return true
+  return false
+}
+
 export async function checkAdminAuth() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.email !== 'admin@berinia.com') {
+  if (!user || !isAdminUser(user)) {
     throw new Error('Unauthorized')
   }
   return user

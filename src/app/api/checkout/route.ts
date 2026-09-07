@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
+import { createClient, isAdminUser } from '@/utils/supabase/server'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
@@ -8,39 +9,57 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy', {
 
 export async function POST(req: Request) {
   try {
-    const { clientId } = await req.json()
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const { clientId } = body
     const supabaseAdmin = getServiceSupabase()
 
-    // Get client info
-    const { data: client } = await supabaseAdmin
-      .from('clients')
-      .select('*')
-      .eq('id', clientId)
-      .single()
+    let client = null
+    const isUserAdmin = isAdminUser(user)
 
-    if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    if (isUserAdmin && clientId) {
+      const { data } = await supabaseAdmin.from('clients').select('*').eq('id', clientId).single()
+      client = data
+    } else {
+      const { data } = await supabaseAdmin.from('clients').select('*').eq('user_id', user.id).single()
+      client = data
+    }
+
+    if (!client) return NextResponse.json({ error: 'Client record not found' }, { status: 404 })
 
     let stripeCustomerId = client.stripe_customer_id
 
-    // Create a customer if one doesn't exist
+    // Create customer if one doesn't exist yet
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
-        email: 'test@example.com', // In a real app, query auth.users for email
-        name: client.company_name
+        email: client.email || user.email || undefined,
+        name: client.company_name,
+        metadata: {
+          clientId: client.id,
+          userId: user.id
+        }
       })
       stripeCustomerId = customer.id
 
-      await supabaseAdmin.from('clients').update({ stripe_customer_id: stripeCustomerId }).eq('id', clientId)
+      await supabaseAdmin.from('clients').update({ stripe_customer_id: stripeCustomerId }).eq('id', client.id)
     }
 
     // Generate a billing portal session
+    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const returnPath = isUserAdmin && clientId ? `/dashboard?clientId=${clientId}` : '/dashboard/billing'
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
-      return_url: `${req.headers.get('origin')}/dashboard`,
+      return_url: `${origin}${returnPath}`,
     })
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
+    console.error('Checkout portal error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
