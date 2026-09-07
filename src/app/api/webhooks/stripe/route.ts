@@ -3,6 +3,7 @@ import { Resend } from 'resend'
 import { getEmailTemplate } from '@/lib/email-template'
 import { getServiceSupabase } from '@/lib/supabase'
 import { markAirtableSubscriptionActive } from '@/lib/airtable'
+import { suspendClientAgent, reactivateClientAgent } from '@/lib/agent-activation'
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy')
 
@@ -46,9 +47,7 @@ export async function POST(req: Request) {
           .maybeSingle()
 
         if (client) {
-          if (client.status !== 'Active') {
-            await supabaseAdmin.from('clients').update({ status: 'Active' }).eq('id', client.id)
-          }
+          await reactivateClientAgent(client.id)
           await markAirtableSubscriptionActive({
             email: client.email || invoice.customer_email,
             companyName: client.company_name
@@ -131,21 +130,37 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Subscription transitions to Active (Customer attached credit card / subscription activated)
-    if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
-      const subscription = event.data.object
-      if (subscription.status === 'active') {
+    // 1b. Invoice Payment Failed (Card declined, insufficient funds, expired card)
+    if (event.type === 'invoice.payment_failed') {
+      const invoice = event.data.object
+      if (invoice.subscription || invoice.customer) {
         const { data: client } = await supabaseAdmin
           .from('clients')
           .select('*')
-          .or(`stripe_customer_id.eq.${subscription.customer},stripe_subscription_id.eq.${subscription.id}`)
+          .or(`stripe_customer_id.eq.${invoice.customer},stripe_subscription_id.eq.${invoice.subscription}${invoice.customer_email ? `,email.eq.${invoice.customer_email}` : ''}`)
           .limit(1)
           .maybeSingle()
 
         if (client) {
-          if (client.status !== 'Active') {
-            await supabaseAdmin.from('clients').update({ status: 'Active' }).eq('id', client.id)
-          }
+          console.warn(`[Stripe Webhook] Payment failed for invoice ${invoice.id}, client: ${client.company_name}`)
+          await suspendClientAgent(client.id, 'invoice.payment_failed', invoice.hosted_invoice_url)
+        }
+      }
+    }
+
+    // 2. Subscription transitions (Active / Past_Due / Canceled)
+    if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
+      const subscription = event.data.object
+      const { data: client } = await supabaseAdmin
+        .from('clients')
+        .select('*')
+        .or(`stripe_customer_id.eq.${subscription.customer},stripe_subscription_id.eq.${subscription.id}`)
+        .limit(1)
+        .maybeSingle()
+
+      if (subscription.status === 'active') {
+        if (client) {
+          await reactivateClientAgent(client.id)
           await markAirtableSubscriptionActive({
             email: client.email,
             companyName: client.company_name
@@ -163,6 +178,27 @@ export async function POST(req: Request) {
             console.error('[Stripe Webhook] Error fetching customer for subscription update:', e)
           }
         }
+      } else if (subscription.status === 'past_due' || subscription.status === 'unpaid' || subscription.status === 'canceled') {
+        if (client) {
+          console.warn(`[Stripe Webhook] Subscription status is ${subscription.status} for client ${client.company_name}`)
+          await suspendClientAgent(client.id, `subscription_${subscription.status}`)
+        }
+      }
+    }
+
+    // 2b. Subscription Deleted (Canceled)
+    if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object
+      const { data: client } = await supabaseAdmin
+        .from('clients')
+        .select('*')
+        .or(`stripe_customer_id.eq.${subscription.customer},stripe_subscription_id.eq.${subscription.id}`)
+        .limit(1)
+        .maybeSingle()
+
+      if (client) {
+        console.warn(`[Stripe Webhook] Subscription deleted for client ${client.company_name}`)
+        await suspendClientAgent(client.id, 'subscription_canceled')
       }
     }
 
@@ -182,9 +218,7 @@ export async function POST(req: Request) {
           .maybeSingle()
 
         if (client) {
-          if (client.status !== 'Active') {
-            await supabaseAdmin.from('clients').update({ status: 'Active' }).eq('id', client.id)
-          }
+          await reactivateClientAgent(client.id)
           await markAirtableSubscriptionActive({
             email: client.email || email,
             companyName: client.company_name

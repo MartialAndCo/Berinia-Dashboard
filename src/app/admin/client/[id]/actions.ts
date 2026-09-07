@@ -4,6 +4,7 @@ import { checkAdminAuth } from '@/utils/supabase/server'
 
 import { getServiceSupabase } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
+import { suspendClientAgent, reactivateClientAgent } from '@/lib/agent-activation'
 
 const supabaseAdmin = getServiceSupabase()
 
@@ -312,6 +313,23 @@ export async function deleteClientAction(clientId: string) {
     // 3. Just in case, delete from clients explicitly
     await supabaseAdmin.from('clients').delete().eq('id', clientId)
 
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+
+export async function toggleClientAgentStatusAction(clientId: string, targetStatus: 'Active' | 'Suspended') {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
+  try {
+    if (targetStatus === 'Suspended') {
+      await suspendClientAgent(clientId, 'Manual admin suspension')
+    } else {
+      await reactivateClientAgent(clientId)
+    }
+    revalidatePath(`/admin/client/${clientId}`)
+    revalidatePath('/admin')
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err.message }

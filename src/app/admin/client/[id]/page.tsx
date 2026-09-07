@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
 import { ArrowLeft, Trash2, ShieldAlert, KeyRound, Save, RefreshCw, Eye } from 'lucide-react'
-import { updateClientConfigAction, forceUpdateClientEmailAction, recalculateClientCallsCostAction, deleteClientAction } from './actions'
+import { updateClientConfigAction, forceUpdateClientEmailAction, recalculateClientCallsCostAction, deleteClientAction, toggleClientAgentStatusAction } from './actions'
 import { addAgentAction, deleteAgentAction, getRetellAgentsAction, updateAgentWebhookAction, syncRetellAgentWebhookAction } from '../../actions'
 import { DeleteClientModal } from '@/components/DeleteClientModal'
 
@@ -160,8 +160,24 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  const handleToggleAgentStatus = async (targetStatus: 'Active' | 'Suspended') => {
+    const actionLabel = targetStatus === 'Suspended' ? 'suspend' : 'reactivate'
+    if (!confirm(`Are you sure you want to ${actionLabel} ${client.company_name}'s voice agent?`)) return
+
+    const toastId = toast.loading(`${targetStatus === 'Suspended' ? 'Suspending' : 'Reactivating'} agent...`)
+    const res = await toggleClientAgentStatusAction(clientId, targetStatus)
+    if (res.success) {
+      toast.success(`Agent successfully ${targetStatus === 'Suspended' ? 'suspended' : 'reactivated'}.`, { id: toastId })
+      fetchData()
+    } else {
+      toast.error("Error: " + res.error, { id: toastId })
+    }
+  }
+
   if (loading) return <div className="p-8 text-[#73706b]">Loading client data...</div>
   if (!client) return <div className="p-8 text-[#9e4733]">Client not found</div>
+
+  const isClientActive = client.status === 'Active' || client.status === 'Actif'
 
   return (
     <div className="p-8">
@@ -173,22 +189,55 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
               <span>•</span> CLIENT PROFILE
             </div>
-            <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">{client.company_name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">{client.company_name}</h1>
+              {isClientActive ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-sm uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
+                </span>
+              ) : client.status === 'Past_Due' ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-sm uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Past Due (Unpaid)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-sm uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Suspended
+                </span>
+              )}
+            </div>
             <p className="text-sm text-[#73706b]">Detailed client management & configuration</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isClientActive ? (
+              <Button 
+                onClick={() => handleToggleAgentStatus('Suspended')} 
+                variant="outline" 
+                size="sm" 
+                className="border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer"
+              >
+                <ShieldAlert className="h-4 w-4 mr-1.5 text-amber-700" /> Suspend Agent
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => handleToggleAgentStatus('Active')} 
+                size="sm" 
+                className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer shadow-none"
+              >
+                <RefreshCw className="h-4 w-4 mr-1.5 text-white" /> Reactivate Agent
+              </Button>
+            )}
             <Link href={`/dashboard?clientId=${clientId}`}>
-              <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4 cursor-pointer">
-                <Eye className="h-4 w-4 mr-2 text-[#9e4733]" /> View Portal
+              <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer">
+                <Eye className="h-4 w-4 mr-1.5 text-[#9e4733]" /> View Portal
               </Button>
             </Link>
             <Link href="/admin">
-              <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4 cursor-pointer">
-                <ArrowLeft className="h-4 w-4 mr-2" /> Back to Overview
+              <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer">
+                <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
               </Button>
             </Link>
-            <Button onClick={() => setShowDeleteModal(true)} variant="outline" size="sm" className="border-[#fad4cf] bg-[#fdf2f0] text-[#9e4733] hover:bg-[#fad4cf] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4 cursor-pointer">
-              <Trash2 className="h-4 w-4 mr-2" /> Delete Client
+            <Button onClick={() => setShowDeleteModal(true)} variant="outline" size="sm" className="border-[#fad4cf] bg-[#fdf2f0] text-[#9e4733] hover:bg-[#fad4cf] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer">
+              <Trash2 className="h-4 w-4 mr-1.5" /> Delete
             </Button>
           </div>
         </div>

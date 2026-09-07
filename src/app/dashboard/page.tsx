@@ -14,7 +14,7 @@ import {
   ArrowUpDown, ChevronDown, ChevronRight, Search, Phone, 
   SmilePlus, Meh, Frown, CreditCard, X, ShieldCheck, Calendar, 
   Download, Copy, Tag, MessageSquare, Bot, User, Check, 
-  ChevronLeft, SlidersHorizontal, RefreshCw 
+  ChevronLeft, SlidersHorizontal, RefreshCw, AlertCircle 
 } from 'lucide-react'
 import { getSubscriptionStatusAction, updateCallMetadataAction } from './actions'
 import { getClientDashboardAction, getClientsListAction } from '@/app/admin/actions'
@@ -695,6 +695,28 @@ function ClientDashboardContent() {
 
       <div className="max-w-6xl mx-auto space-y-8">
         
+        {/* Unpaid / Suspended Notice Banner */}
+        {(clientInfo?.status === 'Past_Due' || clientInfo?.status === 'Suspended') && (
+          <div className="bg-[#fdf2f0] border border-[#fad4cf] rounded-sm p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#9e4733]/10 text-[#9e4733] flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-[#1a1918]">Subscription Payment Required — Voice Agent Paused</h4>
+                <p className="text-xs text-[#73706b] mt-0.5 max-w-2xl">
+                  Your voice agent is temporarily paused because your latest renewal payment could not be processed. Please update your payment method or regularize your invoice to restore phone call answering immediately.
+                </p>
+              </div>
+            </div>
+            <Link href="/dashboard/billing" className="shrink-0">
+              <Button size="sm" className="bg-[#9e4733] hover:bg-[#853928] text-white text-xs font-semibold uppercase tracking-wider h-9 px-4 rounded-sm shadow-none">
+                Update Payment &amp; Restore
+              </Button>
+            </Link>
+          </div>
+        )}
+
         {/* Portal Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>

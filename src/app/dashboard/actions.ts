@@ -229,18 +229,46 @@ export async function getClientInvoicesAction(targetClientId?: string) {
       limit: 50,
     })
 
-    const formatted = invoices.data.map((inv: any) => ({
-      id: inv.id,
-      number: inv.number || 'Pending',
-      amount_due: inv.amount_due / 100,
-      amount_paid: inv.amount_paid / 100,
-      status: inv.status,
-      created: inv.created * 1000,
-      period_start: inv.period_start ? inv.period_start * 1000 : null,
-      period_end: inv.period_end ? inv.period_end * 1000 : null,
-      hosted_invoice_url: inv.hosted_invoice_url,
-      invoice_pdf: inv.invoice_pdf,
-    }))
+    const formatted = invoices.data.map((inv: any) => {
+      let pStart = inv.period_start ? inv.period_start * 1000 : null
+      let pEnd = inv.period_end ? inv.period_end * 1000 : null
+
+      // Check lines for subscription period spanning a true billing cycle
+      if (inv.lines?.data?.length > 0) {
+        for (const line of inv.lines.data) {
+          if (line.period?.start && line.period?.end && line.period.end - line.period.start > 86400 * 2) {
+            pStart = line.period.start * 1000
+            pEnd = line.period.end * 1000
+            break
+          }
+        }
+      }
+
+      // Fallback: If pStart is missing, use invoice creation date
+      if (!pStart && inv.created) {
+        pStart = inv.created * 1000
+      }
+
+      // If start and end are identical or within 48h (one-off / initial invoices), project +1 month cycle
+      if (pStart && (!pEnd || Math.abs(pEnd - pStart) < 86400 * 1000 * 2)) {
+        const d = new Date(pStart)
+        d.setMonth(d.getMonth() + 1)
+        pEnd = d.getTime()
+      }
+
+      return {
+        id: inv.id,
+        number: inv.number || 'Pending',
+        amount_due: inv.amount_due / 100,
+        amount_paid: inv.amount_paid / 100,
+        status: inv.status,
+        created: inv.created * 1000,
+        period_start: pStart,
+        period_end: pEnd,
+        hosted_invoice_url: inv.hosted_invoice_url,
+        invoice_pdf: inv.invoice_pdf,
+      }
+    })
 
     // Calculate current cycle accrued usage
     let currentCycleStats = null
