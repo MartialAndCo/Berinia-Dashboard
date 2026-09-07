@@ -69,13 +69,8 @@ export async function resolveOutboundPhoneNumber(agentId?: string): Promise<stri
     const apiKey = process.env.RETELL_API_KEY
     if (!apiKey) return null
 
-    const res = await fetch('https://api.retellai.com/v2/list-phone-numbers', {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-      cache: 'no-store'
-    })
-
-    if (!res.ok) return null
-    const data = await res.json()
+    const retell = new Retell({ apiKey })
+    const data = await retell.phoneNumber.list()
     const numbers = Array.isArray(data) ? data : (data?.items || [])
     if (!Array.isArray(numbers) || numbers.length === 0) return null
 

@@ -29,7 +29,7 @@ export default function NewClientPage() {
 
   const fetchRetellAgents = async () => {
     const res = await getRetellAgentsAction()
-    if (res.success) {
+    if (res.success && res.agents) {
       setRetellAgents(res.agents)
     }
   }

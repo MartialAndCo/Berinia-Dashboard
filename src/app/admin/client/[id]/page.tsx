@@ -62,7 +62,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       })
       setAgentWebhooks(map)
     }
-    if (retellRes.success) setRetellAgents(retellRes.agents)
+    if (retellRes.success && retellRes.agents) setRetellAgents(retellRes.agents)
     setLoading(false)
   }
 

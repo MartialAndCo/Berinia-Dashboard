@@ -1,7 +1,7 @@
 'use server'
 
 import { checkAdminAuth } from '@/utils/supabase/server'
-
+import Retell from 'retell-sdk'
 import { createClient } from '@supabase/supabase-js'
 
 export async function deleteClientAction(clientId: string) {
@@ -199,36 +199,32 @@ export async function syncRetellAgentWebhookAction(retellAgentId: string) {
   }
 }
 
-export async function getRetellAgentsAction() {
-  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+export async function getRetellAgentsAction(): Promise<{ success: boolean; agents: any[]; error?: string }> {
+  try { await checkAdminAuth(); } catch { return { success: false, agents: [], error: 'Unauthorized' }; }
 
   const retellApiKey = process.env.RETELL_API_KEY
-  if (!retellApiKey) return { success: false, error: 'Retell API key not configured' }
+  if (!retellApiKey) return { success: false, agents: [], error: 'Retell API key not configured' }
   
   try {
-    const res = await fetch('https://api.retellai.com/list-agents', {
-      headers: {
-        'Authorization': `Bearer ${retellApiKey}`
-      }
-    })
-    if (!res.ok) {
-      return { success: false, error: 'Retell API error' }
-    }
-    const data = await res.json()
-    let agents = Array.isArray(data) ? data : (data.agents || data)
+    const retell = new Retell({ apiKey: retellApiKey })
+    const res = await retell.agent.list()
+    const rawAgents = res.items || (Array.isArray(res) ? res : [])
     
     // Deduplicate by agent_id, keeping the latest version
     const agentMap = new Map()
-    for (const a of agents) {
-      if (!agentMap.has(a.agent_id) || a.last_modification_timestamp > agentMap.get(a.agent_id).last_modification_timestamp) {
+    for (const a of rawAgents as any[]) {
+      const modTime = a.last_modification_timestamp || a.user_modified_timestamp || 0
+      const existing = agentMap.get(a.agent_id)
+      const existingModTime = existing ? (existing.last_modification_timestamp || existing.user_modified_timestamp || 0) : -1
+      if (!existing || modTime > existingModTime) {
         agentMap.set(a.agent_id, a)
       }
     }
-    agents = Array.from(agentMap.values())
+    const agents = Array.from(agentMap.values())
 
     return { success: true, agents }
   } catch (e: any) {
-    return { success: false, error: e.message }
+    return { success: false, agents: [], error: e.message }
   }
 }
 

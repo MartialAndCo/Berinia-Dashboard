@@ -23,27 +23,25 @@ export async function fetchDemoConfigAction() {
 
     if (retellApiKey) {
       try {
-        const res = await fetch('https://api.retellai.com/list-agents', {
-          headers: { 'Authorization': `Bearer ${retellApiKey}` },
-          cache: 'no-store'
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const rawAgents = Array.isArray(data) ? data : (data.agents || data.items || [])
-          
-          // Deduplicate by agent_id, keeping the newest version
-          const agentMap = new Map<string, RetellAgentOption>()
-          for (const a of rawAgents) {
-            if (!agentMap.has(a.agent_id) || (a.last_modification_timestamp > (agentMap.get(a.agent_id) as any)?.last_modification_timestamp)) {
-              agentMap.set(a.agent_id, {
-                agent_id: a.agent_id,
-                agent_name: a.agent_name || 'Unnamed Agent',
-                voice_id: a.voice_id
-              })
-            }
+        const retell = new Retell({ apiKey: retellApiKey })
+        const res = await retell.agent.list()
+        const rawAgents = res.items || (Array.isArray(res) ? res : [])
+        
+        // Deduplicate by agent_id, keeping the newest version
+        const agentMap = new Map<string, RetellAgentOption>()
+        for (const a of rawAgents as any[]) {
+          const modTime = a.last_modification_timestamp || a.user_modified_timestamp || 0
+          const existing = agentMap.get(a.agent_id) as any
+          const existingModTime = existing ? (existing.last_modification_timestamp || existing.user_modified_timestamp || 0) : -1
+          if (!existing || modTime > existingModTime) {
+            agentMap.set(a.agent_id, {
+              agent_id: a.agent_id,
+              agent_name: a.agent_name || 'Unnamed Agent',
+              voice_id: a.voice_id
+            })
           }
-          retellAgents = Array.from(agentMap.values())
         }
+        retellAgents = Array.from(agentMap.values())
       } catch (err) {
         console.error('Error fetching Retell agents list:', err)
       }
