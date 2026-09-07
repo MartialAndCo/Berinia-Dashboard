@@ -7,6 +7,10 @@ export interface DemoSettings {
   calendar_url: string
   enabled: boolean
   owner_name: string
+  airtable_webhook_url?: string
+  airtable_api_key?: string
+  airtable_base_id?: string
+  airtable_table_name?: string
 }
 
 export interface DemoLead {
@@ -26,7 +30,11 @@ const DEFAULT_SETTINGS: DemoSettings = {
   from_number: process.env.RETELL_DEMO_FROM_NUMBER || '',
   calendar_url: process.env.CALENDAR_URL || '',
   enabled: true,
-  owner_name: 'Yann'
+  owner_name: 'Yann',
+  airtable_webhook_url: process.env.AIRTABLE_WEBHOOK_URL || '',
+  airtable_api_key: process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN || '',
+  airtable_base_id: process.env.AIRTABLE_BASE_ID || '',
+  airtable_table_name: process.env.AIRTABLE_TABLE_NAME || 'Leads'
 }
 
 /**
@@ -112,7 +120,11 @@ export async function getDemoSettings(): Promise<DemoSettings> {
       from_number: stored?.from_number || process.env.RETELL_DEMO_FROM_NUMBER || '',
       calendar_url: stored?.calendar_url || process.env.CALENDAR_URL || '',
       enabled: stored?.enabled !== undefined ? Boolean(stored.enabled) : true,
-      owner_name: stored?.owner_name || 'Yann'
+      owner_name: stored?.owner_name || 'Yann',
+      airtable_webhook_url: stored?.airtable_webhook_url || process.env.AIRTABLE_WEBHOOK_URL || '',
+      airtable_api_key: stored?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN || '',
+      airtable_base_id: stored?.airtable_base_id || process.env.AIRTABLE_BASE_ID || '',
+      airtable_table_name: stored?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
     }
   } catch (err) {
     console.error('Failed to get demo settings, falling back to defaults:', err)
@@ -136,7 +148,11 @@ export async function saveDemoSettings(newSettings: Partial<DemoSettings>): Prom
       from_number: newSettings.from_number !== undefined ? newSettings.from_number.trim() : (existingSettings.from_number || ''),
       calendar_url: newSettings.calendar_url !== undefined ? newSettings.calendar_url.trim() : (existingSettings.calendar_url || ''),
       enabled: newSettings.enabled !== undefined ? Boolean(newSettings.enabled) : (existingSettings.enabled ?? true),
-      owner_name: newSettings.owner_name !== undefined ? newSettings.owner_name.trim() : (existingSettings.owner_name || 'Yann')
+      owner_name: newSettings.owner_name !== undefined ? newSettings.owner_name.trim() : (existingSettings.owner_name || 'Yann'),
+      airtable_webhook_url: newSettings.airtable_webhook_url !== undefined ? newSettings.airtable_webhook_url.trim() : (existingSettings.airtable_webhook_url || ''),
+      airtable_api_key: newSettings.airtable_api_key !== undefined ? newSettings.airtable_api_key.trim() : (existingSettings.airtable_api_key || ''),
+      airtable_base_id: newSettings.airtable_base_id !== undefined ? newSettings.airtable_base_id.trim() : (existingSettings.airtable_base_id || ''),
+      airtable_table_name: newSettings.airtable_table_name !== undefined ? newSettings.airtable_table_name.trim() : (existingSettings.airtable_table_name || 'Leads')
     }
 
     const supabase = getServiceSupabase()

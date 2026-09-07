@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import Retell from 'retell-sdk'
 import { getDemoSettings, logDemoLead, formatToE164, resolveOutboundPhoneNumber } from '@/lib/demo-settings'
+import { sendLeadToAirtable } from '@/lib/airtable'
 import { Resend } from 'resend'
 
 export async function POST(req: Request) {
@@ -81,6 +82,19 @@ export async function POST(req: Request) {
       callId,
       status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
       error: callError
+    })
+
+    // 4. Populate Airtable
+    await sendLeadToAirtable({
+      businessName: businessName.trim(),
+      fullName: fullName.trim(),
+      phone: e164Phone,
+      email: email.trim().toLowerCase(),
+      callId,
+      status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
+      error: callError
+    }).catch(airtableErr => {
+      console.error('Failed to populate Airtable:', airtableErr)
     })
 
     // 4. Send email notification to admin via Resend if available

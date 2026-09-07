@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded, PhoneOutgoing } from 'lucide-react'
+import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded, PhoneOutgoing, Database } from 'lucide-react'
 import { fetchDemoConfigAction, saveDemoConfigAction, testDemoCallAction, RetellAgentOption } from './actions'
 import { DemoSettings, DemoLead } from '@/lib/demo-settings'
 
@@ -254,6 +254,64 @@ export default function AdminSettingsPage() {
                   />
                   <p className="text-[10px] text-[#8c8880]">
                     Your name for booking referrals (e.g. "Yann will talk with you").
+                  </p>
+                </div>
+
+                {/* Airtable Integration */}
+                <div className="space-y-2 md:col-span-2 pt-4 border-t border-[#f0ece4]">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5 text-[#9e4733]" /> Airtable Integration (Webhook or API)
+                    </Label>
+                    <span className="text-[10px] text-[#8c8880]">Auto-populates when form is submitted</span>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-medium text-[#73706b]">Option A: Airtable Webhook URL (Recommended)</span>
+                      <Input 
+                        value={demoSettings.airtable_webhook_url || ''}
+                        onChange={e => setDemoSettings({ ...demoSettings, airtable_webhook_url: e.target.value })}
+                        placeholder="https://hooks.airtable.com/workflows/v1/genericWebhook/..." 
+                        className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-medium text-[#73706b]">Option B: Airtable Base ID</span>
+                      <Input 
+                        value={demoSettings.airtable_base_id || ''}
+                        onChange={e => setDemoSettings({ ...demoSettings, airtable_base_id: e.target.value })}
+                        placeholder="appXXXXXXXXXXXXXX" 
+                        className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {(demoSettings.airtable_base_id || demoSettings.airtable_api_key) && (
+                    <div className="grid md:grid-cols-2 gap-3 pt-1">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-medium text-[#73706b]">Airtable Personal Access Token (pat...)</span>
+                        <Input 
+                          type="password"
+                          value={demoSettings.airtable_api_key || ''}
+                          onChange={e => setDemoSettings({ ...demoSettings, airtable_api_key: e.target.value })}
+                          placeholder="patXXXXXXXXXXXXXX.XXXXXXXXXXXXXX" 
+                          className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-medium text-[#73706b]">Table Name</span>
+                        <Input 
+                          value={demoSettings.airtable_table_name || 'Leads'}
+                          onChange={e => setDemoSettings({ ...demoSettings, airtable_table_name: e.target.value })}
+                          placeholder="Leads" 
+                          className="border-[#e2dfd8] bg-[#faf9f7]/60 rounded-sm h-10 text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-[#8c8880]">
+                    Whenever a lead submits the demo form on berinagents.com, their contact info and call status are automatically added to your Airtable base.
                   </p>
                 </div>
               </div>
