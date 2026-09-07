@@ -23,6 +23,8 @@ export interface UpdateAirtableLeadSummaryParams {
   bookingUrl?: string | null
   recordingUrl?: string | null
   callLink?: string | null
+  transcript?: string | null
+  customAnalysisData?: any
 }
 
 /**
@@ -140,6 +142,81 @@ function normalizeDateToISO(dateInput?: string | null): string | null {
   return null
 }
 
+export interface DetermineLeadStatusParams {
+  isBooked?: boolean
+  disconnectionReason?: string | null
+  userSentiment?: string | null
+  callSummary?: string | null
+  transcript?: string | null
+  customAnalysisData?: any
+}
+
+/**
+ * Intelligent lead qualification from call analysis data
+ */
+export function determineLeadStatus(params: DetermineLeadStatusParams): {
+  status: 'RDV Programmé' | 'Pas intéressé' | 'Démo Réalisée' | 'Injoignable / Répondeur'
+  note?: string
+} {
+  // 1. RDV Programmé (highest priority)
+  if (params.isBooked) {
+    return { status: 'RDV Programmé' }
+  }
+
+  // 2. Unreached calls (no answer, busy, failed, voicemail)
+  const unreachedReasons = ['dial_no_answer', 'dial_busy', 'dial_failed', 'voicemail_reached']
+  if (params.disconnectionReason && unreachedReasons.includes(params.disconnectionReason)) {
+    const reasonMap: Record<string, string> = {
+      'dial_no_answer': 'Appel non abouti : Pas de réponse',
+      'dial_busy': 'Appel non abouti : Ligne occupée',
+      'voicemail_reached': 'Appel non abouti : Répondeur / Messagerie vocale',
+      'dial_failed': 'Appel non abouti : Échec d\'appel'
+    }
+    return {
+      status: 'Injoignable / Répondeur',
+      note: reasonMap[params.disconnectionReason]
+    }
+  }
+
+  // 3. Detection of "Pas intéressé" / Refusal
+  const sentiment = (params.userSentiment || '').toLowerCase().trim()
+  const summary = (params.callSummary || '').toLowerCase()
+  const transcript = (params.transcript || '').toLowerCase()
+  const custom = params.customAnalysisData || {}
+
+  const refusalPatterns = [
+    /pas\s+int[eé]ress[eé]/i,
+    /aucun\s+int[eé]r[eê]t/i,
+    /ne\s+m'?int[eé]resse\s+pas/i,
+    /ne\s+souhaite\s+pas/i,
+    /refus(?:e|\b)/i,
+    /ne\s+veut\s+pas/i,
+    /pas\s+le\s+moment/i,
+    /trop\s+cher/i,
+    /pas\s+de\s+budget/i,
+    /d[eé]j[aà]\s+[eé]quip[eé]/i,
+    /supprimer\s+(?:mon|de\s+la)\s+liste/i,
+    /ne\s+plus\s+(?:me\s+)?rappeler/i,
+    /ne\s+plus\s+appeler/i,
+    /d[eé]sabonner/i,
+    /not\s+interested/i,
+    /no\s+interest/i,
+    /stop\s+calling/i,
+    /remove\s+(?:me|from)/i
+  ]
+
+  const matchesRefusal = refusalPatterns.some(p => p.test(summary) || p.test(transcript))
+  const isNegativeSentiment = sentiment === 'negative'
+  const isCustomDeclined = custom.interested === false || custom.interest_level === 'not_interested' || custom.lead_interest === 'not_interested'
+
+  if (matchesRefusal || isNegativeSentiment || isCustomDeclined) {
+    return { status: 'Pas intéressé' }
+  }
+
+  // 4. Default for completed calls without booking
+  return { status: 'Démo Réalisée' }
+}
+
 /**
  * Updates an Airtable Lead record with the Retell AI call summary once the call completes & is analyzed.
  */
@@ -153,20 +230,32 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
     return { success: false, error: 'Airtable credentials not configured' }
   }
 
-  let note = params.callSummary?.trim()
-  if (!note) {
-    if (params.disconnectionReason) {
-      const reasonMap: Record<string, string> = {
-        'dial_no_answer': 'Appel non abouti : Pas de réponse',
-        'dial_busy': 'Appel non abouti : Ligne occupée',
-        'voicemail_reached': 'Appel non abouti : Répondeur / Messagerie vocale',
-        'dial_failed': 'Appel non abouti : Échec d\'appel',
-        'user_hangup': 'Appel interrompu par le prospect'
-      }
-      note = reasonMap[params.disconnectionReason] || `Appel terminé (${params.disconnectionReason})`
-    } else {
-      note = 'Appel terminé (aucun résumé disponible)'
+  // Determine intelligent lead status if not provided
+  let resolvedStatus = params.status
+  if (!resolvedStatus) {
+    const calculated = determineLeadStatus({
+      isBooked: params.isBooked,
+      disconnectionReason: params.disconnectionReason,
+      userSentiment: params.userSentiment,
+      callSummary: params.callSummary,
+      transcript: params.transcript,
+      customAnalysisData: params.customAnalysisData
+    })
+    resolvedStatus = calculated.status
+  }
+
+  let note: string | null = null
+  if (params.callSummary && params.callSummary.trim()) {
+    note = params.callSummary.trim()
+  } else if (params.disconnectionReason) {
+    const unreachedReasonMap: Record<string, string> = {
+      'dial_no_answer': 'Appel non abouti : Pas de réponse',
+      'dial_busy': 'Appel non abouti : Ligne occupée',
+      'voicemail_reached': 'Appel non abouti : Répondeur / Messagerie vocale',
+      'dial_failed': 'Appel non abouti : Échec d\'appel',
+      'user_hangup': 'Appel interrompu par le prospect'
     }
+    note = unreachedReasonMap[params.disconnectionReason] || null
   }
 
   try {
@@ -222,13 +311,14 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
     // 3. Update the Airtable record
     const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${targetRecordId}`
 
-    const resolvedStatus = params.isBooked
-      ? 'RDV Programmé'
-      : (params.status || 'Démo Réalisée')
-
     const fieldsToUpdate: Record<string, any> = {
-      "Notes d'appel": note,
       "Statut du Lead": resolvedStatus
+    }
+
+    // Only update "Notes d'appel" if we have a real summary or a specific failure note
+    // Never overwrite with generic "agent_hangup" or empty placeholders
+    if (note) {
+      fieldsToUpdate["Notes d'appel"] = note
     }
 
     // Populate Date RDV field if booking timestamp is present

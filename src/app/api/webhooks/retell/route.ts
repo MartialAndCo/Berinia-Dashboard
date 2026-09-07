@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
 import { ensureDemoClientAndAgent } from '@/lib/demo-settings'
-import { updateAirtableLeadCallSummary, getCalMeetingUrl } from '@/lib/airtable'
+import { updateAirtableLeadCallSummary, getCalMeetingUrl, determineLeadStatus } from '@/lib/airtable'
 import Stripe from 'stripe'
+import Retell from 'retell-sdk'
 
 // Helper to detect if a meeting was booked during the call (via Cal.com in Retell)
 function detectMeetingBooking(call: any): { isBooked: boolean; bookedTime?: string | null; meetingUrl?: string | null } {
@@ -262,8 +263,35 @@ export async function POST(req: Request) {
     // 6. For Demo Calls: Automatically sync the Retell AI call summary & booking status to Airtable
     if (isDemoClient) {
       try {
+        let finalSummary = callSummary
+        let finalSentiment = userSentiment
+
+        // If callSummary is missing on call_analyzed or call_ended with duration > 5s, attempt a direct fetch from Retell API
+        if (!finalSummary && retellCallId && (event === 'call_analyzed' || duration > 5)) {
+          try {
+            const retellApiKey = process.env.RETELL_API_KEY
+            if (retellApiKey) {
+              const retell = new Retell({ apiKey: retellApiKey })
+              const callDetail = await retell.call.retrieve(retellCallId)
+              if (callDetail?.call_analysis?.call_summary) {
+                finalSummary = callDetail.call_analysis.call_summary
+                finalSentiment = callDetail.call_analysis.user_sentiment || finalSentiment
+              }
+            }
+          } catch (e) {
+            console.warn('[Retell Webhook] Fallback retrieve from Retell API failed:', e)
+          }
+        }
+
         const bookingCheck = detectMeetingBooking(call)
-        const leadStatus = bookingCheck.isBooked ? 'RDV Programmé' : (callSummary ? 'Démo Réalisée' : undefined)
+        const leadStatusResult = determineLeadStatus({
+          isBooked: bookingCheck.isBooked,
+          disconnectionReason: call.disconnection_reason,
+          userSentiment: finalSentiment,
+          callSummary: finalSummary,
+          transcript,
+          customAnalysisData: call?.call_analysis?.custom_analysis_data
+        })
 
         let appointmentLink = bookingCheck.meetingUrl || null
         if (bookingCheck.isBooked && !appointmentLink) {
@@ -278,16 +306,61 @@ export async function POST(req: Request) {
         await updateAirtableLeadCallSummary({
           callId: retellCallId,
           phone: contactNumber,
-          callSummary: callSummary,
-          userSentiment: userSentiment,
+          callSummary: finalSummary,
+          userSentiment: finalSentiment,
           disconnectionReason: call.disconnection_reason,
-          status: leadStatus,
+          status: leadStatusResult.status,
           isBooked: bookingCheck.isBooked,
           bookedTime: bookingCheck.bookedTime,
           recordingUrl: recordingUrl,
           callLink: appointmentLink,
-          bookingUrl: appointmentLink
+          bookingUrl: appointmentLink,
+          transcript,
+          customAnalysisData: call?.call_analysis?.custom_analysis_data
         })
+
+        // Delayed safety-net sync: If event is call_ended and summary is still pending,
+        // schedule a check 10 seconds later to fetch the finalized analysis directly from Retell
+        if (event === 'call_ended' && !finalSummary && retellCallId && duration > 5) {
+          setTimeout(async () => {
+            try {
+              const retellApiKey = process.env.RETELL_API_KEY
+              if (!retellApiKey) return
+              const retell = new Retell({ apiKey: retellApiKey })
+              const delayedCall = await retell.call.retrieve(retellCallId)
+              if (delayedCall?.call_analysis?.call_summary) {
+                const delayedBooking = detectMeetingBooking(delayedCall)
+                const delayedLeadStatus = determineLeadStatus({
+                  isBooked: delayedBooking.isBooked,
+                  disconnectionReason: delayedCall.disconnection_reason,
+                  userSentiment: delayedCall.call_analysis.user_sentiment,
+                  callSummary: delayedCall.call_analysis.call_summary,
+                  transcript: typeof delayedCall.transcript === 'string' ? delayedCall.transcript : null,
+                  customAnalysisData: delayedCall.call_analysis.custom_analysis_data
+                })
+
+                await updateAirtableLeadCallSummary({
+                  callId: retellCallId,
+                  phone: contactNumber,
+                  callSummary: delayedCall.call_analysis.call_summary,
+                  userSentiment: delayedCall.call_analysis.user_sentiment,
+                  disconnectionReason: delayedCall.disconnection_reason,
+                  status: delayedLeadStatus.status,
+                  isBooked: delayedBooking.isBooked,
+                  bookedTime: delayedBooking.bookedTime,
+                  recordingUrl: delayedCall.recording_url,
+                  callLink: appointmentLink,
+                  bookingUrl: appointmentLink,
+                  transcript: typeof delayedCall.transcript === 'string' ? delayedCall.transcript : null,
+                  customAnalysisData: delayedCall.call_analysis.custom_analysis_data
+                })
+                console.log(`[Retell Webhook Delayed Sync] Successfully synced delayed summary for ${retellCallId} (Status: ${delayedLeadStatus.status})`)
+              }
+            } catch (delayedErr) {
+              console.warn('[Retell Webhook Delayed Sync Error]', delayedErr)
+            }
+          }, 9000)
+        }
       } catch (airtableErr) {
         console.error('[Retell Webhook] Failed to sync call summary to Airtable:', airtableErr)
       }

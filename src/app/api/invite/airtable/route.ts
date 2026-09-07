@@ -161,11 +161,8 @@ async function processAirtableInvite(params: ProcessInviteParams) {
 
     // Update Airtable
     if (recordId) {
-      const nowStr = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' })
-      const noteAppend = `[BerinAgents] Invite re-sent (existing client) on ${nowStr}.`
       await updateAirtableLeadRecord(recordId, {
-        'Statut du Lead': 'Client Invité',
-        "Notes d'appel": existingAirtableNotes ? `${existingAirtableNotes}\n\n${noteAppend}` : noteAppend
+        'Statut du Lead': 'Client Invité'
       }).catch(e => console.error('Airtable update error:', e))
     }
 
@@ -339,12 +336,8 @@ async function processAirtableInvite(params: ProcessInviteParams) {
 
   // 7. Update Airtable record
   if (recordId) {
-    const nowStr = new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' })
-    const feeText = setup_fee > 0 ? `, Setup: $${setup_fee}` : ''
-    const noteAppend = `[BerinAgents] Dashboard created (Subscription: $${monthly_retainer}/mo${feeText}, Rate: $${billing_rate}/min) and invite sent on ${nowStr}.`
     await updateAirtableLeadRecord(recordId, {
-      'Statut du Lead': 'Client Invité',
-      "Notes d'appel": existingAirtableNotes ? `${existingAirtableNotes}\n\n${noteAppend}` : noteAppend
+      'Statut du Lead': 'Client Invité'
     }).catch(e => console.error('Airtable status update error:', e))
   }
 

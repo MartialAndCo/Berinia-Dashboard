@@ -3,7 +3,7 @@
 import { checkAdminAuth } from '@/utils/supabase/server'
 import { getServiceSupabase } from '@/lib/supabase'
 import { getDemoSettings, getDemoLeads, ensureDemoClientAndAgent } from '@/lib/demo-settings'
-import { updateAirtableLeadCallSummary, getCalMeetingUrl } from '@/lib/airtable'
+import { updateAirtableLeadCallSummary, getCalMeetingUrl, determineLeadStatus } from '@/lib/airtable'
 import Retell from 'retell-sdk'
 
 /**
@@ -193,18 +193,29 @@ export async function syncRetellDemoCallsAction() {
             }
           }
 
+          const leadStatusResult = determineLeadStatus({
+            isBooked,
+            disconnectionReason: c.disconnection_reason,
+            userSentiment: c.call_analysis?.user_sentiment,
+            callSummary: c.call_analysis.call_summary,
+            transcript: transcript,
+            customAnalysisData: custom
+          })
+
           updateAirtableLeadCallSummary({
             callId: c.call_id,
             phone: prospectNumber,
             callSummary: c.call_analysis.call_summary,
             userSentiment: c.call_analysis?.user_sentiment,
             disconnectionReason: c.disconnection_reason,
-            status: isBooked ? 'RDV Programmé' : 'Démo Réalisée',
+            status: leadStatusResult.status,
             isBooked,
             bookedTime,
             recordingUrl: c.recording_url || null,
             callLink: appointmentLink,
-            bookingUrl: appointmentLink
+            bookingUrl: appointmentLink,
+            transcript,
+            customAnalysisData: custom
           }).catch(err => console.warn('[Sync Retell Demo Calls] Airtable sync warning:', err))
         }
       } else {
