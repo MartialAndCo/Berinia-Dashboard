@@ -23,6 +23,8 @@ export interface DemoLead {
   callId?: string
   status: 'called' | 'call_failed' | 'disabled' | 'pending'
   error?: string
+  airtableRecordId?: string
+  callSummary?: string
 }
 
 const DEFAULT_SETTINGS: DemoSettings = {

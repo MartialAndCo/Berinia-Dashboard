@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
 import { ensureDemoClientAndAgent } from '@/lib/demo-settings'
+import { updateAirtableLeadCallSummary } from '@/lib/airtable'
 import Stripe from 'stripe'
 
 export async function POST(req: Request) {
@@ -191,7 +192,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
-    // 6. Report Usage to Stripe for Automated Metered Billing (only on call_analyzed for paying clients with active subscriptions)
+    // 6. For Demo Calls: Automatically sync the Retell AI call summary to Airtable
+    if (isDemoClient) {
+      try {
+        await updateAirtableLeadCallSummary({
+          callId: retellCallId,
+          phone: contactNumber,
+          callSummary: callSummary,
+          userSentiment: userSentiment,
+          disconnectionReason: call.disconnection_reason,
+          status: callSummary ? 'Démo Réalisée' : undefined
+        })
+      } catch (airtableErr) {
+        console.error('[Retell Webhook] Failed to sync call summary to Airtable:', airtableErr)
+      }
+    }
+
+    // 7. Report Usage to Stripe for Automated Metered Billing (only on call_analyzed for paying clients with active subscriptions)
     if (!isDemoClient && event === 'call_analyzed' && clientRecord?.stripe_subscription_id && duration > 0) {
       try {
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')

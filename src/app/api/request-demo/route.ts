@@ -73,7 +73,26 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Log lead in admin records
+    // 3. Populate Airtable
+    let airtableRecordId: string | undefined
+    try {
+      const airtableRes = await sendLeadToAirtable({
+        businessName: businessName.trim(),
+        fullName: fullName.trim(),
+        phone: e164Phone,
+        email: email.trim().toLowerCase(),
+        callId,
+        status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
+        error: callError
+      })
+      if (airtableRes?.recordId) {
+        airtableRecordId = airtableRes.recordId
+      }
+    } catch (airtableErr) {
+      console.error('Failed to populate Airtable:', airtableErr)
+    }
+
+    // 4. Log lead in admin records with airtableRecordId
     await logDemoLead({
       businessName: businessName.trim(),
       fullName: fullName.trim(),
@@ -81,20 +100,8 @@ export async function POST(req: Request) {
       email: email.trim().toLowerCase(),
       callId,
       status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
-      error: callError
-    })
-
-    // 4. Populate Airtable
-    await sendLeadToAirtable({
-      businessName: businessName.trim(),
-      fullName: fullName.trim(),
-      phone: e164Phone,
-      email: email.trim().toLowerCase(),
-      callId,
-      status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
-      error: callError
-    }).catch(airtableErr => {
-      console.error('Failed to populate Airtable:', airtableErr)
+      error: callError,
+      airtableRecordId
     })
 
     // 4. Send email notification to admin via Resend if available

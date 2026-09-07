@@ -3,6 +3,7 @@
 import { checkAdminAuth } from '@/utils/supabase/server'
 import { getServiceSupabase } from '@/lib/supabase'
 import { getDemoSettings, getDemoLeads, ensureDemoClientAndAgent } from '@/lib/demo-settings'
+import { updateAirtableLeadCallSummary } from '@/lib/airtable'
 import Retell from 'retell-sdk'
 
 /**
@@ -164,6 +165,16 @@ export async function syncRetellDemoCallsAction() {
 
       if (!upsertErr) {
         syncedCount++
+        if (c.call_analysis?.call_summary) {
+          updateAirtableLeadCallSummary({
+            callId: c.call_id,
+            phone: prospectNumber,
+            callSummary: c.call_analysis.call_summary,
+            userSentiment: c.call_analysis?.user_sentiment,
+            disconnectionReason: c.disconnection_reason,
+            status: 'Démo Réalisée'
+          }).catch(err => console.warn('[Sync Retell Demo Calls] Airtable sync warning:', err))
+        }
       } else {
         console.warn('[Sync Retell Calls] Upsert warning for call', c.call_id, upsertErr)
       }
