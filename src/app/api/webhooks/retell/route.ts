@@ -4,6 +4,67 @@ import { ensureDemoClientAndAgent } from '@/lib/demo-settings'
 import { updateAirtableLeadCallSummary } from '@/lib/airtable'
 import Stripe from 'stripe'
 
+// Helper to detect if a meeting was booked during the call (via Cal.com in Retell)
+function detectMeetingBooking(call: any): { isBooked: boolean; bookedTime?: string | null } {
+  // 1. Check custom analysis data (GPT-4.1 post-call analysis schema: meeting_booked)
+  const custom = call?.call_analysis?.custom_analysis_data
+  if (custom?.meeting_booked === true || custom?.meeting_booked === 'true') {
+    return { isBooked: true, bookedTime: custom?.booked_time || null }
+  }
+
+  // 2. Check collected dynamic variables from Retell conversation flow
+  const collected = call?.collected_dynamic_variables || {}
+  if (collected.booked_time) {
+    return { isBooked: true, bookedTime: String(collected.booked_time) }
+  }
+
+  // 3. Check transcript_with_tool_calls for book_meeting tool or node transitions
+  if (Array.isArray(call?.transcript_with_tool_calls)) {
+    for (const item of call.transcript_with_tool_calls) {
+      if (item.role === 'node_transition') {
+        if (
+          item.former_node_id === 'component_scheduling-book_meeting' ||
+          item.former_node_name === 'Book Meeting' ||
+          item.new_node_id === 'component_scheduling-exit_subflow' ||
+          item.new_node_name === 'Exit Subflow'
+        ) {
+          return { isBooked: true, bookedTime: collected.booked_time || null }
+        }
+      }
+      if (item.tool_call_name === 'book_meeting' || item.name === 'book_meeting' || item.tool_name === 'book_meeting') {
+        return { isBooked: true, bookedTime: collected.booked_time || null }
+      }
+    }
+  }
+
+  // 4. Check tool_calls array if present
+  if (Array.isArray(call?.tool_calls)) {
+    for (const tc of call.tool_calls) {
+      if (tc.name === 'book_meeting' || tc.function?.name === 'book_meeting') {
+        return { isBooked: true, bookedTime: collected.booked_time || null }
+      }
+    }
+  }
+
+  // 5. Fallback: check call_summary from Retell AI
+  const summary = (call?.call_analysis?.call_summary || '').toLowerCase()
+  const patterns = [
+    /booked.*(walkthrough|meeting|appointment|call|demo|time|slot)/i,
+    /scheduled.*(walkthrough|meeting|appointment|call|demo|time|slot)/i,
+    /locked in.*(time|slot|meeting|walkthrough)/i,
+    /confirmed.*(walkthrough|meeting|appointment|time|slot)/i,
+    /rendez-vous.*(programmé|confirmé|réservé|pris)/i,
+    /démo.*(programmée|réservée|confirmée)/i
+  ]
+  for (const p of patterns) {
+    if (p.test(summary)) {
+      return { isBooked: true, bookedTime: collected.booked_time || null }
+    }
+  }
+
+  return { isBooked: false }
+}
+
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text()
@@ -192,16 +253,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
-    // 6. For Demo Calls: Automatically sync the Retell AI call summary to Airtable
+    // 6. For Demo Calls: Automatically sync the Retell AI call summary & booking status to Airtable
     if (isDemoClient) {
       try {
+        const bookingCheck = detectMeetingBooking(call)
+        const leadStatus = bookingCheck.isBooked ? 'RDV Programmé' : (callSummary ? 'Démo Réalisée' : undefined)
+
         await updateAirtableLeadCallSummary({
           callId: retellCallId,
           phone: contactNumber,
           callSummary: callSummary,
           userSentiment: userSentiment,
           disconnectionReason: call.disconnection_reason,
-          status: callSummary ? 'Démo Réalisée' : undefined
+          status: leadStatus,
+          isBooked: bookingCheck.isBooked,
+          bookedTime: bookingCheck.bookedTime
         })
       } catch (airtableErr) {
         console.error('[Retell Webhook] Failed to sync call summary to Airtable:', airtableErr)

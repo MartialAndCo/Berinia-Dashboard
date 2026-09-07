@@ -166,13 +166,28 @@ export async function syncRetellDemoCallsAction() {
       if (!upsertErr) {
         syncedCount++
         if (c.call_analysis?.call_summary) {
+          const custom = c.call_analysis?.custom_analysis_data
+          const collected = c.collected_dynamic_variables || {}
+          const summary = (c.call_analysis.call_summary || '').toLowerCase()
+          const isBooked = 
+            custom?.meeting_booked === true || 
+            custom?.meeting_booked === 'true' ||
+            Boolean(collected.booked_time) ||
+            /booked.*(walkthrough|meeting|appointment|call|demo|time|slot)/i.test(summary) ||
+            /scheduled.*(walkthrough|meeting|appointment|call|demo|time|slot)/i.test(summary) ||
+            /rendez-vous.*(programmé|confirmé|réservé|pris)/i.test(summary)
+
+          const bookedTime = custom?.booked_time || (collected.booked_time ? String(collected.booked_time) : null)
+
           updateAirtableLeadCallSummary({
             callId: c.call_id,
             phone: prospectNumber,
             callSummary: c.call_analysis.call_summary,
             userSentiment: c.call_analysis?.user_sentiment,
             disconnectionReason: c.disconnection_reason,
-            status: 'Démo Réalisée'
+            status: isBooked ? 'RDV Programmé' : 'Démo Réalisée',
+            isBooked,
+            bookedTime
           }).catch(err => console.warn('[Sync Retell Demo Calls] Airtable sync warning:', err))
         }
       } else {

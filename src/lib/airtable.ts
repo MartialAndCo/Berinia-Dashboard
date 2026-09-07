@@ -13,10 +13,14 @@ export interface AirtableLeadData {
 export interface UpdateAirtableLeadSummaryParams {
   callId?: string
   phone?: string
+  email?: string
   callSummary?: string | null
   userSentiment?: string | null
   disconnectionReason?: string | null
   status?: string
+  isBooked?: boolean
+  bookedTime?: string | null
+  bookingUrl?: string | null
 }
 
 /**
@@ -205,9 +209,23 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
 
     // 3. Update the Airtable record
     const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${targetRecordId}`
+    
+    let finalNote = note
+    if (params.bookedTime) {
+      finalNote = `${finalNote}\n\n[RDV PROGRAMMÉ (Cal.com) : ${params.bookedTime}]`
+    }
+
+    const resolvedStatus = params.isBooked
+      ? 'RDV Programmé'
+      : (params.status || 'Démo Réalisée')
+
     const fieldsToUpdate: Record<string, any> = {
-      "Notes d'appel": note,
-      "Statut du Lead": params.status || 'Démo Réalisée'
+      "Notes d'appel": finalNote,
+      "Statut du Lead": resolvedStatus
+    }
+
+    if (params.bookingUrl) {
+      fieldsToUpdate['Lien Calendly'] = params.bookingUrl
     }
 
     const patchRes = await fetch(patchUrl, {
@@ -374,5 +392,165 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
     return { success: false, error: err?.message }
   }
 }
+
+export interface MarkAirtableMeetingBookedParams {
+  email?: string | null
+  phone?: string | null
+  fullName?: string | null
+  companyName?: string | null
+  startTime?: string | null
+  bookingUrl?: string | null
+  notes?: string | null
+}
+
+/**
+ * Updates a Lead record to "RDV Programmé" when a booking is created on Cal.com
+ */
+export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBookedParams): Promise<{ success: boolean; recordId?: string; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  const cleanEmail = params.email?.trim().toLowerCase()
+  const cleanPhone = (params.phone || '').replace(/\D/g, '')
+  const cleanName = params.fullName?.trim().toLowerCase()
+  const cleanCompany = params.companyName?.trim().toLowerCase()
+
+  try {
+    const searchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const listRes = await fetch(searchUrl, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!listRes.ok) {
+      const err = await listRes.text().catch(() => '')
+      return { success: false, error: err }
+    }
+
+    const data = await listRes.json()
+    const records = data.records || []
+
+    let matchedRecord = records.find((r: any) => {
+      const rEmail = (r.fields?.['Email'] || '').trim().toLowerCase()
+      if (cleanEmail && rEmail && rEmail === cleanEmail) return true
+      return false
+    })
+
+    if (!matchedRecord && cleanPhone) {
+      matchedRecord = records.find((r: any) => {
+        const rPhone = (r.fields?.['Phone'] || '').replace(/\D/g, '')
+        return rPhone && (rPhone === cleanPhone || rPhone.endsWith(cleanPhone) || cleanPhone.endsWith(rPhone))
+      })
+    }
+
+    if (!matchedRecord && cleanName) {
+      matchedRecord = records.find((r: any) => {
+        const rName = (r.fields?.['Full Name'] || '').trim().toLowerCase()
+        return rName && (rName === cleanName || rName.includes(cleanName) || cleanName.includes(rName))
+      })
+    }
+
+    if (!matchedRecord && cleanCompany) {
+      matchedRecord = records.find((r: any) => {
+        const rComp = (r.fields?.['Business Name'] || '').trim().toLowerCase()
+        return rComp && (rComp === cleanCompany || rComp.includes(cleanCompany) || cleanCompany.includes(rComp))
+      })
+    }
+
+    const fieldsToUpdate: Record<string, any> = {
+      'Statut du Lead': 'RDV Programmé'
+    }
+
+    if (params.bookingUrl) {
+      fieldsToUpdate['Lien Calendly'] = params.bookingUrl
+    }
+
+    if (params.startTime) {
+      let formattedDate = params.startTime
+      try {
+        formattedDate = new Date(params.startTime).toLocaleString('fr-FR', {
+          dateStyle: 'full',
+          timeStyle: 'short'
+        })
+      } catch {}
+      const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
+      fieldsToUpdate["Notes d'appel"] = existingNotes
+        ? `${existingNotes}\n\n[RDV Cal.com confirmé : ${formattedDate}]`
+        : `RDV Cal.com confirmé pour le ${formattedDate}`
+    } else if (params.notes) {
+      const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
+      fieldsToUpdate["Notes d'appel"] = existingNotes
+        ? `${existingNotes}\n\n${params.notes}`
+        : params.notes
+    }
+
+    if (matchedRecord) {
+      const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
+      const patchRes = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields: fieldsToUpdate,
+          typecast: true
+        })
+      })
+
+      if (!patchRes.ok) {
+        const errText = await patchRes.text().catch(() => '')
+        return { success: false, error: errText }
+      }
+
+      console.log(`[Airtable] Successfully set 'RDV Programmé' for record ${matchedRecord.id}`)
+      return { success: true, recordId: matchedRecord.id }
+    } else {
+      // Create new lead if not exists
+      const postUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
+      const createRes = await fetch(postUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          records: [
+            {
+              fields: {
+                'Full Name': params.fullName || 'Prospect Cal.com',
+                'Email': params.email || '',
+                'Phone': params.phone || '',
+                'Source du Lead': 'Site Web (Démo)',
+                'Statut du Lead': 'RDV Programmé',
+                'Lien Calendly': params.bookingUrl || '',
+                "Notes d'appel": fieldsToUpdate["Notes d'appel"] || 'RDV réservé via Cal.com'
+              }
+            }
+          ],
+          typecast: true
+        })
+      })
+
+      if (!createRes.ok) {
+        const err = await createRes.text().catch(() => '')
+        return { success: false, error: err }
+      }
+
+      const createData = await createRes.json()
+      return { success: true, recordId: createData.records?.[0]?.id }
+    }
+  } catch (err: any) {
+    console.error('[Airtable markMeetingBooked Error]', err)
+    return { success: false, error: err?.message }
+  }
+}
+
 
 
