@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded, PhoneOutgoing, Database } from 'lucide-react'
 import { fetchDemoConfigAction, saveDemoConfigAction, testDemoCallAction, RetellAgentOption } from './actions'
 import { DemoSettings, DemoLead } from '@/lib/demo-settings'
+import PageLoading from '@/components/PageLoading'
 
 export default function AdminSettingsPage() {
   const [email, setEmail] = useState('')
@@ -133,7 +134,7 @@ export default function AdminSettingsPage() {
 
   const selectedAgentObj = retellAgents.find(a => a.agent_id === demoSettings.agent_id)
 
-  if (loading) return <div className="p-8 text-[#73706b]">Loading admin settings...</div>
+  if (loading) return <PageLoading message="Loading Admin Settings..." />
 
   return (
     <div className="p-8">

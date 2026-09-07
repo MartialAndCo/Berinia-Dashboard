@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CreditCard, ExternalLink, Download, Receipt, ShieldCheck, Search, Banknote } from 'lucide-react'
 import { toast } from 'sonner'
+import PageLoading from '@/components/PageLoading'
 
 function BillingContent() {
   const searchParams = useSearchParams()
@@ -93,19 +94,7 @@ function BillingContent() {
   }
 
   if (loading) {
-    return (
-      <div className="p-8 animate-pulse">
-        <div className="max-w-6xl mx-auto space-y-8">
-          <div className="space-y-2">
-            <div className="h-3 w-28 bg-[#e6e2d6] rounded-sm" />
-            <div className="h-8 w-64 bg-[#dfdbd2] rounded-sm" />
-            <div className="h-4 w-96 bg-[#eae7df] rounded-sm" />
-          </div>
-          <div className="h-36 bg-white border border-[#e6e2d6] rounded-sm p-6" />
-          <div className="h-80 bg-white border border-[#e6e2d6] rounded-sm p-6" />
-        </div>
-      </div>
-    )
+    return <PageLoading message="Loading Billing & Invoices..." />
   }
 
   return (
@@ -263,7 +252,7 @@ function BillingContent() {
 
 export default function BillingPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-[#73706b]">Loading billing records...</div>}>
+    <Suspense fallback={<PageLoading message="Loading Billing & Invoices..." />}>
       <BillingContent />
     </Suspense>
   )

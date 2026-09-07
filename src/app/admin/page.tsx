@@ -11,6 +11,7 @@ import { Plus, Users, DollarSign, TrendingUp, Trash2, Eye } from 'lucide-react'
 import { deleteClientAction } from './actions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
+import PageLoading from '@/components/PageLoading'
 
 export default function AdminDashboard() {
   const [clients, setClients] = useState<any[]>([])
@@ -21,6 +22,7 @@ export default function AdminDashboard() {
   })
   const [clientCallStats, setClientCallStats] = useState<Record<string, { calls: number, revenue: number, retellCost: number }>>({})
   const [chartData, setChartData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   
   const router = useRouter()
 
@@ -29,7 +31,9 @@ export default function AdminDashboard() {
   }, [])
 
   const fetchClientsAndStats = async () => {
-    const { data: clientsData } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
+    setLoading(true)
+    try {
+      const { data: clientsData } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
     
     const { data: callsData } = await supabase
       .from('calls')
@@ -89,6 +93,9 @@ export default function AdminDashboard() {
         totalMinutes: totalSeconds / 60,
       })
     }
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleLogout = async () => {
@@ -106,6 +113,10 @@ export default function AdminDashboard() {
       toast.success("Client deleted successfully", { id: toastId })
       fetchClientsAndStats()
     }
+  }
+
+  if (loading) {
+    return <PageLoading message="Loading Admin Overview..." />
   }
 
   return (

@@ -32,6 +32,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { toast } from 'sonner'
 import { getDemoCallsDashboardAction, syncRetellDemoCallsAction } from './actions'
+import PageLoading from '@/components/PageLoading'
 
 type SortKey = 'created_at' | 'duration_secs' | 'cost'
 type SortDir = 'asc' | 'desc'
@@ -220,14 +221,7 @@ export default function DemoCallsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="p-8 flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3 text-[#73706b]">
-          <Loader2 className="h-6 w-6 animate-spin text-[#9e4733]" />
-          <span className="text-xs uppercase tracking-wider font-semibold">Loading Outbound Demo Calls...</span>
-        </div>
-      </div>
-    )
+    return <PageLoading message="Loading Outbound Demo Calls..." />
   }
 
   return (

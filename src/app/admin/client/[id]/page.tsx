@@ -14,6 +14,7 @@ import { ArrowLeft, Trash2, ShieldAlert, KeyRound, Save, RefreshCw, Eye } from '
 import { updateClientConfigAction, forceUpdateClientEmailAction, recalculateClientCallsCostAction, deleteClientAction, toggleClientAgentStatusAction } from './actions'
 import { addAgentAction, deleteAgentAction, getRetellAgentsAction, updateAgentWebhookAction, syncRetellAgentWebhookAction } from '../../actions'
 import { DeleteClientModal } from '@/components/DeleteClientModal'
+import PageLoading from '@/components/PageLoading'
 
 export default function ClientDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
@@ -176,7 +177,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  if (loading) return <div className="p-8 text-[#73706b]">Loading client data...</div>
+  if (loading) return <PageLoading message="Loading Client Data..." />
   if (!client) return <div className="p-8 text-[#9e4733]">Client not found</div>
 
   const isClientActive = client.status === 'Active' || client.status === 'Actif'

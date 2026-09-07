@@ -6,6 +6,7 @@ import { getClientAgentsAction } from '../actions'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Bot, Phone, Activity, Clock, SmilePlus, Sparkles, CheckCircle2 } from 'lucide-react'
+import PageLoading from '@/components/PageLoading'
 
 function AgentsContent() {
   const searchParams = useSearchParams()
@@ -35,27 +36,7 @@ function AgentsContent() {
     : 100
 
   if (loading) {
-    return (
-      <div className="p-8 animate-pulse">
-        <div className="max-w-6xl mx-auto space-y-8">
-          <div className="space-y-2">
-            <div className="h-3 w-28 bg-[#e6e2d6] rounded-sm" />
-            <div className="h-8 w-64 bg-[#dfdbd2] rounded-sm" />
-            <div className="h-4 w-96 bg-[#eae7df] rounded-sm" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-28 bg-white border border-[#e6e2d6] rounded-sm p-6" />
-            ))}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2].map(i => (
-              <div key={i} className="h-64 bg-white border border-[#e6e2d6] rounded-sm p-6" />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
+    return <PageLoading message="Loading Voice Agents..." />
   }
 
   return (
@@ -197,7 +178,7 @@ function AgentsContent() {
 
 export default function AgentsPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-[#73706b]">Loading agents...</div>}>
+    <Suspense fallback={<PageLoading message="Loading Voice Agents..." />}>
       <AgentsContent />
     </Suspense>
   )

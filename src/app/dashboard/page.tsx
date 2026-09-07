@@ -20,6 +20,7 @@ import { getSubscriptionStatusAction, updateCallMetadataAction } from './actions
 import { getClientDashboardAction, getClientsListAction } from '@/app/admin/actions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { toast } from 'sonner'
+import PageLoading from '@/components/PageLoading'
 
 type SortKey = 'created_at' | 'duration_secs' | 'cost'
 type SortDir = 'asc' | 'desc'
@@ -603,7 +604,7 @@ function ClientDashboardContent() {
   }
 
   if (loading) {
-    return <DashboardSkeleton />
+    return <PageLoading message="Loading Voice Agent Calls..." />
   }
 
   const isFiltersActive = selectedAgent !== 'all' || selectedSentiment !== 'all' || minDurationSecs > 0 || searchQuery !== '' || timeRange !== 'all'
@@ -1393,31 +1394,9 @@ function ClientDashboardContent() {
   )
 }
 
-function DashboardSkeleton() {
-  return (
-    <div className="p-8 animate-pulse">
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div className="space-y-2">
-          <div className="h-3 w-28 bg-[#e6e2d6] rounded-sm" />
-          <div className="h-8 w-64 bg-[#dfdbd2] rounded-sm" />
-          <div className="h-4 w-80 bg-[#eae7df] rounded-sm" />
-        </div>
-        <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] p-6 space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-          <div className="h-12 w-full bg-[#faf8f5] rounded-sm" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-28 bg-white border border-[#e6e2d6] rounded-sm p-4" />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function ClientDashboard() {
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
+    <Suspense fallback={<PageLoading message="Loading Voice Agent Calls..." />}>
       <ClientDashboardContent />
     </Suspense>
   )

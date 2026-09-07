@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ExternalLink, Receipt, Banknote, DollarSign } from 'lucide-react'
 import { getBillingStatsAction } from './actions'
+import PageLoading from '@/components/PageLoading'
 
 export default function AdminBillingPage() {
   const [invoices, setInvoices] = useState<any[]>([])
@@ -53,7 +54,7 @@ export default function AdminBillingPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-sm text-[#73706b]">Loading invoices...</div>
+  if (loading) return <PageLoading message="Loading Billing & Invoices..." />
 
   return (
     <div className="p-8">

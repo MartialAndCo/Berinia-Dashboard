@@ -15,6 +15,7 @@ import {
   getTeamMembersAction, 
   inviteTeamMemberAction 
 } from '../actions'
+import PageLoading from '@/components/PageLoading'
 
 export default function ClientSettingsPage() {
   const [loading, setLoading] = useState(true)
@@ -179,21 +180,7 @@ export default function ClientSettingsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="p-8 animate-pulse">
-        <div className="max-w-5xl mx-auto space-y-8">
-          <div className="space-y-2">
-            <div className="h-3 w-28 bg-[#e6e2d6] rounded-sm" />
-            <div className="h-8 w-64 bg-[#dfdbd2] rounded-sm" />
-            <div className="h-4 w-96 bg-[#eae7df] rounded-sm" />
-          </div>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="h-72 bg-white border border-[#e6e2d6] rounded-sm p-6" />
-            <div className="h-72 bg-white border border-[#e6e2d6] rounded-sm p-6" />
-          </div>
-        </div>
-      </div>
-    )
+    return <PageLoading message="Loading Settings..." />
   }
 
   if (isAdmin) {
