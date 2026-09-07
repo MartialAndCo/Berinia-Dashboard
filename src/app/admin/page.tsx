@@ -30,69 +30,86 @@ export default function AdminDashboard() {
     fetchClientsAndStats()
   }, [])
 
+  const isDemoClient = (c: any) => {
+    if (!c) return false
+    const email = (c.email || '').toLowerCase()
+    const company = (c.company_name || '').toLowerCase()
+    const status = (c.status || '').toLowerCase()
+    return email === 'demo@berinagents.com' || company.includes('demo') || status === 'demo'
+  }
+
   const fetchClientsAndStats = async () => {
     setLoading(true)
     try {
       const { data: clientsData } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
     
-    const { data: callsData } = await supabase
-      .from('calls')
-      .select('client_id, cost, retell_cost, duration_secs, created_at')
+      const { data: callsData } = await supabase
+        .from('calls')
+        .select('client_id, cost, retell_cost, duration_secs, created_at')
   
-    if (clientsData) {
-      setClients(clientsData)
-      
-      const activeClients = clientsData.filter(c => c.status === 'Actif' || c.status === 'Active')
-      const totalMRR = activeClients.reduce((acc, c) => acc + Number(c.monthly_retainer), 0)
-      
-      let totalUsageRevenue = 0
-      let totalRetellCost = 0
-      let totalCalls = 0
-      let totalSeconds = 0
-      const perClient: Record<string, { calls: number, revenue: number, retellCost: number }> = {}
-      
-      // Chart grouping
-      const callsByDate: Record<string, number> = {}
+      if (clientsData) {
+        // Exclude demo client from statistics, overview, and call trends
+        const realClients = clientsData.filter(c => !isDemoClient(c))
+        const realClientIds = new Set(realClients.map(c => c.id))
 
-      if (callsData) {
-        totalCalls = callsData.length
-        callsData.forEach(call => {
-          totalUsageRevenue += Number(call.cost || 0)
-          totalRetellCost += Number(call.retell_cost || 0)
-          totalSeconds += Number(call.duration_secs || 0)
-          
-          // Per-client stats
-          if (!perClient[call.client_id]) {
-            perClient[call.client_id] = { calls: 0, revenue: 0, retellCost: 0 }
-          }
-          perClient[call.client_id].calls++
-          perClient[call.client_id].revenue += Number(call.cost || 0)
-          perClient[call.client_id].retellCost += Number(call.retell_cost || 0)
+        setClients(realClients)
+        
+        const activeClients = realClients.filter(c => c.status === 'Actif' || c.status === 'Active')
+        const totalMRR = activeClients.reduce((acc, c) => acc + Number(c.monthly_retainer || 0), 0)
+        
+        let totalUsageRevenue = 0
+        let totalRetellCost = 0
+        let totalCalls = 0
+        let totalSeconds = 0
+        const perClient: Record<string, { calls: number, revenue: number, retellCost: number }> = {}
+        
+        // Chart grouping (only for real client calls)
+        const callsByDate: Record<string, number> = {}
 
-          // Chart stats
-          if (call.created_at) {
-            const date = new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            callsByDate[date] = (callsByDate[date] || 0) + 1
-          }
+        if (callsData) {
+          // Exclude demo calls: only include calls belonging to real paying clients
+          const realCalls = callsData.filter(call => call.client_id && realClientIds.has(call.client_id))
+
+          totalCalls = realCalls.length
+          realCalls.forEach(call => {
+            totalUsageRevenue += Number(call.cost || 0)
+            totalRetellCost += Number(call.retell_cost || 0)
+            totalSeconds += Number(call.duration_secs || 0)
+            
+            // Per-client stats
+            if (call.client_id) {
+              if (!perClient[call.client_id]) {
+                perClient[call.client_id] = { calls: 0, revenue: 0, retellCost: 0 }
+              }
+              perClient[call.client_id].calls++
+              perClient[call.client_id].revenue += Number(call.cost || 0)
+              perClient[call.client_id].retellCost += Number(call.retell_cost || 0)
+            }
+
+            // Chart stats
+            if (call.created_at) {
+              const date = new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              callsByDate[date] = (callsByDate[date] || 0) + 1
+            }
+          })
+        }
+        
+        // Build chart array (last 30 days)
+        const chartArray = Object.entries(callsByDate).map(([date, calls]) => ({ date, calls }))
+        
+        setChartData(chartArray)
+        setClientCallStats(perClient)
+        setStats({
+          activeClients: activeClients.length,
+          totalClients: realClients.length,
+          mrr: totalMRR,
+          usageRevenue: totalUsageRevenue,
+          retellCost: totalRetellCost,
+          margin: totalMRR + totalUsageRevenue - totalRetellCost,
+          totalCalls: totalCalls,
+          totalMinutes: totalSeconds / 60,
         })
       }
-      
-      // Build chart array (last 14 days logic approx by sorting dates if needed, or just what we have)
-      const chartArray = Object.entries(callsByDate).map(([date, calls]) => ({ date, calls }))
-      
-      setChartData(chartArray)
-      setClientCallStats(perClient)
-      setStats({
-        activeClients: activeClients.length,
-        totalClients: clientsData.length,
-        mrr: totalMRR,
-        usageRevenue: totalUsageRevenue,
-        retellCost: totalRetellCost,
-        margin: totalMRR + totalUsageRevenue - totalRetellCost,
-        totalCalls: totalCalls,
-        totalMinutes: totalSeconds / 60,
-      })
-    }
     } finally {
       setLoading(false)
     }

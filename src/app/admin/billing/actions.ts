@@ -21,7 +21,13 @@ export async function getBillingStatsAction() {
     currentMonthStart.setHours(0, 0, 0, 0)
     const currentMonthUnix = Math.floor(currentMonthStart.getTime() / 1000)
 
-    const formattedInvoices = invoices.data.map((inv: any) => {
+    const formattedInvoices = (invoices.data || [])
+      .filter((inv: any) => {
+        const email = (inv.customer_email || '').toLowerCase()
+        const name = (inv.customer_name || '').toLowerCase()
+        return email !== 'demo@berinagents.com' && !name.includes('demo')
+      })
+      .map((inv: any) => {
       if (inv.created >= currentMonthUnix) {
         if (inv.status === 'paid') {
           totalCollected += inv.amount_paid
