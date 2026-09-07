@@ -3,7 +3,7 @@
 import { checkAdminAuth } from '@/utils/supabase/server'
 import { getServiceSupabase } from '@/lib/supabase'
 import { getDemoSettings, getDemoLeads, ensureDemoClientAndAgent } from '@/lib/demo-settings'
-import { updateAirtableLeadCallSummary } from '@/lib/airtable'
+import { updateAirtableLeadCallSummary, getCalMeetingUrl } from '@/lib/airtable'
 import Retell from 'retell-sdk'
 
 /**
@@ -179,7 +179,19 @@ export async function syncRetellDemoCallsAction() {
 
           const bookedTime = custom?.booked_time || (collected.booked_time ? String(collected.booked_time) : null)
 
-          const directCallLink = c.recording_url || (c.call_id ? `https://dashboard.retellai.com/call-detail/${c.call_id}` : null)
+          let appointmentLink: string | null = null
+          if (isBooked) {
+            appointmentLink = collected.call_link || collected.meeting_url || custom?.call_link || custom?.meeting_url || null
+            if (!appointmentLink && collected.booking_uid) {
+              appointmentLink = `https://app.cal.com/booking/${collected.booking_uid}`
+            }
+            if (!appointmentLink) {
+              appointmentLink = await getCalMeetingUrl({
+                phone: prospectNumber,
+                startTime: bookedTime
+              }).catch(() => null)
+            }
+          }
 
           updateAirtableLeadCallSummary({
             callId: c.call_id,
@@ -191,7 +203,8 @@ export async function syncRetellDemoCallsAction() {
             isBooked,
             bookedTime,
             recordingUrl: c.recording_url || null,
-            callLink: directCallLink
+            callLink: appointmentLink,
+            bookingUrl: appointmentLink
           }).catch(err => console.warn('[Sync Retell Demo Calls] Airtable sync warning:', err))
         }
       } else {

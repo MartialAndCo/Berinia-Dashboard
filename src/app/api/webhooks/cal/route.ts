@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { markAirtableMeetingBooked } from '@/lib/airtable'
 
 /**
@@ -27,13 +27,19 @@ export async function POST(req: Request) {
       const attendeePhone = primaryAttendee.phoneNumber || payload.responses?.phone?.value || payload.phone || null
       
       const startTime = payload.startTime || payload.start || null
-      const bookingUrl = payload.bookingUrl || (payload.uid ? `https://app.cal.com/booking/${payload.uid}` : null)
+      const meetingLink = 
+        (payload.meetingUrl && typeof payload.meetingUrl === 'string' && payload.meetingUrl.startsWith('http'))
+          ? payload.meetingUrl
+          : ((payload.location && typeof payload.location === 'string' && payload.location.startsWith('http'))
+            ? payload.location
+            : (payload.videoCallUrl || (payload.uid ? `https://app.cal.com/booking/${payload.uid}` : payload.bookingUrl || null)))
 
       console.log('[Cal.com Webhook] Booking detected for:', {
         attendeeEmail,
         attendeeName,
         attendeePhone,
-        startTime
+        startTime,
+        meetingLink
       })
 
       const res = await markAirtableMeetingBooked({
@@ -41,7 +47,9 @@ export async function POST(req: Request) {
         phone: attendeePhone,
         fullName: attendeeName,
         startTime: startTime,
-        bookingUrl: bookingUrl
+        bookingUrl: meetingLink,
+        meetingUrl: meetingLink,
+        callLink: meetingLink
       })
 
       return NextResponse.json({ success: true, airtable: res })

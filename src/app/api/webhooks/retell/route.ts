@@ -1,23 +1,27 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
 import { ensureDemoClientAndAgent } from '@/lib/demo-settings'
-import { updateAirtableLeadCallSummary } from '@/lib/airtable'
+import { updateAirtableLeadCallSummary, getCalMeetingUrl } from '@/lib/airtable'
 import Stripe from 'stripe'
 
 // Helper to detect if a meeting was booked during the call (via Cal.com in Retell)
-function detectMeetingBooking(call: any): { isBooked: boolean; bookedTime?: string | null } {
+function detectMeetingBooking(call: any): { isBooked: boolean; bookedTime?: string | null; meetingUrl?: string | null } {
   const custom = call?.call_analysis?.custom_analysis_data
   const collected = call?.collected_dynamic_variables || {}
   const bookedTime = collected.booked_time ? String(collected.booked_time) : (custom?.booked_time || null)
+  let meetingUrl = collected.call_link || collected.meeting_url || custom?.call_link || custom?.meeting_url || null
+  if (!meetingUrl && collected.booking_uid) {
+    meetingUrl = `https://app.cal.com/booking/${collected.booking_uid}`
+  }
 
   // 1. Check custom analysis data (GPT-4.1 post-call analysis schema: meeting_booked)
   if (custom?.meeting_booked === true || custom?.meeting_booked === 'true') {
-    return { isBooked: true, bookedTime }
+    return { isBooked: true, bookedTime, meetingUrl }
   }
 
   // 2. Check collected dynamic variables from Retell conversation flow
   if (collected.booked_time) {
-    return { isBooked: true, bookedTime }
+    return { isBooked: true, bookedTime, meetingUrl }
   }
 
   // 3. Check transcript_with_tool_calls for book_meeting tool or node transitions
@@ -30,11 +34,11 @@ function detectMeetingBooking(call: any): { isBooked: boolean; bookedTime?: stri
           item.new_node_id === 'component_scheduling-exit_subflow' ||
           item.new_node_name === 'Exit Subflow'
         ) {
-          return { isBooked: true, bookedTime: collected.booked_time || null }
+          return { isBooked: true, bookedTime: collected.booked_time || null, meetingUrl }
         }
       }
       if (item.tool_call_name === 'book_meeting' || item.name === 'book_meeting' || item.tool_name === 'book_meeting') {
-        return { isBooked: true, bookedTime: collected.booked_time || null }
+        return { isBooked: true, bookedTime: collected.booked_time || null, meetingUrl }
       }
     }
   }
@@ -43,7 +47,7 @@ function detectMeetingBooking(call: any): { isBooked: boolean; bookedTime?: stri
   if (Array.isArray(call?.tool_calls)) {
     for (const tc of call.tool_calls) {
       if (tc.name === 'book_meeting' || tc.function?.name === 'book_meeting') {
-        return { isBooked: true, bookedTime: collected.booked_time || null }
+        return { isBooked: true, bookedTime: collected.booked_time || null, meetingUrl }
       }
     }
   }
@@ -60,7 +64,7 @@ function detectMeetingBooking(call: any): { isBooked: boolean; bookedTime?: stri
   ]
   for (const p of patterns) {
     if (p.test(summary)) {
-      return { isBooked: true, bookedTime: collected.booked_time || null }
+      return { isBooked: true, bookedTime: collected.booked_time || null, meetingUrl }
     }
   }
 
@@ -261,7 +265,15 @@ export async function POST(req: Request) {
         const bookingCheck = detectMeetingBooking(call)
         const leadStatus = bookingCheck.isBooked ? 'RDV Programmé' : (callSummary ? 'Démo Réalisée' : undefined)
 
-        const directCallLink = recordingUrl || (retellCallId ? `https://dashboard.retellai.com/call-detail/${retellCallId}` : null)
+        let appointmentLink = bookingCheck.meetingUrl || null
+        if (bookingCheck.isBooked && !appointmentLink) {
+          const userEmail = call?.collected_dynamic_variables?.user_email || call?.call_analysis?.custom_analysis_data?.user_email || null
+          appointmentLink = await getCalMeetingUrl({
+            email: userEmail,
+            phone: contactNumber,
+            startTime: bookingCheck.bookedTime
+          })
+        }
 
         await updateAirtableLeadCallSummary({
           callId: retellCallId,
@@ -273,7 +285,8 @@ export async function POST(req: Request) {
           isBooked: bookingCheck.isBooked,
           bookedTime: bookingCheck.bookedTime,
           recordingUrl: recordingUrl,
-          callLink: directCallLink
+          callLink: appointmentLink,
+          bookingUrl: appointmentLink
         })
       } catch (airtableErr) {
         console.error('[Retell Webhook] Failed to sync call summary to Airtable:', airtableErr)

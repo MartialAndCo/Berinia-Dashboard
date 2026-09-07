@@ -90,10 +90,6 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
       'Statut du Lead': data.status === 'called' ? 'Appel lancé' : 'Nouveau Lead'
     }
 
-    if (data.callId) {
-      fields['Call Link'] = `https://dashboard.retellai.com/call-detail/${data.callId}`
-    }
-
     if (data.status === 'called') {
       fields["Notes d'appel"] = "Appel en cours... (en attente du résumé Retell)"
     } else if (data.error) {
@@ -102,7 +98,7 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
       fields["Notes d'appel"] = "Nouveau Lead (en attente d'appel)"
     }
 
-    let res = await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -117,51 +113,6 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
         typecast: true // Allows Airtable to create select options or convert formats automatically
       })
     })
-
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => null)
-      const errMsg = errJson?.error?.message || ''
-
-      // If 'Call Link' is unknown in Airtable, try 'Call link'
-      if (errJson?.error?.type === 'UNKNOWN_FIELD_NAME' && errMsg.includes('Call Link') && data.callId) {
-        delete fields['Call Link']
-        fields['Call link'] = `https://dashboard.retellai.com/call-detail/${data.callId}`
-
-        res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            records: [{ fields }],
-            typecast: true
-          })
-        })
-      }
-
-      // If 'Call link' is also unknown, retry without call link
-      if (!res.ok) {
-        const retryErr = await res.json().catch(() => null)
-        const retryMsg = retryErr?.error?.message || ''
-        if (retryErr?.error?.type === 'UNKNOWN_FIELD_NAME' && (retryMsg.includes('Call link') || retryMsg.includes('Call Link'))) {
-          delete fields['Call Link']
-          delete fields['Call link']
-
-          res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              records: [{ fields }],
-              typecast: true
-            })
-          })
-        }
-      }
-    }
 
     if (!res.ok) {
       const errorText = await res.text()
@@ -288,10 +239,13 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
       }
     }
 
-    // Populate Call Link with direct recording audio link or Retell call detail link
-    const callDirectLink = params.callLink || params.recordingUrl || (params.callId ? `https://dashboard.retellai.com/call-detail/${params.callId}` : null)
-    if (callDirectLink) {
-      fieldsToUpdate['Call Link'] = callDirectLink
+    // Populate Call Link with the appointment meeting link (Google Meet / Cal.com link) ONLY if a meeting was booked
+    const meetingLink = (params.isBooked || resolvedStatus === 'RDV Programmé')
+      ? (params.callLink || params.bookingUrl || null)
+      : null
+
+    if (meetingLink) {
+      fieldsToUpdate['Call Link'] = meetingLink
     }
 
     let patchRes = await fetch(patchUrl, {
@@ -311,9 +265,9 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
       const errMsg = errJson?.error?.message || ''
 
       // 1. If 'Call Link' is unknown in Airtable, try 'Call link'
-      if (errJson?.error?.type === 'UNKNOWN_FIELD_NAME' && errMsg.includes('Call Link') && callDirectLink) {
+      if (errJson?.error?.type === 'UNKNOWN_FIELD_NAME' && errMsg.includes('Call Link') && meetingLink) {
         delete fieldsToUpdate['Call Link']
-        fieldsToUpdate['Call link'] = callDirectLink
+        fieldsToUpdate['Call link'] = meetingLink
 
         patchRes = await fetch(patchUrl, {
           method: 'PATCH',
@@ -511,6 +465,8 @@ export interface MarkAirtableMeetingBookedParams {
   companyName?: string | null
   startTime?: string | null
   bookingUrl?: string | null
+  meetingUrl?: string | null
+  callLink?: string | null
   notes?: string | null
 }
 
@@ -585,6 +541,11 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
       }
     }
 
+    const meetingLink = params.callLink || params.meetingUrl || params.bookingUrl || null
+    if (meetingLink) {
+      fieldsToUpdate['Call Link'] = meetingLink
+    }
+
     if (params.notes) {
       const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
       fieldsToUpdate["Notes d'appel"] = existingNotes ? `${existingNotes}\n\n${params.notes}` : params.notes
@@ -609,7 +570,7 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
         return { success: false, error: errText }
       }
 
-      console.log(`[Airtable] Successfully set 'RDV Programmé' for record ${matchedRecord.id}`)
+      console.log(`[Airtable] Successfully set 'RDV Programmé' and Call Link for record ${matchedRecord.id}`)
       return { success: true, recordId: matchedRecord.id }
     } else {
       // Create new lead if not exists
@@ -626,6 +587,10 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
       const isoDate = normalizeDateToISO(params.startTime)
       if (isoDate) {
         newLeadFields['Date RDV'] = isoDate
+      }
+
+      if (meetingLink) {
+        newLeadFields['Call Link'] = meetingLink
       }
 
       const createRes = await fetch(postUrl, {
@@ -657,6 +622,72 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
     return { success: false, error: err?.message }
   }
 }
+
+/**
+ * Queries Cal.com API to find a booking matching the given date, email, or phone,
+ * and extracts the Google Meet or Cal.com meeting URL.
+ */
+export async function getCalMeetingUrl(options: {
+  email?: string | null
+  phone?: string | null
+  startTime?: string | null
+}): Promise<string | null> {
+  const apiKey = process.env.CAL_API_KEY || 'cal_live_80fa86a5d22da79196f19d220a7ebd1e'
+  if (!apiKey) return null
+
+  try {
+    const res = await fetch('https://api.cal.com/v2/bookings?take=15', {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'cal-api-version': '2024-08-13'
+      },
+      cache: 'no-store'
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const bookings = data.data || []
+
+    const cleanEmail = options.email?.toLowerCase().trim()
+    const cleanPhone = (options.phone || '').replace(/\D/g, '')
+
+    const matched = bookings.find((b: any) => {
+      if (options.startTime && b.start) {
+        const bTime = new Date(b.start).getTime()
+        const targetTime = new Date(options.startTime).getTime()
+        if (!isNaN(bTime) && !isNaN(targetTime) && Math.abs(bTime - targetTime) < 60000) {
+          return true
+        }
+      }
+      if (cleanEmail && Array.isArray(b.attendees)) {
+        if (b.attendees.some((a: any) => a.email?.toLowerCase() === cleanEmail)) {
+          return true
+        }
+      }
+      if (cleanPhone && Array.isArray(b.attendees)) {
+        if (b.attendees.some((a: any) => (a.phoneNumber || '').replace(/\D/g, '').endsWith(cleanPhone.slice(-8)))) {
+          return true
+        }
+      }
+      return false
+    })
+
+    if (matched) {
+      if (matched.meetingUrl && typeof matched.meetingUrl === 'string' && matched.meetingUrl.startsWith('http')) {
+        return matched.meetingUrl
+      }
+      if (matched.location && typeof matched.location === 'string' && matched.location.startsWith('http')) {
+        return matched.location
+      }
+      if (matched.uid) {
+        return `https://app.cal.com/booking/${matched.uid}`
+      }
+    }
+  } catch (e) {
+    console.warn('[getCalMeetingUrl Error]', e)
+  }
+  return null
+}
+
 
 
 
