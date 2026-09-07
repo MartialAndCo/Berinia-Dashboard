@@ -4,6 +4,12 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy')
 
+export async function GET(req: Request) {
+  const url = new URL(req.url)
+  url.pathname = '/api/invite/airtable'
+  return NextResponse.redirect(url)
+}
+
 export async function POST(req: Request) {
   try {
     const { email, company_name, billing_rate, monthly_retainer } = await req.json()

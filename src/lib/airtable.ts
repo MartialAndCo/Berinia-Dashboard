@@ -688,6 +688,77 @@ export async function getCalMeetingUrl(options: {
   return null
 }
 
+/**
+ * Fetches a single record from Airtable by record ID.
+ */
+export async function getAirtableLeadRecord(recordId: string): Promise<{ success: boolean; record?: any; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  try {
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${recordId}`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      return { success: false, error: `Airtable fetch failed (${res.status}): ${errText}` }
+    }
+
+    const record = await res.json()
+    return { success: true, record }
+  } catch (err: any) {
+    return { success: false, error: err?.message }
+  }
+}
+
+/**
+ * Updates a single record in Airtable by record ID.
+ */
+export async function updateAirtableLeadRecord(recordId: string, fields: Record<string, any>): Promise<{ success: boolean; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  try {
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${recordId}`
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fields,
+        typecast: true
+      })
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      return { success: false, error: `Airtable update failed (${res.status}): ${errText}` }
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message }
+  }
+}
+
+
 
 
 
