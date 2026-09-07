@@ -27,9 +27,20 @@ export async function createClient() {
 
 export function isAdminUser(user: { email?: string | null; app_metadata?: Record<string, any>; user_metadata?: Record<string, any> } | null): boolean {
   if (!user) return false
-  if (user.email?.toLowerCase() === 'admin@berinia.com') return true
+  const email = user.email?.toLowerCase()
+  if (email === 'admin@berinia.com' || email === 'yannrosemark@gmail.com') return true
   if (user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin') return true
   return false
+}
+
+export async function countActiveAdmins(supabaseAdmin: any): Promise<number> {
+  try {
+    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers()
+    if (error || !users) return 1
+    return users.filter((u: any) => isAdminUser(u)).length
+  } catch {
+    return 1
+  }
 }
 
 export async function checkAdminAuth() {

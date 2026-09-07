@@ -17,10 +17,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         router.push('/login')
-      } else if (session.user.email !== 'admin@berinia.com') {
-        router.push('/dashboard')
       } else {
-        
+        const u = session.user
+        const isUserAdmin = u.email?.toLowerCase() === 'admin@berinia.com' ||
+          u.email?.toLowerCase() === 'yannrosemark@gmail.com' ||
+          u.app_metadata?.role === 'admin' ||
+          u.user_metadata?.role === 'admin'
+        if (!isUserAdmin) {
+          router.push('/dashboard')
+        }
       }
     })
   }, [router])

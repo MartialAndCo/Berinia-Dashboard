@@ -40,7 +40,15 @@ export default function LoginPage() {
       }
 
       // If user is admin, immediately redirect to admin console
-      if (cleanEmail.toLowerCase() === 'admin@berinia.com' || data.session.user.email?.toLowerCase() === 'admin@berinia.com') {
+      const u = data.session.user
+      const isUserAdmin = cleanEmail.toLowerCase() === 'admin@berinia.com' ||
+        cleanEmail.toLowerCase() === 'yannrosemark@gmail.com' ||
+        u.email?.toLowerCase() === 'admin@berinia.com' ||
+        u.email?.toLowerCase() === 'yannrosemark@gmail.com' ||
+        u.app_metadata?.role === 'admin' ||
+        u.user_metadata?.role === 'admin'
+
+      if (isUserAdmin) {
         window.location.href = '/admin'
         return
       }

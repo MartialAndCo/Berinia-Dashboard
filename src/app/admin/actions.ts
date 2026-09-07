@@ -1,6 +1,6 @@
 'use server'
 
-import { checkAdminAuth } from '@/utils/supabase/server'
+import { checkAdminAuth, isAdminUser, countActiveAdmins } from '@/utils/supabase/server'
 import Retell from 'retell-sdk'
 import { createClient } from '@supabase/supabase-js'
 
@@ -12,16 +12,35 @@ export async function deleteClientAction(clientId: string) {
   if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
   
-  // 1. Get the user_id before deleting the client row
-  const { data: clientData } = await supabaseAdmin.from('clients').select('user_id').eq('id', clientId).single()
+  // 1. Get the client before deleting
+  const { data: clientData } = await supabaseAdmin.from('clients').select('user_id, email, company_name').eq('id', clientId).single()
   
-  // 2. Delete the client row (cascades to agents + calls)
+  // 2. Safety check: Protect administrator accounts
+  if (clientData?.user_id) {
+    const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(clientData.user_id)
+    if (authUserData?.user && isAdminUser(authUserData.user)) {
+      const adminCount = await countActiveAdmins(supabaseAdmin)
+      if (adminCount <= 1) {
+        return { 
+          success: false, 
+          error: "Action bloquée : ce compte est associé au dernier administrateur actif. Il est impossible de supprimer le dernier compte administrateur de la plateforme." 
+        }
+      }
+    }
+  }
+
+  // 3. Delete the client row (cascades to agents + calls)
   const { error } = await supabaseAdmin.from('clients').delete().eq('id', clientId)
   if (error) return { success: false, error: error.message }
   
-  // 3. Delete the auth user so the email can be re-used
+  // 4. Delete the auth user ONLY if it is not an administrator
   if (clientData?.user_id) {
-    await supabaseAdmin.auth.admin.deleteUser(clientData.user_id)
+    const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(clientData.user_id)
+    if (authUserData?.user && isAdminUser(authUserData.user)) {
+      console.log(`[deleteClientAction] Preserved admin auth user ${clientData.user_id} (${clientData.email})`)
+    } else {
+      await supabaseAdmin.auth.admin.deleteUser(clientData.user_id)
+    }
   }
   
   return { success: true }

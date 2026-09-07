@@ -1,6 +1,6 @@
 'use server'
 
-import { checkAdminAuth } from '@/utils/supabase/server'
+import { checkAdminAuth, isAdminUser, countActiveAdmins } from '@/utils/supabase/server'
 
 import { getServiceSupabase } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
@@ -288,6 +288,20 @@ export async function deleteClientAction(clientId: string) {
       return { success: false, error: fetchError?.message || 'Client not found' }
     }
 
+    // Safety check: Is this client linked to an admin user?
+    if (client.user_id) {
+      const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(client.user_id)
+      if (authUserData?.user && isAdminUser(authUserData.user)) {
+        const adminCount = await countActiveAdmins(supabaseAdmin)
+        if (adminCount <= 1) {
+          return {
+            success: false,
+            error: "Action bloquée : ce compte est associé au dernier administrateur actif. Il est impossible de supprimer le dernier compte administrateur de la plateforme."
+          }
+        }
+      }
+    }
+
     // 1. Delete Stripe customer (cascades to subscriptions)
     if (client.stripe_customer_id) {
       const stripeKey = process.env.STRIPE_SECRET_KEY
@@ -302,11 +316,16 @@ export async function deleteClientAction(clientId: string) {
       }
     }
 
-    // 2. Delete Supabase user from auth.users (cascades to clients table if FK is cascade)
+    // 2. Delete Supabase user from auth.users ONLY if it is not an administrator
     if (client.user_id) {
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(client.user_id)
-      if (authError) {
-        console.error("Failed to delete auth user:", authError)
+      const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(client.user_id)
+      if (authUserData?.user && isAdminUser(authUserData.user)) {
+        console.log(`[deleteClientAction] Preserved admin auth user ${client.user_id} (${client.email})`)
+      } else {
+        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(client.user_id)
+        if (authError) {
+          console.error("Failed to delete auth user:", authError)
+        }
       }
     }
 
