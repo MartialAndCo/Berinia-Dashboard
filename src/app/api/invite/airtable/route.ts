@@ -13,11 +13,37 @@ interface ProcessInviteParams {
   phone?: string
   billing_rate?: number
   monthly_retainer?: number
+  setup_fee?: number
+  plan_name?: string
   origin?: string
 }
 
+function extractAirtableNumber(val: any): number | undefined {
+  if (Array.isArray(val)) {
+    val = val[0]
+  }
+  if (typeof val === 'number' && !isNaN(val)) {
+    return val
+  }
+  if (typeof val === 'string') {
+    const parsed = parseFloat(val.replace(/[^0-9.-]/g, ''))
+    if (!isNaN(parsed)) return parsed
+  }
+  return undefined
+}
+
+function extractAirtableString(val: any): string | undefined {
+  if (Array.isArray(val)) {
+    val = val[0]
+  }
+  if (typeof val === 'string' && val.trim()) {
+    return val.trim()
+  }
+  return undefined
+}
+
 async function processAirtableInvite(params: ProcessInviteParams) {
-  let { recordId, email, company_name, full_name, phone, billing_rate, monthly_retainer, origin } = params
+  let { recordId, email, company_name, full_name, phone, billing_rate, monthly_retainer, setup_fee, plan_name, origin } = params
   origin = origin || process.env.NEXT_PUBLIC_SITE_URL || 'https://www.berinagents.com'
 
   let existingAirtableNotes = ''
@@ -31,24 +57,60 @@ async function processAirtableInvite(params: ProcessInviteParams) {
       existingAirtableNotes = airtableFields["Notes d'appel"] || ''
       
       if (!email) {
-        email = airtableFields['Email'] || airtableFields['email'] || ''
+        email = extractAirtableString(airtableFields['Email'] || airtableFields['email']) || ''
       }
       if (!company_name) {
-        company_name = airtableFields['Business Name'] || airtableFields['Company'] || airtableFields['Entreprise'] || airtableFields['Full Name'] || ''
+        company_name = extractAirtableString(airtableFields['Business Name'] || airtableFields['Company'] || airtableFields['Entreprise'] || airtableFields['Full Name']) || ''
       }
       if (!full_name) {
-        full_name = airtableFields['Full Name'] || airtableFields['Nom'] || ''
+        full_name = extractAirtableString(airtableFields['Full Name'] || airtableFields['Nom']) || ''
       }
       if (!phone) {
-        phone = airtableFields['Phone'] || airtableFields['Téléphone'] || ''
+        phone = extractAirtableString(airtableFields['Phone'] || airtableFields['Téléphone']) || ''
       }
-      if (billing_rate === undefined) {
-        const rawRate = airtableFields['Tarif / min'] || airtableFields['Billing Rate'] || airtableFields['Tarif']
-        billing_rate = rawRate ? parseFloat(rawRate) : 0.50
-      }
+
+      // Exact fields from Airtable: "Monthly Retainer (from Abonnement)", "Cost Per Min (from Abonnement)", "Setup Fee (from Abonnement)"
       if (monthly_retainer === undefined) {
-        const rawRetainer = airtableFields['Retainer'] || airtableFields['Abonnement mensuel'] || airtableFields['Monthly Retainer']
-        monthly_retainer = rawRetainer ? parseFloat(rawRetainer) : 500
+        const fromAbonnement = extractAirtableNumber(airtableFields['Monthly Retainer (from Abonnement)'])
+        const direct = extractAirtableNumber(airtableFields['Monthly Retainer'] || airtableFields['Retainer'] || airtableFields['Abonnement mensuel'])
+        monthly_retainer = fromAbonnement ?? direct ?? 500
+      }
+
+      if (billing_rate === undefined) {
+        const fromAbonnement = extractAirtableNumber(airtableFields['Cost Per Min (from Abonnement)'])
+        const direct = extractAirtableNumber(airtableFields['Cost Per Min'] || airtableFields['Billing Rate'] || airtableFields['Tarif / min'] || airtableFields['Tarif'])
+        billing_rate = fromAbonnement ?? direct ?? 0.50
+      }
+
+      if (setup_fee === undefined) {
+        const fromAbonnement = extractAirtableNumber(airtableFields['Setup Fee (from Abonnement)'])
+        const direct = extractAirtableNumber(airtableFields['Setup Fee'] || airtableFields['Frais de setup'])
+        setup_fee = fromAbonnement ?? direct ?? 0
+      }
+
+      // Fetch linked plan name if available
+      if (!plan_name) {
+        const planDirect = extractAirtableString(airtableFields["Type d'Abonnement"])
+        if (planDirect) {
+          plan_name = planDirect
+        } else if (airtableFields['Abonnement']) {
+          const abonnementLink = Array.isArray(airtableFields['Abonnement']) ? airtableFields['Abonnement'][0] : airtableFields['Abonnement']
+          if (typeof abonnementLink === 'string' && abonnementLink.startsWith('rec')) {
+            try {
+              const apiKey = process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+              const baseId = process.env.AIRTABLE_BASE_ID
+              const planRes = await fetch(`https://api.airtable.com/v0/${baseId}/Abonnement/${abonnementLink}`, {
+                headers: { Authorization: `Bearer ${apiKey}` }
+              })
+              if (planRes.ok) {
+                const planJson = await planRes.json()
+                plan_name = planJson?.fields?.Name || planJson?.fields?.Nom
+              }
+            } catch (e) {
+              // Non-fatal
+            }
+          }
+        }
       }
     }
   }
@@ -58,6 +120,8 @@ async function processAirtableInvite(params: ProcessInviteParams) {
   company_name = (company_name || full_name || 'Nouveau Client').trim()
   billing_rate = typeof billing_rate === 'number' && !isNaN(billing_rate) ? billing_rate : 0.50
   monthly_retainer = typeof monthly_retainer === 'number' && !isNaN(monthly_retainer) ? monthly_retainer : 500
+  setup_fee = typeof setup_fee === 'number' && !isNaN(setup_fee) ? setup_fee : 0
+  plan_name = plan_name || 'Standard'
 
   if (!email) {
     return {
@@ -190,9 +254,19 @@ async function processAirtableInvite(params: ProcessInviteParams) {
     })
     stripeCustomerId = customer.id
 
+    // One-off Setup Fee attached to the customer's first invoice (from "Setup Fee (from Abonnement)")
+    if (setup_fee > 0) {
+      await stripe.invoiceItems.create({
+        customer: customer.id,
+        amount: Math.round(setup_fee * 100),
+        currency: 'usd',
+        description: `Setup Fee (Frais de mise en place & configuration) - ${company_name}`
+      })
+    }
+
     const items: any[] = []
 
-    // Monthly Retainer product & price
+    // Monthly Retainer product & price (from "Monthly Retainer (from Abonnement)")
     if (monthly_retainer > 0) {
       const productRetainer = await stripe.products.create({ name: `Monthly Retainer - ${company_name}` })
       const priceRetainer = await stripe.prices.create({
@@ -204,7 +278,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
       items.push({ price: priceRetainer.id })
     }
 
-    // Usage calls metered per second
+    // Usage calls metered per second (from "Cost Per Min (from Abonnement)")
     if (billing_rate > 0) {
       const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${company_name}` })
       const priceUsage = await stripe.prices.create({
@@ -293,7 +367,9 @@ async function processAirtableInvite(params: ProcessInviteParams) {
   // 7. Update Airtable record
   if (recordId) {
     const nowStr = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })
-    const noteAppend = `[BerinAgents] Dashboard créé et invitation envoyée par email le ${nowStr}.`
+    const feeText = setup_fee > 0 ? `, Setup: ${setup_fee} $` : ''
+    const planText = plan_name ? ` (Formule: ${plan_name})` : ''
+    const noteAppend = `[BerinAgents] Dashboard créé${planText} (Retainer: ${monthly_retainer} $/mois${feeText}, Min: ${billing_rate} $/min) et invitation envoyée le ${nowStr}.`
     await updateAirtableLeadRecord(recordId, {
       'Statut du Lead': 'Client Invité',
       "Notes d'appel": existingAirtableNotes ? `${existingAirtableNotes}\n\n${noteAppend}` : noteAppend
@@ -307,7 +383,9 @@ async function processAirtableInvite(params: ProcessInviteParams) {
     email,
     company_name,
     monthly_retainer,
+    setup_fee,
     billing_rate,
+    plan_name,
     message: `Client ${company_name} créé avec succès et invitation envoyée à ${email} !`
   }
 }
@@ -320,7 +398,9 @@ function renderHtmlResponse(result: {
   email?: string
   company_name?: string
   monthly_retainer?: number
+  setup_fee?: number
   billing_rate?: number
+  plan_name?: string
   message?: string
   error?: string
 }) {
@@ -404,7 +484,7 @@ function renderHtmlResponse(result: {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 0;
+      padding: 7px 0;
       border-bottom: 1px solid #f0ece4;
     }
     .info-row:last-child {
@@ -484,10 +564,28 @@ function renderHtmlResponse(result: {
           <span class="info-label">Email de connexion</span>
           <span class="info-val">${result.email}</span>
         </div>
+        ${result.plan_name ? `
+        <div class="info-row">
+          <span class="info-label">Formule Abonnement</span>
+          <span class="info-val">${result.plan_name}</span>
+        </div>
+        ` : ''}
         ${result.monthly_retainer !== undefined ? `
         <div class="info-row">
-          <span class="info-label">Tarification</span>
-          <span class="info-val">${result.monthly_retainer} $ / mois + ${result.billing_rate} $ / min</span>
+          <span class="info-label">Monthly Retainer</span>
+          <span class="info-val">${result.monthly_retainer} $ / mois</span>
+        </div>
+        ` : ''}
+        ${result.setup_fee !== undefined && result.setup_fee > 0 ? `
+        <div class="info-row">
+          <span class="info-label">Setup Fee (Mise en service)</span>
+          <span class="info-val">${result.setup_fee} $ (facturé sur 1ère facture)</span>
+        </div>
+        ` : ''}
+        ${result.billing_rate !== undefined ? `
+        <div class="info-row">
+          <span class="info-label">Cost Per Min</span>
+          <span class="info-val">${result.billing_rate} $ / min</span>
         </div>
         ` : ''}
         <div class="info-row">
@@ -538,8 +636,11 @@ export async function GET(req: Request) {
   const phone = searchParams.get('phone') || undefined
   const rawRate = searchParams.get('billing_rate') || searchParams.get('rate')
   const rawRetainer = searchParams.get('monthly_retainer') || searchParams.get('retainer')
+  const rawSetup = searchParams.get('setup_fee') || searchParams.get('setup')
+  const plan_name = searchParams.get('plan') || searchParams.get('abonnement') || undefined
   const billing_rate = rawRate ? parseFloat(rawRate) : undefined
   const monthly_retainer = rawRetainer ? parseFloat(rawRetainer) : undefined
+  const setup_fee = rawSetup ? parseFloat(rawSetup) : undefined
 
   const origin = req.headers.get('origin') || new URL(req.url).origin
 
@@ -551,6 +652,8 @@ export async function GET(req: Request) {
     phone,
     billing_rate,
     monthly_retainer,
+    setup_fee,
+    plan_name,
     origin
   })
 
@@ -581,6 +684,8 @@ export async function POST(req: Request) {
       phone: body.phone,
       billing_rate: body.billing_rate !== undefined ? parseFloat(body.billing_rate) : undefined,
       monthly_retainer: body.monthly_retainer !== undefined ? parseFloat(body.monthly_retainer) : undefined,
+      setup_fee: body.setup_fee !== undefined ? parseFloat(body.setup_fee) : undefined,
+      plan_name: body.plan_name || body.plan,
       origin
     })
 
