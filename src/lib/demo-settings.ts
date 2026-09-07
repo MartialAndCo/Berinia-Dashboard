@@ -69,13 +69,14 @@ export async function resolveOutboundPhoneNumber(agentId?: string): Promise<stri
     const apiKey = process.env.RETELL_API_KEY
     if (!apiKey) return null
 
-    const res = await fetch('https://api.retellai.com/list-phone-numbers', {
+    const res = await fetch('https://api.retellai.com/v2/list-phone-numbers', {
       headers: { 'Authorization': `Bearer ${apiKey}` },
       cache: 'no-store'
     })
 
     if (!res.ok) return null
-    const numbers = await res.json()
+    const data = await res.json()
+    const numbers = Array.isArray(data) ? data : (data?.items || [])
     if (!Array.isArray(numbers) || numbers.length === 0) return null
 
     // 1. Try to find a number bound to this agent
