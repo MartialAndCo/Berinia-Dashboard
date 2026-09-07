@@ -323,6 +323,11 @@ export async function toggleClientAgentStatusAction(clientId: string, targetStat
   try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
 
   try {
+    const { data: client } = await supabaseAdmin.from('clients').select('company_name, email').eq('id', clientId).single()
+    if (client?.email === 'demo@berinagents.com' || client?.company_name?.toLowerCase().includes('demo')) {
+      return { success: false, error: 'Demo clients and outbound demo agents cannot be suspended.' }
+    }
+
     if (targetStatus === 'Suspended') {
       await suspendClientAgent(clientId, 'Manual admin suspension')
     } else {

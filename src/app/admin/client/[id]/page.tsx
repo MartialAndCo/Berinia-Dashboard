@@ -178,6 +178,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   if (!client) return <div className="p-8 text-[#9e4733]">Client not found</div>
 
   const isClientActive = client.status === 'Active' || client.status === 'Actif'
+  const isDemo = client.email === 'demo@berinagents.com' || client.company_name?.toLowerCase().includes('demo')
 
   return (
     <div className="p-8">
@@ -208,23 +209,25 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             <p className="text-sm text-[#73706b]">Detailed client management & configuration</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {isClientActive ? (
-              <Button 
-                onClick={() => handleToggleAgentStatus('Suspended')} 
-                variant="outline" 
-                size="sm" 
-                className="border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer"
-              >
-                <ShieldAlert className="h-4 w-4 mr-1.5 text-amber-700" /> Suspend Agent
-              </Button>
-            ) : (
-              <Button 
-                onClick={() => handleToggleAgentStatus('Active')} 
-                size="sm" 
-                className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer shadow-none"
-              >
-                <RefreshCw className="h-4 w-4 mr-1.5 text-white" /> Reactivate Agent
-              </Button>
+            {!isDemo && (
+              isClientActive ? (
+                <Button 
+                  onClick={() => handleToggleAgentStatus('Suspended')} 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer"
+                >
+                  <ShieldAlert className="h-4 w-4 mr-1.5 text-amber-700" /> Suspend Agent
+                </Button>
+              ) : (
+                <Button 
+                  onClick={() => handleToggleAgentStatus('Active')} 
+                  size="sm" 
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer shadow-none"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1.5 text-white" /> Reactivate Agent
+                </Button>
+              )
             )}
             <Link href={`/dashboard?clientId=${clientId}`}>
               <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer">
