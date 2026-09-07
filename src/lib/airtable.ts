@@ -214,6 +214,9 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
     if (params.bookedTime) {
       finalNote = `${finalNote}\n\n[RDV PROGRAMMÉ (Cal.com) : ${params.bookedTime}]`
     }
+    if (params.bookingUrl) {
+      finalNote = `${finalNote}\n[Lien RDV : ${params.bookingUrl}]`
+    }
 
     const resolvedStatus = params.isBooked
       ? 'RDV Programmé'
@@ -222,10 +225,6 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
     const fieldsToUpdate: Record<string, any> = {
       "Notes d'appel": finalNote,
       "Statut du Lead": resolvedStatus
-    }
-
-    if (params.bookingUrl) {
-      fieldsToUpdate['Lien Calendly'] = params.bookingUrl
     }
 
     const patchRes = await fetch(patchUrl, {
@@ -467,10 +466,7 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
       'Statut du Lead': 'RDV Programmé'
     }
 
-    if (params.bookingUrl) {
-      fieldsToUpdate['Lien Calendly'] = params.bookingUrl
-    }
-
+    let bookingNote = ''
     if (params.startTime) {
       let formattedDate = params.startTime
       try {
@@ -479,15 +475,17 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
           timeStyle: 'short'
         })
       } catch {}
-      const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
-      fieldsToUpdate["Notes d'appel"] = existingNotes
-        ? `${existingNotes}\n\n[RDV Cal.com confirmé : ${formattedDate}]`
-        : `RDV Cal.com confirmé pour le ${formattedDate}`
+      bookingNote = `[RDV Cal.com confirmé : ${formattedDate}]`
+    }
+    if (params.bookingUrl) {
+      bookingNote = bookingNote ? `${bookingNote} (${params.bookingUrl})` : `[Lien RDV : ${params.bookingUrl}]`
+    }
+
+    const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
+    if (bookingNote) {
+      fieldsToUpdate["Notes d'appel"] = existingNotes ? `${existingNotes}\n\n${bookingNote}` : bookingNote
     } else if (params.notes) {
-      const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
-      fieldsToUpdate["Notes d'appel"] = existingNotes
-        ? `${existingNotes}\n\n${params.notes}`
-        : params.notes
+      fieldsToUpdate["Notes d'appel"] = existingNotes ? `${existingNotes}\n\n${params.notes}` : params.notes
     }
 
     if (matchedRecord) {
@@ -529,7 +527,6 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
                 'Phone': params.phone || '',
                 'Source du Lead': 'Site Web (Démo)',
                 'Statut du Lead': 'RDV Programmé',
-                'Lien Calendly': params.bookingUrl || '',
                 "Notes d'appel": fieldsToUpdate["Notes d'appel"] || 'RDV réservé via Cal.com'
               }
             }
