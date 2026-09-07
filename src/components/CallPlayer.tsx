@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from './ui/button'
-import { Play, Pause, ExternalLink, RotateCcw, RotateCw, Volume2, VolumeX, Download } from 'lucide-react'
+import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, Download } from 'lucide-react'
 
 interface CallPlayerProps {
   recordingUrl: string
@@ -133,16 +133,6 @@ export default function CallPlayer({ recordingUrl, mode = 'compact', className =
         >
           {playbackRate}x
         </Button>
-
-        <a
-          href={recordingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Open recording in new tab"
-          className="p-1 text-[#73706b] hover:text-[#9e4733] transition-colors rounded hover:bg-[#faf8f5]"
-        >
-          <ExternalLink className="h-3 w-3" />
-        </a>
       </div>
     )
   }

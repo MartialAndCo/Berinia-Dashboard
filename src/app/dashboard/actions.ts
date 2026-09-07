@@ -33,88 +33,94 @@ async function getValidatedClient(targetClientId?: string | null) {
   return { user, isUserAdmin, client, supabaseAdmin }
 }
 
-export async function getSubscriptionStatusAction(subscriptionId: string | null) {
+export async function getSubscriptionStatusAction(subscriptionId?: string | null, targetClientId?: string | null) {
   try {
-    const { client } = await getValidatedClient()
-    if (!subscriptionId) {
+    const { client } = await getValidatedClient(targetClientId)
+    if (!client) {
       return { needsPaymentMethod: false, payUrl: null, cardInfo: null }
     }
 
-    // Verify subscription belongs to client or user is admin
-    if (client && client.stripe_subscription_id && client.stripe_subscription_id !== subscriptionId) {
-      subscriptionId = client.stripe_subscription_id
+    if (client.status === 'Demo' || client.email === 'account@test.com') {
+      return { needsPaymentMethod: false, payUrl: null, cardInfo: { brand: 'visa', last4: '4242' } }
     }
 
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
-      expand: [
-        'latest_invoice', 
-        'default_payment_method', 
-        'customer', 
-        'customer.invoice_settings.default_payment_method'
-      ]
-    })
-
-    const status = subscription.status
-    const latestInvoice = subscription.latest_invoice
-
+    let subId = subscriptionId || client.stripe_subscription_id
+    let cardInfo = null
     let needsPaymentMethod = false
     let payUrl = null
 
-    if (status === 'incomplete' || status === 'past_due' || status === 'unpaid') {
-      if (latestInvoice && typeof latestInvoice !== 'string' && latestInvoice.hosted_invoice_url) {
-        needsPaymentMethod = true
-        payUrl = latestInvoice.hosted_invoice_url
-      }
-    }
-
-    let cardInfo = null
-    let pm = subscription.default_payment_method
-    if (!pm && subscription.customer?.invoice_settings?.default_payment_method) {
-      pm = subscription.customer.invoice_settings.default_payment_method
-    }
-    
-    // Auto-fix if payment method is attached but not marked default
-    if (!pm && typeof subscription.customer !== 'string' && subscription.customer?.id) {
-      const pms = await stripe.paymentMethods.list({
-        customer: subscription.customer.id,
-        limit: 1,
-      })
-      if (pms.data.length > 0) {
-        pm = pms.data[0]
-        try {
-          await stripe.customers.update(subscription.customer.id, {
-            invoice_settings: { default_payment_method: pm.id }
-          })
-        } catch (e) {
-          console.error("Could not auto-set default PM", e)
-        }
-      }
-    }
-
-    if (pm && typeof pm !== 'string') {
-      if (pm.card) {
-        cardInfo = { brand: pm.card.brand, last4: pm.card.last4 }
-      } else if (pm.link) {
-        cardInfo = { brand: 'Link', last4: pm.link.email || 'Account' }
-      } else if (pm.sepa_debit) {
-        cardInfo = { brand: 'SEPA', last4: pm.sepa_debit.last4 }
-      } else {
-        cardInfo = { brand: pm.type, last4: '***' }
-      }
-    }
-
-    if (pm && !needsPaymentMethod) {
+    if (subId) {
       try {
-        const customer = subscription.customer
-        const customerEmail = typeof customer !== 'string' ? customer?.email : null
-        const customerName = typeof customer !== 'string' ? customer?.name : null
-        if (customerEmail) {
-          markAirtableSubscriptionActive({
-            email: customerEmail,
-            companyName: customerName
-          }).catch(() => {})
+        const subscription = await stripe.subscriptions.retrieve(subId, {
+          expand: [
+            'latest_invoice', 
+            'default_payment_method', 
+            'customer', 
+            'customer.invoice_settings.default_payment_method'
+          ]
+        })
+
+        const status = subscription.status
+        const latestInvoice = subscription.latest_invoice
+
+        if (status === 'incomplete' || status === 'past_due' || status === 'unpaid') {
+          if (latestInvoice && typeof latestInvoice !== 'string' && latestInvoice.hosted_invoice_url) {
+            needsPaymentMethod = true
+            payUrl = latestInvoice.hosted_invoice_url
+          }
         }
-      } catch {}
+
+        let pm = subscription.default_payment_method
+        if (!pm && subscription.customer?.invoice_settings?.default_payment_method) {
+          pm = subscription.customer.invoice_settings.default_payment_method
+        }
+        
+        if (pm && typeof pm !== 'string') {
+          if (pm.card) {
+            cardInfo = { brand: pm.card.brand, last4: pm.card.last4 }
+          } else if (pm.link) {
+            cardInfo = { brand: 'Link', last4: pm.link.email || 'Account' }
+          } else if (pm.sepa_debit) {
+            cardInfo = { brand: 'SEPA', last4: pm.sepa_debit.last4 }
+          } else {
+            cardInfo = { brand: pm.type, last4: '***' }
+          }
+        }
+      } catch (subErr) {
+        console.warn('Could not retrieve subscription details:', subErr)
+      }
+    }
+
+    // Fallback: check customer object and customer payment methods directly
+    if (!cardInfo && client.stripe_customer_id) {
+      try {
+        const customer = await stripe.customers.retrieve(client.stripe_customer_id, {
+          expand: ['invoice_settings.default_payment_method']
+        })
+
+        let pm = typeof customer !== 'string' ? customer.invoice_settings?.default_payment_method : null
+        if (!pm) {
+          const pms = await stripe.paymentMethods.list({
+            customer: client.stripe_customer_id,
+            limit: 1,
+          })
+          if (pms.data.length > 0) pm = pms.data[0]
+        }
+
+        if (pm && typeof pm !== 'string') {
+          if (pm.card) {
+            cardInfo = { brand: pm.card.brand, last4: pm.card.last4 }
+          } else if (pm.link) {
+            cardInfo = { brand: 'Link', last4: pm.link.email || 'Account' }
+          } else if (pm.sepa_debit) {
+            cardInfo = { brand: 'SEPA', last4: pm.sepa_debit.last4 }
+          } else {
+            cardInfo = { brand: pm.type, last4: '***' }
+          }
+        }
+      } catch (custErr) {
+        console.warn('Could not retrieve customer payment methods:', custErr)
+      }
     }
 
     return { needsPaymentMethod, payUrl, cardInfo }
@@ -252,6 +258,9 @@ export async function getClientInvoicesAction(targetClientId?: string) {
       }
     }
 
+    // Fetch payment status and card info
+    const pStatus = await getSubscriptionStatusAction(client.stripe_subscription_id, targetClientId)
+
     return { 
       success: true, 
       invoices: formatted, 
@@ -261,7 +270,8 @@ export async function getClientInvoicesAction(targetClientId?: string) {
         monthly_retainer: client.monthly_retainer,
         status: client.status
       },
-      currentCycle: currentCycleStats 
+      currentCycle: currentCycleStats,
+      paymentStatus: pStatus
     }
   } catch (err: any) {
     console.error('Error fetching client invoices:', err)

@@ -558,7 +558,7 @@ function ClientDashboardContent() {
     const lines = rawTranscript.split('\n').filter(l => l.trim().length > 0)
 
     return (
-      <div className="space-y-3 max-h-72 overflow-y-auto pr-2 py-2">
+      <div className="space-y-3 max-h-80 overflow-y-auto pr-2 py-2 w-full max-w-2xl">
         {lines.map((line, idx) => {
           const isAgent = line.startsWith('Agent:')
           const isUser = line.startsWith('User:') || line.startsWith('Customer:') || line.startsWith('Caller:')
@@ -570,7 +570,7 @@ function ClientDashboardContent() {
                 <div className="h-6 w-6 rounded-full bg-[#1a1918] text-white flex items-center justify-center shrink-0 mt-0.5 text-[10px]">
                   <Bot className="h-3.5 w-3.5 text-[#9e4733]" />
                 </div>
-                <div className="bg-[#faf8f5] border border-[#e6e2d6] rounded-sm rounded-tl-none p-3 text-xs text-[#1a1918] leading-relaxed max-w-[85%]">
+                <div className="bg-[#faf8f5] border border-[#e6e2d6] rounded-sm rounded-tl-none p-3 text-xs text-[#1a1918] leading-relaxed max-w-[80%] break-words">
                   <div className="text-[9px] uppercase font-bold text-[#9e4733] mb-1">AI Assistant</div>
                   {content}
                 </div>
@@ -581,7 +581,7 @@ function ClientDashboardContent() {
           if (isUser) {
             return (
               <div key={idx} className="flex gap-2.5 items-start justify-end">
-                <div className="bg-white border border-[#e6e2d6] rounded-sm rounded-tr-none p-3 text-xs text-[#1a1918] leading-relaxed max-w-[85%] shadow-xs">
+                <div className="bg-white border border-[#e6e2d6] rounded-sm rounded-tr-none p-3 text-xs text-[#1a1918] leading-relaxed max-w-[80%] shadow-xs break-words">
                   <div className="text-[9px] uppercase font-bold text-[#73706b] mb-1 text-right">Caller</div>
                   {content}
                 </div>
@@ -593,7 +593,7 @@ function ClientDashboardContent() {
           }
 
           return (
-            <div key={idx} className="text-xs text-[#73706b] italic font-mono bg-[#faf8f5] p-2 rounded-sm border border-[#f0ece4]">
+            <div key={idx} className="text-xs text-[#73706b] italic font-mono bg-[#faf8f5] p-2 rounded-sm border border-[#f0ece4] break-words">
               {line}
             </div>
           )
@@ -942,13 +942,30 @@ function ClientDashboardContent() {
           </div>
         </div>
 
-        {/* Customer Sentiment Bar (Clicking sentiment filters the table!) */}
-        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-          <CardContent className="py-3.5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">
-              Customer Sentiment <span className="text-[#9e4733] font-normal">• Click to filter</span>
-            </div>
-            <div className="flex items-center gap-3">
+        {/* Unified Calls Filter Bar */}
+        <div className="bg-white border border-[#e6e2d6] rounded-sm p-4 space-y-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f0ece4]">
+            {/* Sentiment Quick Filters */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold tracking-[0.2em] text-[#73706b] uppercase flex items-center gap-1.5 mr-1">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-[#9e4733]" /> Sentiment:
+              </span>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSentiment('all')
+                  setCurrentPage(1)
+                }}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-sm border cursor-pointer transition-all ${
+                  selectedSentiment === 'all'
+                    ? 'bg-[#1a1918] text-[#f6f4f0] border-[#1a1918]'
+                    : 'bg-[#faf8f5] text-[#73706b] border-[#e6e2d6] hover:text-[#1a1918]'
+                }`}
+              >
+                All ({callsInPeriod.length})
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -961,7 +978,7 @@ function ClientDashboardContent() {
                     : 'bg-[#eef7ee] text-[#2e6b34] border-[#d2ead4] hover:bg-[#e2f2e2]'
                 }`}
               >
-                <SmilePlus className="h-3.5 w-3.5" /> Positive: <span className="font-serif font-bold text-sm ml-0.5">{sentimentCounts.positive}</span>
+                <SmilePlus className="h-3.5 w-3.5" /> Positive ({sentimentCounts.positive})
               </button>
 
               <button
@@ -976,7 +993,7 @@ function ClientDashboardContent() {
                     : 'bg-[#faf4e6] text-[#8c6b1c] border-[#fae8b8] hover:bg-[#f5ebd2]'
                 }`}
               >
-                <Meh className="h-3.5 w-3.5" /> Neutral: <span className="font-serif font-bold text-sm ml-0.5">{sentimentCounts.neutral}</span>
+                <Meh className="h-3.5 w-3.5" /> Neutral ({sentimentCounts.neutral})
               </button>
 
               <button
@@ -991,18 +1008,10 @@ function ClientDashboardContent() {
                     : 'bg-[#fdf2f0] text-[#9e4733] border-[#fad4cf] hover:bg-[#fce5e2]'
                 }`}
               >
-                <Frown className="h-3.5 w-3.5" /> Negative: <span className="font-serif font-bold text-sm ml-0.5">{sentimentCounts.negative}</span>
+                <Frown className="h-3.5 w-3.5" /> Negative ({sentimentCounts.negative})
               </button>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Multi-Filter Bar (Item #11) */}
-        <div className="bg-white border border-[#e6e2d6] rounded-sm p-4 space-y-3 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
-          <div className="flex items-center justify-between">
-            <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-              <SlidersHorizontal className="h-3.5 w-3.5" /> Filter Calls
-            </div>
             {isFiltersActive && (
               <button
                 type="button"
@@ -1016,14 +1025,14 @@ function ClientDashboardContent() {
                   setCustomEndDate('')
                   setCurrentPage(1)
                 }}
-                className="text-xs text-[#9e4733] hover:underline font-medium cursor-pointer"
+                className="text-xs text-[#9e4733] hover:underline font-medium cursor-pointer self-start sm:self-auto"
               >
                 Reset all filters
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#73706b]" />
@@ -1051,21 +1060,6 @@ function ClientDashboardContent() {
               {uniqueAgents.map(a => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
-            </select>
-
-            {/* Sentiment Selector */}
-            <select
-              value={selectedSentiment}
-              onChange={e => {
-                setSelectedSentiment(e.target.value)
-                setCurrentPage(1)
-              }}
-              className="h-9 px-3 text-xs border border-[#e2dfd8] bg-white rounded-sm text-[#1a1918] focus:outline-none"
-            >
-              <option value="all">All Sentiments</option>
-              <option value="positive">Positive Only</option>
-              <option value="neutral">Neutral Only</option>
-              <option value="negative">Negative Only</option>
             </select>
 
             {/* Duration Filter */}
@@ -1114,11 +1108,11 @@ function ClientDashboardContent() {
           </CardHeader>
 
           {/* Desktop Table View */}
-          <CardContent className="p-0 overflow-x-auto hidden md:block">
-            <Table className="min-w-[900px]">
+          <CardContent className="p-0 hidden md:block">
+            <Table className="w-full">
               <TableHeader>
                 <TableRow className="bg-[#faf8f5] hover:bg-[#faf8f5] border-b border-[#e6e2d6]">
-                  <TableHead className="w-10 px-4"></TableHead>
+                  <TableHead className="w-8 px-3"></TableHead>
                   <TableHead className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11" onClick={() => handleSort('created_at')}>
                     <span className="flex items-center gap-1">Date <ArrowUpDown className="h-3 w-3" /></span>
                   </TableHead>
@@ -1131,8 +1125,7 @@ function ClientDashboardContent() {
                     <span className="flex items-center gap-1">Cost <ArrowUpDown className="h-3 w-3" /></span>
                   </TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Sentiment</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11">Tags</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11 text-right px-6">Audio</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b] h-11 text-right px-4">Audio</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1143,44 +1136,35 @@ function ClientDashboardContent() {
                       className="cursor-pointer hover:bg-[#faf8f5]/60 border-b border-[#f0ece4] transition-colors"
                       onClick={() => setExpandedCall(expandedCall === call.id ? null : call.id)}
                     >
-                      <TableCell className="px-4">
+                      <TableCell className="px-3">
                         {expandedCall === call.id 
                           ? <ChevronDown className="h-4 w-4 text-[#1a1918]" /> 
                           : <ChevronRight className="h-4 w-4 text-[#73706b]" />
                         }
                       </TableCell>
-                      <TableCell className="text-xs font-mono text-[#1a1918]">
+                      <TableCell className="text-xs font-mono text-[#1a1918] whitespace-nowrap">
                         {new Date(call.created_at).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}
                       </TableCell>
                       <TableCell className="font-semibold text-xs text-[#1a1918]">{call.agents?.agent_name}</TableCell>
-                      <TableCell className="font-mono text-xs text-[#73706b]">
+                      <TableCell className="font-mono text-xs text-[#73706b] whitespace-nowrap">
                         {call.from_number ? (
                           <span className="flex items-center gap-1">
                             <Phone className="h-3 w-3 text-[#9e4733]" /> {formatPhone(call.from_number)}
                           </span>
                         ) : '—'}
                       </TableCell>
-                      <TableCell className="text-xs text-[#73706b] font-mono">{formatDuration(call.duration_secs)}</TableCell>
-                      <TableCell className="text-xs font-mono font-medium text-[#1a1918]">${Number(call.cost).toFixed(2)}</TableCell>
-                      <TableCell><SentimentBadge sentiment={call.user_sentiment} /></TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {(callTags[call.id] || []).map(tag => (
-                            <span key={tag} className="px-1.5 py-0.5 rounded-sm bg-[#faf8f5] border border-[#e6e2d6] text-[10px] text-[#1a1918]">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right px-6" onClick={e => e.stopPropagation()}>
+                      <TableCell className="text-xs text-[#73706b] font-mono whitespace-nowrap">{formatDuration(call.duration_secs)}</TableCell>
+                      <TableCell className="text-xs font-mono font-medium text-[#1a1918] whitespace-nowrap">${Number(call.cost).toFixed(2)}</TableCell>
+                      <TableCell className="whitespace-nowrap"><SentimentBadge sentiment={call.user_sentiment} /></TableCell>
+                      <TableCell className="text-right px-4" onClick={e => e.stopPropagation()}>
                         <CallPlayer recordingUrl={call.recording_url} mode="compact" />
                       </TableCell>
                     </TableRow>
 
                     {expandedCall === call.id && (
                       <TableRow key={`${call.id}-detail`}>
-                        <TableCell colSpan={9} className="bg-[#faf9f7]/60 p-0 border-b border-[#e6e2d6]">
-                          <div className="p-6 space-y-5 max-w-full overflow-hidden border-l-2 border-[#1a1918] ml-4 my-3 bg-white rounded-sm shadow-sm">
+                        <TableCell colSpan={8} className="bg-[#faf9f7]/60 p-0 border-b border-[#e6e2d6]">
+                          <div className="p-5 sm:p-6 space-y-5 w-full bg-white border-l-2 border-[#1a1918]">
                             
                             {/* Full Audio Player with scrubber & speed (Item #9) */}
                             {call.recording_url && (
@@ -1280,7 +1264,7 @@ function ClientDashboardContent() {
                 ))}
                 {filteredCalls.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-[#73706b] py-12 text-sm">
+                    <TableCell colSpan={8} className="text-center text-[#73706b] py-12 text-sm">
                       {isFiltersActive ? 'No calls match your active filter criteria.' : 'No calls recorded yet.'}
                     </TableCell>
                   </TableRow>

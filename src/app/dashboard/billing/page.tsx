@@ -30,18 +30,19 @@ function BillingContent() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [invRes, subRes] = await Promise.all([
-      getClientInvoicesAction(queryClientId || undefined),
-      getSubscriptionStatusAction(null)
-    ])
-
+    const invRes = await getClientInvoicesAction(queryClientId || undefined)
     if (invRes.success) {
       setInvoices(invRes.invoices || [])
       setClientInfo(invRes.client || null)
       setCurrentCycle(invRes.currentCycle || null)
-    }
-    if (subRes) {
-      setPaymentStatus(subRes as any)
+      if (invRes.paymentStatus) {
+        setPaymentStatus(invRes.paymentStatus as any)
+      }
+    } else {
+      const subRes = await getSubscriptionStatusAction(null, queryClientId || undefined)
+      if (subRes) {
+        setPaymentStatus(subRes as any)
+      }
     }
     setLoading(false)
   }
@@ -107,10 +108,6 @@ function BillingContent() {
     )
   }
 
-  const totalPaid = invoices
-    .filter(i => i.status === 'paid')
-    .reduce((acc, i) => acc + (i.amount_paid || 0), 0)
-
   return (
     <div className="p-8">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -147,7 +144,7 @@ function BillingContent() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#f0ece4] p-6 gap-6 md:gap-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#f0ece4] p-6 gap-6 md:gap-0">
             <div className="md:pr-6 space-y-1.5">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Monthly Retainer</div>
               <div className="font-serif text-2xl font-bold text-[#1a1918]">
@@ -156,7 +153,7 @@ function BillingContent() {
               <p className="text-xs text-[#73706b]">Base platform & dedicated voice infrastructure</p>
             </div>
 
-            <div className="md:px-6 space-y-1.5">
+            <div className="md:pl-6 space-y-1.5">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Payment Method</div>
               {paymentStatus.cardInfo ? (
                 <div className="flex items-center gap-2">
@@ -167,16 +164,8 @@ function BillingContent() {
               ) : (
                 <div className="text-xs text-[#9e4733] font-medium">No active card on file</div>
               )}
-              <p className="text-xs text-[#73706b]">Billed automatically each month via Stripe</p>
-            </div>
-
-            <div className="md:pl-6 space-y-1.5">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Lifetime Invoiced</div>
-              <div className="font-serif text-2xl font-bold text-[#2e6930]">
-                ${totalPaid.toFixed(2)}
-              </div>
               <p className="text-xs text-[#73706b] flex items-center gap-1">
-                <ShieldCheck className="h-3.5 w-3.5 text-[#2e6930]" /> Encrypted & secure checkout
+                <ShieldCheck className="h-3.5 w-3.5 text-[#2e6b34]" /> Billed automatically each month via Stripe
               </p>
             </div>
           </div>

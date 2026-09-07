@@ -165,16 +165,6 @@ function AgentsContent() {
                       <div className="font-serif text-xl font-bold text-[#2e6930] mt-0.5">{agent.stats?.satisfactionRate || 100}%</div>
                     </div>
                   </div>
-
-                  {/* Forward webhook status if any */}
-                  {agent.forward_webhook_url && (
-                    <div className="text-xs space-y-1">
-                      <div className="font-semibold text-[10px] uppercase tracking-wider text-[#73706b]">Connected Webhook Relay</div>
-                      <div className="font-mono text-[11px] text-[#1a1918] truncate bg-[#faf8f5] p-2 rounded-sm border border-[#e6e2d6]">
-                        {agent.forward_webhook_url}
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </div>
 
