@@ -352,7 +352,7 @@ export async function getClientAgentsAction(targetClientId?: string) {
         stats: {
           totalCalls: st.totalCalls,
           totalMinutes: Math.round(st.totalMinutes * 10) / 10,
-          satisfactionRate: st.totalCalls > 0 ? Math.round((st.positiveCount / st.totalCalls) * 100) : 100
+          satisfactionRate: st.totalCalls > 0 ? Math.round((st.positiveCount / st.totalCalls) * 100) : null
         }
       }
     })

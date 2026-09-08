@@ -74,8 +74,13 @@ export default function Footer({ onOpenDemo }: FooterProps) {
                 </a>
               </li>
               <li>
+                <a href="#calculator" className="hover:text-white transition-colors">
+                  Cost Calculator &amp; ROI
+                </a>
+              </li>
+              <li>
                 <a href="#comparison" className="hover:text-white transition-colors">
-                  Cost Comparison &amp; ROI
+                  Cost Comparison
                 </a>
               </li>
               <li>
@@ -107,7 +112,7 @@ export default function Footer({ onOpenDemo }: FooterProps) {
                   onClick={onOpenDemo}
                   className="hover:text-white transition-colors text-left cursor-pointer"
                 >
-                  Schedule an Onboarding Call
+                  Request a Demo / Live Call
                 </button>
               </li>
             </ul>
@@ -120,8 +125,8 @@ export default function Footer({ onOpenDemo }: FooterProps) {
             &copy; {new Date().getFullYear()} BerinAgents Inc. All rights reserved.
           </div>
           <div className="flex items-center space-x-6">
-            <span className="hover:text-white cursor-pointer">Privacy Policy</span>
-            <span className="hover:text-white cursor-pointer">Terms of Service</span>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
             <Link href="/login" className="hover:text-white">Sign In</Link>
           </div>
         </div>

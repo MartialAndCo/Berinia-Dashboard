@@ -31,9 +31,10 @@ function AgentsContent() {
 
   const totalCalls = agents.reduce((acc, a) => acc + (a.stats?.totalCalls || 0), 0)
   const totalMinutes = agents.reduce((acc, a) => acc + (a.stats?.totalMinutes || 0), 0)
-  const avgSatisfaction = agents.length > 0 
-    ? Math.round(agents.reduce((acc, a) => acc + (a.stats?.satisfactionRate || 0), 0) / agents.length)
-    : 100
+  const agentsWithCalls = agents.filter(a => (a.stats?.totalCalls || 0) > 0)
+  const avgSatisfaction = agentsWithCalls.length > 0 
+    ? Math.round(agentsWithCalls.reduce((acc, a) => acc + (a.stats?.satisfactionRate ?? 0), 0) / agentsWithCalls.length)
+    : null
 
   if (loading) {
     return <PageLoading message="Loading Voice Agents..." />
@@ -86,8 +87,12 @@ function AgentsContent() {
               <SmilePlus className="h-4 w-4 text-[#2e6930]" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-3xl font-bold text-[#2e6930]">{avgSatisfaction}%</div>
-              <p className="text-xs text-[#73706b] mt-1">Positive caller experience</p>
+              <div className="font-serif text-3xl font-bold text-[#2e6930]">
+                {avgSatisfaction !== null ? `${avgSatisfaction}%` : '—'}
+              </div>
+              <p className="text-xs text-[#73706b] mt-1">
+                {avgSatisfaction !== null ? 'Positive caller experience' : 'No calls recorded yet'}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -143,7 +148,11 @@ function AgentsContent() {
                     </div>
                     <div>
                       <div className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider">Positive</div>
-                      <div className="font-serif text-xl font-bold text-[#2e6930] mt-0.5">{agent.stats?.satisfactionRate || 100}%</div>
+                      <div className="font-serif text-xl font-bold text-[#2e6930] mt-0.5">
+                        {agent.stats?.totalCalls && agent.stats.totalCalls > 0 && agent.stats.satisfactionRate !== null
+                          ? `${agent.stats.satisfactionRate}%`
+                          : '—'}
+                      </div>
                     </div>
                   </div>
                 </CardContent>

@@ -59,7 +59,7 @@ export default function Navbar({ onOpenDemo }: NavbarProps) {
               Hear Live Calls
             </a>
             <a
-              href="#comparison"
+              href="#calculator"
               className="hover:text-[#1a1918] transition-colors"
             >
               Cost &amp; ROI
@@ -130,7 +130,7 @@ export default function Navbar({ onOpenDemo }: NavbarProps) {
               Hear Live Calls
             </a>
             <a
-              href="#comparison"
+              href="#calculator"
               onClick={() => setMobileMenuOpen(false)}
               className="px-2 py-1.5 hover:text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm transition-colors"
             >

@@ -13,8 +13,10 @@ import ConsultationModal from './ConsultationModal'
 
 export default function LandingPage() {
   const [isDemoOpen, setIsDemoOpen] = useState(false)
+  const [demoInitialTab, setDemoInitialTab] = useState<'instant' | 'schedule'>('instant')
 
-  const handleOpenDemo = () => {
+  const handleOpenDemo = (tab?: 'instant' | 'schedule') => {
+    setDemoInitialTab(tab || 'instant')
     setIsDemoOpen(true)
   }
 
@@ -25,26 +27,27 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#f6f4f0] text-[#1a1918] flex flex-col selection:bg-[#9e4733] selection:text-white">
       {/* Top Navbar with Discrete Sign In */}
-      <Navbar onOpenDemo={handleOpenDemo} />
+      <Navbar onOpenDemo={() => handleOpenDemo('instant')} />
 
       {/* Main High-Converting Page Sections */}
       <main className="flex-1">
-        <HeroSection onOpenDemo={handleOpenDemo} />
+        <HeroSection onOpenDemo={() => handleOpenDemo('instant')} />
         <AudioDemoSection />
         {/* Placed immediately below AudioDemoSection as requested */}
-        <BreakEvenCalculator onOpenDemo={handleOpenDemo} />
+        <BreakEvenCalculator onOpenDemo={() => handleOpenDemo('instant')} />
         <FeatureGrid />
-        <CostComparison onOpenDemo={handleOpenDemo} />
-        <HowItWorks onOpenDemo={handleOpenDemo} />
+        <CostComparison onOpenDemo={() => handleOpenDemo('schedule')} />
+        <HowItWorks onOpenDemo={() => handleOpenDemo('schedule')} />
       </main>
 
       {/* Footer */}
-      <Footer onOpenDemo={handleOpenDemo} />
+      <Footer onOpenDemo={() => handleOpenDemo('schedule')} />
 
       {/* Live Demo Request Modal */}
       <ConsultationModal
         isOpen={isDemoOpen}
         onClose={handleCloseDemo}
+        initialTab={demoInitialTab}
       />
     </div>
   )

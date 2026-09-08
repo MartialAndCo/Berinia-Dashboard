@@ -145,13 +145,13 @@ export default function AudioDemoSection() {
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto space-y-3 mb-12">
           <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-            <span>•</span> Real Business Calls
+            <span>•</span> Interactive Call Simulation
           </div>
           <h2 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-[#1a1918]">
-            Hear How It Sounds on Real Customer Calls
+            See How It Handles Real Customer Calls
           </h2>
           <p className="text-sm sm:text-base text-[#66635e]">
-            Listen to how BerinAgents speaks with natural emotion, handles interruptions, and locks in paying customers without sounding robotic.
+            Follow how BerinAgents speaks with natural tone, handles interruptions, and locks in paying appointments without sounding robotic.
           </p>
         </div>
 
@@ -176,7 +176,7 @@ export default function AudioDemoSection() {
                     {s.businessType.split('&')[0]}
                   </span>
                 </div>
-                <div className="font-medium text-xs truncate">
+                <div className="font-medium text-xs leading-snug line-clamp-2">
                   {s.title}
                 </div>
               </button>
@@ -211,7 +211,7 @@ export default function AudioDemoSection() {
                 <button
                   onClick={togglePlay}
                   className="w-12 h-12 rounded-sm bg-[#1a1918] hover:bg-[#2d2d2d] text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-sm"
-                  aria-label={isPlaying ? 'Pause call audio' : 'Play call audio'}
+                  aria-label={isPlaying ? 'Pause call simulation' : 'Play call simulation'}
                 >
                   {isPlaying ? (
                     <Pause className="w-5 h-5 fill-current text-[#9e4733]" />
@@ -230,7 +230,7 @@ export default function AudioDemoSection() {
 
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wider text-[#1a1918]">
-                    {isPlaying ? 'Call in Progress (Demo)' : 'Ready to Audition'}
+                    {isPlaying ? 'Simulation in Progress' : 'Ready to Simulate'}
                   </div>
                   <div className="text-xs font-mono text-[#73706b]">
                     {formatTime(currentTime)} / {formatTime(activeScenario.duration)}

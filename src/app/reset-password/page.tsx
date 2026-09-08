@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,6 +14,7 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [tokenError, setTokenError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(false)
   const router = useRouter()
@@ -20,11 +22,12 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     let mounted = true
 
-    // 1. Listen for auth changes (this triggers when Supabase parses tokens from the recovery URL)
+    // 1. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return
       if (session) {
         setSessionChecked(true)
+        setTokenError(null)
       }
     })
 
@@ -36,22 +39,34 @@ export default function ResetPasswordPage() {
 
     const code = params.get('code')
     if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ data }) => {
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error: exchangeErr }) => {
         if (!mounted) return
-        if (data?.session) setSessionChecked(true)
+        if (data?.session) {
+          setSessionChecked(true)
+        } else if (exchangeErr) {
+          setTokenError('Your password reset link has expired or has already been used.')
+        }
+      }).catch(() => {
+        if (mounted) setTokenError('Unable to verify password reset link.')
       })
     }
 
     const accessToken = params.get('access_token')
     const refreshToken = params.get('refresh_token')
     if (accessToken && refreshToken) {
-      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ data }) => {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ data, error: sessErr }) => {
         if (!mounted) return
-        if (data?.session) setSessionChecked(true)
+        if (data?.session) {
+          setSessionChecked(true)
+        } else if (sessErr) {
+          setTokenError('Your password reset session has expired.')
+        }
+      }).catch(() => {
+        if (mounted) setTokenError('Unable to restore password reset session.')
       })
     }
 
-    // 3. Check current session
+    // 3. Check current session with fallback timer
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       if (session) {
@@ -64,11 +79,24 @@ export default function ResetPasswordPage() {
       }
     })
 
+    // Timeout safety net: if after 5 seconds still not verified, show error
+    const timer = setTimeout(() => {
+      if (mounted && !sessionChecked) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!mounted) return
+          if (!session) {
+            setTokenError('This reset link has expired or is invalid. Please request a new link.')
+          }
+        })
+      }
+    }, 5000)
+
     return () => {
       mounted = false
+      clearTimeout(timer)
       subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, sessionChecked])
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -97,6 +125,30 @@ export default function ResetPasswordPage() {
     await supabase.auth.signOut()
     toast.success('Password updated successfully!')
     router.push('/login')
+  }
+
+  if (tokenError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f4f0] p-4 text-[#202020]">
+        <div className="w-full max-w-[440px] bg-white border border-[#e6e2d6] rounded-sm p-8 text-center space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.03)]">
+          <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
+            <span>•</span> AUTHENTICATION
+          </div>
+          <h2 className="font-serif text-2xl font-bold text-[#1a1918]">Link Expired or Invalid</h2>
+          <p className="text-xs text-[#73706b] leading-relaxed">
+            {tokenError}
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/forgot-password"
+              className="inline-block bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] text-xs font-semibold tracking-wider uppercase px-6 py-3.5 rounded-sm transition-all shadow-sm"
+            >
+              Request New Reset Link
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!sessionChecked) {

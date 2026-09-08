@@ -28,19 +28,19 @@ export default function BreakEvenCalculator({ onOpenDemo }: BreakEvenCalculatorP
   const netProfit = totalRevenue - monthlyCost
 
   return (
-    <section className="py-16 md:py-24 bg-[#ffffff] border-b border-[#e6e2d6]">
+    <section id="calculator" className="py-16 md:py-24 bg-[#ffffff] border-b border-[#e6e2d6]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto space-y-3 mb-12">
           <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
-            <span>•</span> Instant Profitability
+            <span>•</span> Interactive ROI Calculator
           </div>
           <h2 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-[#1a1918]">
             How Many Saved Calls Until It Pays For Itself?
           </h2>
           <p className="text-base text-[#66635e]">
-            You don&apos;t need dozens of calls. For most businesses, <strong className="text-[#1a1918]">just 1 or 2 saved calls a month</strong> covers the entire cost. Everything after is pure profit.
+            You don&apos;t need dozens of calls. For most businesses, <strong className="text-[#1a1918]">just 1 or 2 saved calls a month</strong> covers the entire $499/mo subscription.
           </p>
         </div>
 
@@ -50,9 +50,9 @@ export default function BreakEvenCalculator({ onOpenDemo }: BreakEvenCalculatorP
           {/* Step 1: Average Customer Value */}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#1a1918]">
+              <label htmlFor="job-value-slider" className="text-xs font-semibold uppercase tracking-wider text-[#1a1918]">
                 Select your average job or customer value:
-              </span>
+              </label>
               <span className="font-serif text-xl font-bold text-[#1a1918]">
                 ${jobValue.toLocaleString()}
               </span>
@@ -63,6 +63,7 @@ export default function BreakEvenCalculator({ onOpenDemo }: BreakEvenCalculatorP
               {presets.map((p) => (
                 <button
                   key={p.label}
+                  type="button"
                   onClick={() => setJobValue(p.value)}
                   className={`p-3 rounded-sm text-center border transition-all cursor-pointer ${
                     jobValue === p.value
@@ -78,6 +79,8 @@ export default function BreakEvenCalculator({ onOpenDemo }: BreakEvenCalculatorP
 
             {/* Range slider for fine tuning */}
             <input
+              id="job-value-slider"
+              aria-label="Average job or customer value"
               type="range"
               min={150}
               max={2500}
@@ -91,16 +94,18 @@ export default function BreakEvenCalculator({ onOpenDemo }: BreakEvenCalculatorP
           {/* Step 2: The Visual Break-Even Bar */}
           <div className="space-y-3 pt-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#1a1918]">
-                Saved calls per month:
-              </span>
+              <label htmlFor="calls-saved-slider" className="text-xs font-semibold uppercase tracking-wider text-[#1a1918]">
+                Estimated saved calls per month:
+              </label>
               <span className="text-xs font-semibold text-[#9e4733] bg-[#fdf2f0] px-2.5 py-1 rounded-xs border border-[#f5c6cb]">
-                {callsSaved} calls caught
+                {callsSaved} calls captured
               </span>
             </div>
 
             {/* Step Slider */}
             <input
+              id="calls-saved-slider"
+              aria-label="Saved calls per month"
               type="range"
               min={1}
               max={10}
@@ -116,66 +121,79 @@ export default function BreakEvenCalculator({ onOpenDemo }: BreakEvenCalculatorP
             </div>
           </div>
 
-          {/* Visual Call-by-Call Stepper (Simple 5-Call Visualizer) */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2">
-            {[1, 2, 3, 4, 5].map((callNum) => {
-              const isBreakEven = callNum === breakEvenAt
-              const isPastBreakEven = callNum > breakEvenAt
-              const isSelected = callNum <= callsSaved
+          {/* Visual Call-by-Call Stepper (Full 10-Call Visualizer) */}
+          <div className="space-y-1.5 pt-2">
+            <div className="text-[11px] font-semibold text-[#73706b] uppercase tracking-wider">
+              Break-Even Progression (Click any call to test):
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((callNum) => {
+                const isBreakEven = callNum === breakEvenAt
+                const isPastBreakEven = callNum > breakEvenAt
+                const isSelected = callNum <= callsSaved
 
-              return (
-                <div
-                  key={callNum}
-                  onClick={() => setCallsSaved(callNum)}
-                  className={`p-3 rounded-sm border text-center transition-all cursor-pointer ${
-                    isSelected
-                      ? isPastBreakEven
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
-                        : isBreakEven
-                        ? 'bg-[#1a1918] text-white border-[#1a1918]'
-                        : 'bg-amber-50 border-amber-300 text-amber-950'
-                      : 'bg-white/60 border-[#e2dfd8] text-[#8c8880] opacity-60'
-                  }`}
-                >
-                  <div className="text-[10px] font-semibold uppercase tracking-wider">
-                    Call #{callNum}
-                  </div>
-                  <div className="font-bold text-xs mt-1">
-                    {isBreakEven ? (
-                      <span className="text-amber-300">🎯 Break-Even</span>
-                    ) : isPastBreakEven ? (
-                      <span className="text-emerald-700 font-semibold">+${jobValue} Profit</span>
-                    ) : (
-                      <span>Towards Plan</span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+                return (
+                  <button
+                    key={callNum}
+                    type="button"
+                    onClick={() => setCallsSaved(callNum)}
+                    className={`p-2.5 rounded-sm border text-center transition-all cursor-pointer ${
+                      isSelected
+                        ? isPastBreakEven
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                          : isBreakEven
+                          ? 'bg-[#1a1918] text-white border-[#1a1918]'
+                          : 'bg-amber-50 border-amber-300 text-amber-950'
+                        : 'bg-white/60 border-[#e2dfd8] text-[#8c8880] opacity-60'
+                    }`}
+                  >
+                    <div className="text-[10px] font-semibold uppercase tracking-wider">
+                      Call #{callNum}
+                    </div>
+                    <div className="font-bold text-[11px] mt-0.5">
+                      {isBreakEven ? (
+                        <span className="text-amber-300">🎯 Break-Even</span>
+                      ) : isPastBreakEven ? (
+                        <span className="text-emerald-700 font-semibold">+${jobValue}</span>
+                      ) : (
+                        <span className="text-[#8c8880]">Towards Plan</span>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {/* The Big Bottom Result Box */}
           <div className="bg-[#ffffff] border border-[#e6e2d6] rounded-sm p-6 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="text-xs text-[#8c8880] font-semibold uppercase tracking-wider">
-                The Bottom Line Result
+                Estimated Monthly Value Created
               </div>
               <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1a1918]">
                 {netProfit >= 0 ? (
                   <>
                     <span className="text-emerald-700">+${netProfit.toLocaleString()}</span>{' '}
-                    <span className="text-base font-normal text-[#55524d]">net profit in your pocket each month</span>
+                    <span className="text-xs sm:text-sm font-normal text-[#55524d]">
+                      additional gross revenue (after deducting $499/mo plan cost)
+                    </span>
                   </>
                 ) : (
                   <>
                     <span className="text-[#9e4733]">${Math.abs(netProfit).toLocaleString()}</span>{' '}
-                    <span className="text-base font-normal text-[#55524d]">needed to break even</span>
+                    <span className="text-xs sm:text-sm font-normal text-[#55524d]">
+                      needed in job value to cover the $499/mo plan
+                    </span>
                   </>
                 )}
               </div>
-              <p className="text-xs text-[#66635e]">
-                At ${jobValue} per customer, you break even on{' '}
-                <strong className="text-[#1a1918]">Call #{breakEvenAt}</strong>. Every call after that is 100% profit.
+              <p className="text-xs text-[#66635e] leading-relaxed">
+                At ${jobValue.toLocaleString()} per customer, your plan breaks even on{' '}
+                <strong className="text-[#1a1918]">Call #{breakEvenAt}</strong>. Every additional call captured delivers direct return on your subscription.
+              </p>
+              <p className="text-[10px] text-[#a09c94] pt-1">
+                * Calculation assumes a $499/month BerinAgents subscription and that captured phone inquiries convert into booked clients. Operating costs vary by trade.
               </p>
             </div>
 
