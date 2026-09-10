@@ -14,11 +14,15 @@ import {
 interface CustomVideoPlayerProps {
   src: string;
   title?: string;
+  autoPlayTrigger?: number;
+  onEnded?: () => void;
 }
 
 export default function CustomVideoPlayer({
   src,
   title = "Video player",
+  autoPlayTrigger = 0,
+  onEnded,
 }: CustomVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -33,6 +37,33 @@ export default function CustomVideoPlayer({
   const [progressPercent, setProgressPercent] = useState(0);
   const [isEnded, setIsEnded] = useState(false);
   const [clickFeedback, setClickFeedback] = useState<"play" | "pause" | null>(null);
+
+  // Auto-play when triggered (e.g. after form completion)
+  useEffect(() => {
+    if (autoPlayTrigger > 0) {
+      const video = videoRef.current;
+      if (video) {
+        video
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            setIsEnded(false);
+          })
+          .catch(() => {
+            // If browser autoplay policies require user gesture or muted
+            video.muted = true;
+            setIsMuted(true);
+            video
+              .play()
+              .then(() => {
+                setIsPlaying(true);
+                setIsEnded(false);
+              })
+              .catch(() => {});
+          });
+      }
+    }
+  }, [autoPlayTrigger]);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -211,6 +242,9 @@ export default function CustomVideoPlayer({
           setIsPlaying(false);
           setIsEnded(true);
           setShowControls(true);
+          if (onEnded) {
+            onEnded();
+          }
         }}
         onTimeUpdate={handleTimeUpdate}
         onClick={togglePlay}

@@ -25,10 +25,14 @@ function Video({
   url,
   title,
   preview,
+  autoPlayTrigger,
+  onEnded,
 }: {
   url: string;
   title: string;
   preview: boolean;
+  autoPlayTrigger?: number;
+  onEnded?: () => void;
 }) {
   const src = videoEmbed(url);
 
@@ -60,7 +64,14 @@ function Video({
     );
 
   if (isNativeVideo(src)) {
-    return <CustomVideoPlayer src={src} title={title} />;
+    return (
+      <CustomVideoPlayer
+        src={src}
+        title={title}
+        autoPlayTrigger={autoPlayTrigger}
+        onEnded={onEnded}
+      />
+    );
   }
 
   return (
@@ -69,7 +80,7 @@ function Video({
         src={src}
         title={title}
         loading="lazy"
-        allow="fullscreen; picture-in-picture; encrypted-media"
+        allow="fullscreen; picture-in-picture; encrypted-media; autoplay"
         allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
       />
@@ -92,6 +103,8 @@ export default function FunnelView({
   const [error, setError] = useState("");
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [playVideoTrigger, setPlayVideoTrigger] = useState(0);
+  const [ctaHighlighted, setCtaHighlighted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const hasInteracted = useRef(false);
   const index = Math.min(questionIndex, config.questions.length - 1);
@@ -107,6 +120,26 @@ export default function FunnelView({
         ?.focus();
   }, [index, saved]);
 
+  const scrollToSalesVideo = () => {
+    setTimeout(() => {
+      const el = document.getElementById("sales-video");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        setPlayVideoTrigger((v) => v + 1);
+      }
+    }, 150);
+  };
+
+  const handleSalesVideoEnded = () => {
+    setCtaHighlighted(true);
+    setTimeout(() => {
+      const cta = document.getElementById("strategic-booking-cta");
+      if (cta) {
+        cta.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 350);
+  };
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -118,6 +151,7 @@ export default function FunnelView({
     }
     if (preview) {
       setSaved(true);
+      scrollToSalesVideo();
       return;
     }
     const form = new FormData(event.currentTarget);
@@ -147,6 +181,7 @@ export default function FunnelView({
         /* Booking remains available without browser storage. */
       }
       setSaved(true);
+      scrollToSalesVideo();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Please try again.");
     } finally {
@@ -345,6 +380,8 @@ export default function FunnelView({
                 url={config.salesVideo}
                 title="See your AI receptionist in action"
                 preview={preview}
+                autoPlayTrigger={playVideoTrigger}
+                onEnded={handleSalesVideoEnded}
               />
             </section>
             <section className="f-video-copy">
@@ -377,7 +414,10 @@ export default function FunnelView({
                 </div>
               </section>
             )}
-            <section className="f-cta">
+            <section
+              className={`f-cta ${ctaHighlighted ? "f-cta-highlight" : ""}`}
+              id="strategic-booking-cta"
+            >
               <span className="f-section-number">YOUR NEXT CHAPTER</span>
               <Text block={c.ctaTitle} as="h2" />
               <Text block={c.ctaBody} />
