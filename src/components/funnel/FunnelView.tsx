@@ -17,6 +17,7 @@ import {
 import { type FunnelConfig, videoEmbed, isNativeVideo } from "@/lib/funnel";
 import { FunnelText as Text } from "./FunnelText";
 import CalBooking from "./CalBooking";
+import CustomVideoPlayer from "./CustomVideoPlayer";
 import "./funnel.css";
 
 export type FunnelStep = "sales" | "booking" | "confirmation";
@@ -30,8 +31,6 @@ function Video({
   preview: boolean;
 }) {
   const src = videoEmbed(url);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   if (!src)
     return (
@@ -53,7 +52,6 @@ function Video({
         </div>
         <div className="f-player-controls" aria-hidden="true">
           <Play size={15} fill="currentColor" />
-          <span>0:00</span>
           <div className="f-player-timeline" />
           <Volume2 size={17} />
           <Maximize size={17} />
@@ -62,34 +60,7 @@ function Video({
     );
 
   if (isNativeVideo(src)) {
-    return (
-      <div className="f-video f-video-native">
-        <video
-          ref={videoRef}
-          src={src}
-          controls
-          playsInline
-          preload="metadata"
-          className="f-native-player"
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-        />
-        {!isPlaying && (
-          <button
-            type="button"
-            className="f-native-play-overlay"
-            aria-label="Play video"
-            onClick={() => {
-              videoRef.current?.play();
-            }}
-          >
-            <span className="f-native-play-btn">
-              <Play size={28} fill="currentColor" />
-            </span>
-          </button>
-        )}
-      </div>
-    );
+    return <CustomVideoPlayer src={src} title={title} />;
   }
 
   return (
