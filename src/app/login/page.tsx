@@ -48,6 +48,12 @@ export default function LoginPage() {
         u.app_metadata?.role === 'admin' ||
         u.user_metadata?.role === 'admin'
 
+      const nextUrl = new URLSearchParams(window.location.search).get('next')
+      if (nextUrl && nextUrl.startsWith('/')) {
+        window.location.href = nextUrl
+        return
+      }
+
       if (isUserAdmin) {
         window.location.href = '/admin'
         return
