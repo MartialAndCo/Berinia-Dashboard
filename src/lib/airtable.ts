@@ -8,6 +8,7 @@ export interface AirtableLeadData {
   callId?: string
   status?: string
   error?: string
+  leadSource?: string
 }
 
 export interface UpdateAirtableLeadSummaryParams {
@@ -88,7 +89,7 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
       'Business Name': data.businessName,
       'Phone': data.phone,
       'Email': data.email,
-      'Lead Source': 'Website (Demo)',
+      'Lead Source': data.leadSource || 'Website (Demo)',
       'Lead Status': data.status === 'called' ? 'Call Triggered' : 'New Lead',
       'Operations Metrics': ['recGIbV6Jd2rc3MXf']
     }
@@ -565,6 +566,7 @@ export interface MarkAirtableMeetingBookedParams {
   currentSystem?: string | null
   afterHours?: string | null
   callVolume?: string | null
+  leadSource?: string | null
 }
 
 /**
@@ -670,6 +672,9 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
     if (params.callVolume) {
       fieldsToUpdate['Monthly Call Volume'] = params.callVolume
     }
+    if (params.leadSource) {
+      fieldsToUpdate['Lead Source'] = params.leadSource
+    }
 
     if (matchedRecord) {
       const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
@@ -699,7 +704,7 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
         'Full Name': params.fullName || 'Cal.com Prospect',
         'Email': params.email || '',
         'Phone': params.phone || '',
-        'Lead Source': 'Website (Demo)',
+        'Lead Source': params.leadSource || 'Website (Demo)',
         'Lead Status': 'Meeting Scheduled',
         'Show-up Status': params.showUpStatus || 'Scheduled',
         'Operations Metrics': ['recGIbV6Jd2rc3MXf']

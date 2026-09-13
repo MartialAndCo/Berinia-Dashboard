@@ -51,6 +51,8 @@ export async function POST(req: Request) {
         payload.metadata?.answers ||
         ''
 
+      let parsedLeadSource: string | null = payload.metadata?.leadSource || payload.metadata?.source || null
+
       // Fallback: parse from embedded [AIRTABLE_DATA:{...}] tag if present in notes
       if (typeof rawNotes === 'string') {
         const match = rawNotes.match(/\[AIRTABLE_DATA:(\{.*?\})\]/)
@@ -62,11 +64,30 @@ export async function POST(req: Request) {
             currentSystem = currentSystem || parsed.currentSystem || null
             afterHours = afterHours || parsed.afterHours || null
             callVolume = callVolume || parsed.callVolume || null
+            parsedLeadSource = parsedLeadSource || parsed.leadSource || null
           } catch {
             // ignore parse error
           }
         }
       }
+
+      // Determine Lead Source:
+      // The 5 qualification questions (businessType, revenue, etc.) are EXCLUSIVELY on the /opt-in page (Ads).
+      // If present, or if marked as opt-in/ads -> 'Meta Ads'.
+      // Otherwise, if booked from the main website form -> 'Website (Demo)'.
+      const isFromOptInAds = Boolean(
+        parsedLeadSource === 'Meta Ads' ||
+        payload.metadata?.funnel === 'opt-in' ||
+        payload.metadata?.utm_source ||
+        businessType ||
+        revenue ||
+        currentSystem ||
+        afterHours ||
+        callVolume ||
+        (typeof rawNotes === 'string' && (rawNotes.includes('opt-in') || rawNotes.includes('Meta Ads')))
+      )
+
+      const leadSource: 'Meta Ads' | 'Website (Demo)' = isFromOptInAds ? 'Meta Ads' : 'Website (Demo)'
 
       // Extract genuine user notes if the prospect wrote a personal comment in Cal.com
       let userNote: string | null = null
@@ -132,7 +153,8 @@ export async function POST(req: Request) {
         revenue,
         currentSystem,
         afterHours,
-        callVolume
+        callVolume,
+        leadSource
       })
 
       return NextResponse.json({ success: true, airtable: res })

@@ -140,6 +140,7 @@ export default function QuestionnaireBooking({
       currentSystem: AIRTABLE_SINGLE_SELECTS.currentSystem[answers[3]] || "",
       afterHours: AIRTABLE_SINGLE_SELECTS.afterHours[answers[4]] || "",
       callVolume: AIRTABLE_SINGLE_SELECTS.callVolume[answers[5]] || "",
+      leadSource: "Meta Ads",
     };
   };
 

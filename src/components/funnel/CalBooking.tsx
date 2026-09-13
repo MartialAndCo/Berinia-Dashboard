@@ -78,15 +78,25 @@ export default function CalBooking({
           }
         }
 
+        const isOptIn = typeof window !== "undefined" && window.location.pathname.startsWith("/opt-in");
+        if (isOptIn) {
+          prefill["metadata[leadSource]"] = "Meta Ads";
+          prefill["metadata[funnel]"] = "opt-in";
+        }
+
         if (structured?.businessType) prefill["metadata[businessType]"] = structured.businessType;
         if (structured?.revenue) prefill["metadata[revenue]"] = structured.revenue;
         if (structured?.currentSystem) prefill["metadata[currentSystem]"] = structured.currentSystem;
         if (structured?.afterHours) prefill["metadata[afterHours]"] = structured.afterHours;
         if (structured?.callVolume) prefill["metadata[callVolume]"] = structured.callVolume;
 
-        if (notes && notes.trim()) {
-          prefill.notes = notes.trim();
-        }
+        const dataTag = JSON.stringify({
+          leadSource: isOptIn ? "Meta Ads" : "Website (Demo)",
+          ...(structured || {})
+        });
+
+        const fullNotes = notes ? `${notes.trim()}\n[AIRTABLE_DATA:${dataTag}]` : `[AIRTABLE_DATA:${dataTag}]`;
+        prefill.notes = fullNotes;
       } catch {
         /* Browser storage is optional. */
       }
