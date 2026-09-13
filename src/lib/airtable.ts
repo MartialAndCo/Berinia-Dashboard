@@ -249,11 +249,11 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
     note = params.callSummary.trim()
   } else if (params.disconnectionReason) {
     const unreachedReasonMap: Record<string, string> = {
-      'dial_no_answer': 'Appel non abouti : Pas de réponse',
-      'dial_busy': 'Appel non abouti : Ligne occupée',
-      'voicemail_reached': 'Appel non abouti : Répondeur / Messagerie vocale',
-      'dial_failed': 'Appel non abouti : Échec d\'appel',
-      'user_hangup': 'Appel interrompu par le prospect'
+      'dial_no_answer': 'Call unreached: No answer',
+      'dial_busy': 'Call unreached: Line busy',
+      'voicemail_reached': 'Call unreached: Voicemail reached',
+      'dial_failed': 'Call unreached: Dial failed',
+      'user_hangup': 'Call ended by prospect'
     }
     note = unreachedReasonMap[params.disconnectionReason] || null
   }
@@ -290,7 +290,7 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
           if (cleanPhone && recPhone && (recPhone === cleanPhone || recPhone.endsWith(cleanPhone) || cleanPhone.endsWith(recPhone))) {
             return true
           }
-          const recNotes = r.fields?.["Notes d'appel"] || ''
+          const recNotes = r.fields?.['Call Notes'] || r.fields?.["Notes d'appel"] || ''
           if (params.callId && recNotes.includes(params.callId)) {
             return true
           }
