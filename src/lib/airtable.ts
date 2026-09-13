@@ -559,6 +559,7 @@ export interface MarkAirtableMeetingBookedParams {
   meetingUrl?: string | null
   callLink?: string | null
   notes?: string | null
+  showUpStatus?: 'Scheduled' | 'Rescheduled' | 'Attended' | 'Cancelled' | null
   businessType?: string | null
   revenue?: string | null
   currentSystem?: string | null
@@ -627,7 +628,9 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
     }
 
     const fieldsToUpdate: Record<string, any> = {
-      'Lead Status': 'Meeting Scheduled'
+      'Lead Status': 'Meeting Scheduled',
+      'Show-up Status': params.showUpStatus || 'Scheduled',
+      'Operations Metrics': ['recGIbV6Jd2rc3MXf']
     }
 
     if (params.startTime) {
@@ -698,6 +701,7 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
         'Phone': params.phone || '',
         'Lead Source': 'Website (Demo)',
         'Lead Status': 'Meeting Scheduled',
+        'Show-up Status': params.showUpStatus || 'Scheduled',
         'Operations Metrics': ['recGIbV6Jd2rc3MXf']
       }
 
@@ -899,6 +903,259 @@ export async function updateAirtableLeadRecord(recordId: string, fields: Record<
     return { success: false, error: err?.message }
   }
 }
+
+export interface CancelAirtableMeetingParams {
+  email?: string | null
+  phone?: string | null
+  fullName?: string | null
+  bookingUid?: string | null
+  cancellationReason?: string | null
+}
+
+/**
+ * Marks a lead as 'Cancelled' in Airtable when a booking is cancelled or rejected in Cal.com
+ */
+export async function cancelAirtableMeeting(params: CancelAirtableMeetingParams): Promise<{ success: boolean; recordId?: string; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  const cleanEmail = params.email?.trim().toLowerCase()
+  const cleanPhone = (params.phone || '').replace(/\D/g, '')
+
+  try {
+    const searchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const listRes = await fetch(searchUrl, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!listRes.ok) {
+      const err = await listRes.text().catch(() => '')
+      return { success: false, error: err }
+    }
+
+    const data = await listRes.json()
+    const records = data.records || []
+
+    let matchedRecord = records.find((r: any) => {
+      const rEmail = (r.fields?.['Email'] || '').trim().toLowerCase()
+      return rEmail && rEmail === cleanEmail
+    })
+
+    if (!matchedRecord && cleanPhone) {
+      matchedRecord = records.find((r: any) => {
+        const rPhone = (r.fields?.['Phone'] || '').replace(/\D/g, '')
+        return rPhone && (rPhone === cleanPhone || rPhone.endsWith(cleanPhone) || cleanPhone.endsWith(rPhone))
+      })
+    }
+
+    if (!matchedRecord && params.fullName) {
+      const cleanName = params.fullName.trim().toLowerCase()
+      matchedRecord = records.find((r: any) => {
+        const rName = (r.fields?.['Full Name'] || '').trim().toLowerCase()
+        return rName && (rName === cleanName || rName.includes(cleanName) || cleanName.includes(rName))
+      })
+    }
+
+    if (!matchedRecord) {
+      console.warn('[Airtable] No matching lead record found to cancel meeting for:', params.email, params.phone)
+      return { success: false, error: 'Record not found in Airtable' }
+    }
+
+    const fieldsToUpdate: Record<string, any> = {
+      'Show-up Status': 'Cancelled',
+      'Operations Metrics': ['recGIbV6Jd2rc3MXf']
+    }
+
+    if (params.cancellationReason && params.cancellationReason.trim()) {
+      const existingNotes = matchedRecord.fields?.['Call Notes'] || ''
+      fieldsToUpdate['Call Notes'] = existingNotes
+        ? `${existingNotes}\n\n[Cal.com Cancelled] Reason: ${params.cancellationReason.trim()}`
+        : `[Cal.com Cancelled] Reason: ${params.cancellationReason.trim()}`
+    }
+
+    const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
+    const patchRes = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fields: fieldsToUpdate,
+        typecast: true
+      })
+    })
+
+    if (!patchRes.ok) {
+      const errText = await patchRes.text().catch(() => '')
+      return { success: false, error: errText }
+    }
+
+    console.log(`[Airtable] Successfully marked meeting as 'Cancelled' for record ${matchedRecord.id}`)
+    return { success: true, recordId: matchedRecord.id }
+  } catch (err: any) {
+    console.error('[Airtable cancelAirtableMeeting Exception]', err)
+    return { success: false, error: err?.message }
+  }
+}
+
+export interface FathomAnalysisResult {
+  callOutcome: 'Closed Won (One-Call)' | 'Proposal / Contract Sent' | 'Second Call Scheduled' | 'Under Consideration (Hot)' | 'Nurturing (Cold)' | 'Closed Lost' | 'Disqualified'
+  leadStatus: 'Closed Won' | 'Meeting Scheduled' | 'Demo Completed' | 'Closed Lost' | 'Not Interested'
+  lostReason?: 'Price / Retainer Too High' | 'Refused Contract Commitment' | 'AI / Voice Skepticism' | 'Bad Timing / Postponed' | 'Not Sole Decision Maker' | 'Lack of Call Volume' | 'Existing Provider / Agency' | 'Ghost / Unresponsive' | 'Other' | null
+  nurturingStatus?: 'Follow-up Day 2 (Urgent)' | 'Follow-up Day 7 (Case Study)' | 'Follow-up 30 Days' | 'Email / SMS Sequence' | 'Do Not Contact (Blacklist)' | null
+  followUpDate?: string | null // YYYY-MM-DD
+  keySummary: string
+  recordingUrl?: string | null
+}
+
+export interface UpdateAirtableFromFathomParams {
+  attendeeEmail: string
+  attendeeName?: string | null
+  recordingUrl?: string | null
+  analysis: FathomAnalysisResult
+}
+
+/**
+ * Updates an Airtable Lead with post-call classification, notes, and metrics from Fathom AI transcription.
+ */
+export async function updateAirtableFromFathom(params: UpdateAirtableFromFathomParams): Promise<{ success: boolean; recordId?: string; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  const cleanEmail = params.attendeeEmail.trim().toLowerCase()
+
+  try {
+    const searchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const listRes = await fetch(searchUrl, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!listRes.ok) {
+      const err = await listRes.text().catch(() => '')
+      return { success: false, error: err }
+    }
+
+    const data = await listRes.json()
+    const records = data.records || []
+
+    let matchedRecord = records.find((r: any) => {
+      const rEmail = (r.fields?.['Email'] || '').trim().toLowerCase()
+      return rEmail && rEmail === cleanEmail
+    })
+
+    if (!matchedRecord && params.attendeeName) {
+      const cleanName = params.attendeeName.trim().toLowerCase()
+      matchedRecord = records.find((r: any) => {
+        const rName = (r.fields?.['Full Name'] || '').trim().toLowerCase()
+        return rName && (rName === cleanName || rName.includes(cleanName) || cleanName.includes(rName))
+      })
+    }
+
+    const fieldsToUpdate: Record<string, any> = {
+      'Show-up Status': 'Attended',
+      'Call Outcome': params.analysis.callOutcome,
+      'Lead Status': params.analysis.leadStatus,
+      'Operations Metrics': ['recGIbV6Jd2rc3MXf']
+    }
+
+    if (params.analysis.leadStatus === 'Closed Won') {
+      fieldsToUpdate['Active Subscription'] = true
+    }
+
+    if (params.analysis.lostReason) {
+      fieldsToUpdate['Lost Reason'] = params.analysis.lostReason
+    }
+
+    if (params.analysis.nurturingStatus) {
+      fieldsToUpdate['Nurturing Status'] = params.analysis.nurturingStatus
+    }
+
+    if (params.analysis.followUpDate) {
+      fieldsToUpdate['Follow-up Date'] = params.analysis.followUpDate
+    }
+
+    let notesText = params.analysis.keySummary || ''
+    if (params.recordingUrl) {
+      notesText = `Fathom Recording: ${params.recordingUrl}\n\n${notesText}`
+    }
+
+    if (matchedRecord) {
+      const existingNotes = matchedRecord.fields?.['Call Notes'] || ''
+      fieldsToUpdate['Call Notes'] = existingNotes 
+        ? `${existingNotes}\n\n---\n[Fathom Post-Call Summary]:\n${notesText}` 
+        : `[Fathom Post-Call Summary]:\n${notesText}`
+
+      const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
+      const patchRes = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields: fieldsToUpdate,
+          typecast: true
+        })
+      })
+
+      if (!patchRes.ok) {
+        const errText = await patchRes.text().catch(() => '')
+        return { success: false, error: errText }
+      }
+
+      console.log(`[Airtable] Successfully updated post-call metrics from Fathom for record ${matchedRecord.id}`)
+      return { success: true, recordId: matchedRecord.id }
+    } else {
+      // Create new lead if prospect was not already in Airtable
+      const postUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
+      fieldsToUpdate['Full Name'] = params.attendeeName || 'Fathom Prospect'
+      fieldsToUpdate['Email'] = params.attendeeEmail
+      fieldsToUpdate['Lead Source'] = 'Other'
+      fieldsToUpdate['Call Notes'] = `[Fathom Post-Call Summary]:\n${notesText}`
+
+      const postRes = await fetch(postUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          records: [{ fields: fieldsToUpdate }],
+          typecast: true
+        })
+      })
+
+      if (!postRes.ok) {
+        const errText = await postRes.text().catch(() => '')
+        return { success: false, error: errText }
+      }
+
+      const postData = await postRes.json()
+      const newId = postData?.records?.[0]?.id
+      console.log(`[Airtable] Created new lead from Fathom call: ${newId}`)
+      return { success: true, recordId: newId }
+    }
+  } catch (err: any) {
+    console.error('[Airtable updateAirtableFromFathom Exception]', err)
+    return { success: false, error: err?.message }
+  }
+}
+
 
 
 

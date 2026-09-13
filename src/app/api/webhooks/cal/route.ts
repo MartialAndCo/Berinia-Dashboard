@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { markAirtableMeetingBooked } from '@/lib/airtable'
+import { markAirtableMeetingBooked, cancelAirtableMeeting } from '@/lib/airtable'
 
 /**
  * Cal.com Webhook Handler
- * When a booking is created or rescheduled on Cal.com (via AI agent live call or direct link),
- * this updates the prospect's record in Airtable to "RDV Programmé".
+ * When a booking is created, rescheduled, or cancelled on Cal.com,
+ * this updates the prospect's record in Airtable with accurate show-up status & times.
  */
 export async function POST(req: Request) {
   try {
@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     console.log(`[Cal.com Webhook] Received event: ${event}`)
 
     if (event === 'BOOKING_CREATED' || event === 'BOOKING_RESCHEDULED') {
+      const isRescheduled = event === 'BOOKING_RESCHEDULED'
       const attendees = payload.attendees || []
       const primaryAttendee = attendees[0] || {}
 
@@ -126,6 +127,7 @@ export async function POST(req: Request) {
         meetingUrl: meetingLink,
         callLink: meetingLink,
         notes: userNote || undefined,
+        showUpStatus: isRescheduled ? 'Rescheduled' : 'Scheduled',
         businessType,
         revenue,
         currentSystem,
@@ -134,6 +136,33 @@ export async function POST(req: Request) {
       })
 
       return NextResponse.json({ success: true, airtable: res })
+    }
+
+    if (event === 'BOOKING_CANCELLED' || event === 'BOOKING_REJECTED') {
+      const attendees = payload.attendees || []
+      const primaryAttendee = attendees[0] || {}
+
+      const attendeeEmail = primaryAttendee.email || payload.responses?.email?.value || payload.email || null
+      const attendeePhone = primaryAttendee.phoneNumber || payload.responses?.phone?.value || payload.phone || null
+      const attendeeName = primaryAttendee.name || payload.responses?.name?.value || payload.name || null
+      const reason = payload.cancellationReason || payload.rejectionReason || null
+
+      console.log('[Cal.com Webhook] Cancellation detected for:', {
+        attendeeEmail,
+        attendeePhone,
+        attendeeName,
+        reason
+      })
+
+      const res = await cancelAirtableMeeting({
+        email: attendeeEmail,
+        phone: attendeePhone,
+        fullName: attendeeName,
+        bookingUid: payload.uid || null,
+        cancellationReason: reason
+      })
+
+      return NextResponse.json({ success: true, cancelled: true, airtable: res })
     }
 
     return NextResponse.json({ success: true, ignored: event })
