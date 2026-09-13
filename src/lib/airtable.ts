@@ -89,7 +89,8 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
       'Phone': data.phone,
       'Email': data.email,
       'Lead Source': 'Website (Demo)',
-      'Lead Status': data.status === 'called' ? 'Call Triggered' : 'New Lead'
+      'Lead Status': data.status === 'called' ? 'Call Triggered' : 'New Lead',
+      'Operations Metrics': ['recGIbV6Jd2rc3MXf']
     }
 
     if (data.status === 'called') {
@@ -696,7 +697,8 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
         'Email': params.email || '',
         'Phone': params.phone || '',
         'Lead Source': 'Website (Demo)',
-        'Lead Status': 'Meeting Scheduled'
+        'Lead Status': 'Meeting Scheduled',
+        'Operations Metrics': ['recGIbV6Jd2rc3MXf']
       }
 
       if (params.companyName) {
