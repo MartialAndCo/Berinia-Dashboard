@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { getEmailTemplate } from '@/lib/email-template'
 import { getServiceSupabase } from '@/lib/supabase'
-import { markAirtableSubscriptionActive } from '@/lib/airtable'
+import { markAirtableSubscriptionActive, recordStripeInvoicePayment, markAirtableSubscriptionEnded } from '@/lib/airtable'
 import { suspendClientAgent, reactivateClientAgent } from '@/lib/agent-activation'
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy')
@@ -59,12 +59,11 @@ export async function POST(req: Request) {
           }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
         }
 
-        // Send email notification for the invoice
-        if (invoice.customer_email) {
-          let usageSeconds = 0
-          let usageAmount = 0
-          let retainerAmount = 0
+        let usageSeconds = 0
+        let usageAmount = 0
+        let retainerAmount = 0
 
+        if (invoice.lines?.data) {
           invoice.lines.data.forEach((line: any) => {
             if (line.price?.recurring?.usage_type === 'metered') {
               usageSeconds += line.quantity || 0
@@ -73,10 +72,29 @@ export async function POST(req: Request) {
               retainerAmount += line.amount
             }
           })
+        }
 
+        const totalPaidDollars = Number((invoice.amount_paid / 100).toFixed(2))
+        const usageDollars = Number((usageAmount / 100).toFixed(2))
+        const invoiceDate = invoice.status_transitions?.paid_at
+          ? new Date(invoice.status_transitions.paid_at * 1000).toISOString().slice(0, 10)
+          : new Date().toISOString().slice(0, 10)
+
+        // Record real paid LTV and metered usage into Airtable
+        await recordStripeInvoicePayment({
+          email: client?.email || invoice.customer_email,
+          companyName: client?.company_name,
+          fullName: invoice.customer_name,
+          amountPaid: totalPaidDollars,
+          usageAmount: usageDollars,
+          invoiceDate
+        }).catch(err => console.error('[Stripe Webhook] Airtable recordPayment error:', err))
+
+        // Send email notification for the invoice
+        if (invoice.customer_email) {
           const usageMinutes = Math.floor(usageSeconds / 60)
-          const totalPaidStr = (invoice.amount_paid / 100).toFixed(2)
-          const usageAmountStr = (usageAmount / 100).toFixed(2)
+          const totalPaidStr = totalPaidDollars.toFixed(2)
+          const usageAmountStr = usageDollars.toFixed(2)
           const retainerAmountStr = (retainerAmount / 100).toFixed(2)
           const invoicePdf = invoice.invoice_pdf || invoice.hosted_invoice_url
 
@@ -200,6 +218,30 @@ export async function POST(req: Request) {
         console.warn(`[Stripe Webhook] Subscription deleted for client ${client.company_name}`)
         await suspendClientAgent(client.id, 'subscription_canceled')
       }
+
+      const cancelDate = subscription.canceled_at 
+        ? new Date(subscription.canceled_at * 1000).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10)
+
+      let customerEmail = client?.email
+      let customerName = client?.company_name
+      if (!customerEmail && subscription.customer) {
+        try {
+          const customer = await stripe.customers.retrieve(subscription.customer)
+          if (customer && !customer.deleted) {
+            customerEmail = customer.email
+            customerName = customer.name
+          }
+        } catch (e) {
+          console.error('[Stripe Webhook] Error retrieving customer for deleted subscription:', e)
+        }
+      }
+
+      await markAirtableSubscriptionEnded({
+        email: customerEmail,
+        companyName: customerName,
+        endDate: cancelDate
+      }).catch(err => console.error('[Stripe Webhook] Airtable markAirtableSubscriptionEnded error:', err))
     }
 
     // 3. Checkout Session Completed

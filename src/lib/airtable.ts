@@ -480,9 +480,21 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
       })
     }
 
-    // 3. If matched, update the record with "Abonnement actif: true"
+    // 3. If matched, update the record with "Active Subscription: true" and start date
     if (matchedRecord) {
       const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
+      const existingStartDate = matchedRecord.fields?.['Subscription Start Date']
+      const patchFields: Record<string, any> = {
+        'Active Subscription': true,
+        'Lead Status': 'Closed Won'
+      }
+      if (!existingStartDate) {
+        patchFields['Subscription Start Date'] = new Date().toISOString().slice(0, 10)
+      }
+      if (matchedRecord.fields?.['Subscription End Date']) {
+        patchFields['Subscription End Date'] = null
+      }
+
       const patchRes = await fetch(patchUrl, {
         method: 'PATCH',
         headers: {
@@ -490,10 +502,7 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          fields: {
-            'Active Subscription': true,
-            'Lead Status': 'Closed Won'
-          },
+          fields: patchFields,
           typecast: true
         })
       })
@@ -508,7 +517,7 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
       return { success: true, recordId: matchedRecord.id }
     }
 
-    // 4. If no existing record in Airtable, create one with active subscription
+    // 4. If no existing record in Airtable, create one with active subscription and start date
     console.log(`[Airtable] No existing lead found for ${cleanEmail || cleanCompany}. Creating new active client record...`)
     const postUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
     const createRes = await fetch(postUrl, {
@@ -528,7 +537,9 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
               'Lead Source': 'Platform Sign-up',
               'Lead Status': 'Closed Won',
               'Active Subscription': true,
-              'Call Notes': 'Account activated and first subscription paid by card'
+              'Subscription Start Date': new Date().toISOString().slice(0, 10),
+              'Call Notes': 'Account activated and first subscription paid by card',
+              'Operations Metrics': ['recGIbV6Jd2rc3MXf']
             }
           }
         ],
@@ -546,6 +557,270 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
     return { success: true, recordId: newId }
   } catch (err: any) {
     console.error('[Airtable markActive Exception]', err)
+    return { success: false, error: err?.message }
+  }
+}
+
+export interface RecordStripeInvoicePaymentParams {
+  email?: string | null
+  phone?: string | null
+  companyName?: string | null
+  fullName?: string | null
+  amountPaid: number // in dollars
+  usageAmount?: number // in dollars
+  invoiceDate?: string | null // YYYY-MM-DD
+}
+
+/**
+ * Records an invoice payment from Stripe, updating the client's cumulative real LTV,
+ * usage billed, and subscription start date.
+ */
+export async function recordStripeInvoicePayment(params: RecordStripeInvoicePaymentParams): Promise<{ success: boolean; recordId?: string; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  const cleanEmail = params.email?.trim().toLowerCase()
+  const cleanPhone = (params.phone || '').replace(/\D/g, '')
+  const cleanCompany = params.companyName?.trim().toLowerCase()
+  const cleanName = params.fullName?.trim().toLowerCase()
+
+  try {
+    const searchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const listRes = await fetch(searchUrl, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!listRes.ok) {
+      const err = await listRes.text().catch(() => '')
+      return { success: false, error: `Failed to fetch Airtable records: ${err}` }
+    }
+
+    const data = await listRes.json()
+    const records = data.records || []
+
+    let matchedRecord = records.find((r: any) => {
+      const rEmail = (r.fields?.['Email'] || '').trim().toLowerCase()
+      if (cleanEmail && rEmail && rEmail === cleanEmail) return true
+      return false
+    })
+
+    if (!matchedRecord && cleanCompany) {
+      matchedRecord = records.find((r: any) => {
+        const rComp = (r.fields?.['Business Name'] || '').trim().toLowerCase()
+        return rComp && (rComp === cleanCompany || rComp.includes(cleanCompany) || cleanCompany.includes(rComp))
+      })
+    }
+
+    if (!matchedRecord && cleanPhone) {
+      matchedRecord = records.find((r: any) => {
+        const rPhone = (r.fields?.['Phone'] || '').replace(/\D/g, '')
+        return rPhone && (rPhone === cleanPhone || rPhone.endsWith(cleanPhone) || cleanPhone.endsWith(rPhone))
+      })
+    }
+
+    if (!matchedRecord && cleanName) {
+      matchedRecord = records.find((r: any) => {
+        const rName = (r.fields?.['Full Name'] || '').trim().toLowerCase()
+        return rName && (rName === cleanName || rName.includes(cleanName) || cleanName.includes(rName))
+      })
+    }
+
+    const effectiveDate = params.invoiceDate || new Date().toISOString().slice(0, 10)
+
+    if (matchedRecord) {
+      const currentBilled = Number(matchedRecord.fields?.['Total Billed (Stripe LTV)'] || 0)
+      const currentUsage = Number(matchedRecord.fields?.['Total Usage Billed'] || 0)
+      const newTotalBilled = Number((currentBilled + params.amountPaid).toFixed(2))
+      const newTotalUsage = Number((currentUsage + (params.usageAmount || 0)).toFixed(2))
+
+      const existingStartDate = matchedRecord.fields?.['Subscription Start Date']
+
+      const patchFields: Record<string, any> = {
+        'Total Billed (Stripe LTV)': newTotalBilled,
+        'Total Usage Billed': newTotalUsage,
+        'Active Subscription': true,
+        'Lead Status': 'Closed Won'
+      }
+
+      if (!existingStartDate) {
+        patchFields['Subscription Start Date'] = effectiveDate
+      }
+      if (matchedRecord.fields?.['Subscription End Date']) {
+        patchFields['Subscription End Date'] = null
+      }
+
+      const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
+      const patchRes = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields: patchFields,
+          typecast: true
+        })
+      })
+
+      if (!patchRes.ok) {
+        const errText = await patchRes.text().catch(() => '')
+        return { success: false, error: errText }
+      }
+
+      console.log(`[Airtable LTV] Updated Real LTV for ${matchedRecord.id}: +$${params.amountPaid} (New Total: $${newTotalBilled})`)
+      return { success: true, recordId: matchedRecord.id }
+    } else {
+      // Create new lead with initial billing
+      const postUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
+      const createRes = await fetch(postUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          records: [
+            {
+              fields: {
+                'Full Name': params.fullName || params.companyName || 'Stripe Customer',
+                'Business Name': params.companyName || params.fullName || 'Stripe Customer',
+                'Email': params.email || '',
+                'Phone': params.phone || '',
+                'Lead Source': 'Platform Sign-up',
+                'Lead Status': 'Closed Won',
+                'Active Subscription': true,
+                'Subscription Start Date': effectiveDate,
+                'Total Billed (Stripe LTV)': Number(params.amountPaid.toFixed(2)),
+                'Total Usage Billed': Number((params.usageAmount || 0).toFixed(2)),
+                'Call Notes': `Initial Stripe invoice payment: $${params.amountPaid}`,
+                'Operations Metrics': ['recGIbV6Jd2rc3MXf']
+              }
+            }
+          ],
+          typecast: true
+        })
+      })
+
+      if (!createRes.ok) {
+        const errText = await createRes.text().catch(() => '')
+        return { success: false, error: errText }
+      }
+
+      const createData = await createRes.json()
+      return { success: true, recordId: createData.records?.[0]?.id }
+    }
+  } catch (err: any) {
+    console.error('[Airtable recordStripeInvoicePayment Exception]', err)
+    return { success: false, error: err?.message }
+  }
+}
+
+export interface MarkAirtableSubscriptionEndedParams {
+  email?: string | null
+  phone?: string | null
+  companyName?: string | null
+  fullName?: string | null
+  endDate?: string | null
+}
+
+/**
+ * Marks subscription ended/canceled in Airtable, recording the churn date.
+ */
+export async function markAirtableSubscriptionEnded(params: MarkAirtableSubscriptionEndedParams): Promise<{ success: boolean; recordId?: string; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  const cleanEmail = params.email?.trim().toLowerCase()
+  const cleanPhone = (params.phone || '').replace(/\D/g, '')
+  const cleanCompany = params.companyName?.trim().toLowerCase()
+  const cleanName = params.fullName?.trim().toLowerCase()
+
+  try {
+    const searchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const listRes = await fetch(searchUrl, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!listRes.ok) {
+      const err = await listRes.text().catch(() => '')
+      return { success: false, error: `Failed to fetch Airtable records: ${err}` }
+    }
+
+    const data = await listRes.json()
+    const records = data.records || []
+
+    let matchedRecord = records.find((r: any) => {
+      const rEmail = (r.fields?.['Email'] || '').trim().toLowerCase()
+      if (cleanEmail && rEmail && rEmail === cleanEmail) return true
+      return false
+    })
+
+    if (!matchedRecord && cleanCompany) {
+      matchedRecord = records.find((r: any) => {
+        const rComp = (r.fields?.['Business Name'] || '').trim().toLowerCase()
+        return rComp && (rComp === cleanCompany || rComp.includes(cleanCompany) || cleanCompany.includes(rComp))
+      })
+    }
+
+    if (!matchedRecord && cleanPhone) {
+      matchedRecord = records.find((r: any) => {
+        const rPhone = (r.fields?.['Phone'] || '').replace(/\D/g, '')
+        return rPhone && (rPhone === cleanPhone || rPhone.endsWith(cleanPhone) || cleanPhone.endsWith(rPhone))
+      })
+    }
+
+    if (!matchedRecord && cleanName) {
+      matchedRecord = records.find((r: any) => {
+        const rName = (r.fields?.['Full Name'] || '').trim().toLowerCase()
+        return rName && (rName === cleanName || rName.includes(cleanName) || cleanName.includes(rName))
+      })
+    }
+
+    if (!matchedRecord) {
+      console.warn(`[Airtable] Cannot mark subscription ended: no lead matched for ${cleanEmail || cleanCompany}`)
+      return { success: false, error: 'Lead not found in Airtable' }
+    }
+
+    const effectiveEndDate = params.endDate || new Date().toISOString().slice(0, 10)
+    const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
+    const patchRes = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fields: {
+          'Active Subscription': false,
+          'Subscription End Date': effectiveEndDate
+        },
+        typecast: true
+      })
+    })
+
+    if (!patchRes.ok) {
+      const errText = await patchRes.text().catch(() => '')
+      return { success: false, error: errText }
+    }
+
+    console.log(`[Airtable] Subscription marked ended on ${effectiveEndDate} for record ${matchedRecord.id}`)
+    return { success: true, recordId: matchedRecord.id }
+  } catch (err: any) {
+    console.error('[Airtable markAirtableSubscriptionEnded Exception]', err)
     return { success: false, error: err?.message }
   }
 }
