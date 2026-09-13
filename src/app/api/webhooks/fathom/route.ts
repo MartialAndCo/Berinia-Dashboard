@@ -1,25 +1,43 @@
 import { NextResponse } from 'next/server'
-import { parseFathomPayload, analyzeFathomMeeting } from '@/lib/fathom-analyzer'
+import { parseFathomPayload, analyzeFathomMeeting, verifyFathomWebhook } from '@/lib/fathom-analyzer'
 import { updateAirtableFromFathom } from '@/lib/airtable'
 
 /**
  * Fathom AI Meeting Webhook Handler
  * 
  * Triggered automatically when a sales / strategy call is completed and transcribed by Fathom.video.
- * 1. Extracts the meeting transcript, summary, and prospect email.
- * 2. Uses AI (OpenAI / Gemini / Fathom NLP) to categorize:
+ * 1. Verifies the cryptographic webhook signature (if secret is configured).
+ * 2. Extracts the meeting transcript, summary, and prospect email.
+ * 3. Uses AI (OpenAI / Gemini / Fathom NLP) to categorize:
  *    - Show-up Status -> 'Attended'
  *    - Call Outcome ('Closed Won', 'Proposal Sent', 'Second Call Scheduled', etc.)
  *    - Lost Reason (if objection/refusal detected)
  *    - Nurturing Status & Follow-up Date
  *    - Condensed Call Notes with Fathom recording link
- * 3. Updates Airtable CRM record automatically.
+ * 4. Updates Airtable CRM record automatically.
  */
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => null)
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid or missing JSON payload' }, { status: 400 })
+    const rawBody = await req.text()
+    if (!rawBody) {
+      return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
+    }
+
+    // Cryptographic verification if secret is provided
+    const webhookSecret = process.env.FATHOM_WEBHOOK_SECRET
+    if (webhookSecret && req.headers.get('webhook-signature')) {
+      const isValid = verifyFathomWebhook(webhookSecret, req.headers, rawBody)
+      if (!isValid) {
+        console.warn('[Fathom Webhook] Invalid webhook signature from Fathom')
+        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
+      }
+    }
+
+    let body: any
+    try {
+      body = JSON.parse(rawBody)
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 })
     }
 
     console.log('[Fathom Webhook] Received webhook payload')

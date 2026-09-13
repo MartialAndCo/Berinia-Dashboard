@@ -11,6 +11,53 @@ export interface FathomParsedMeeting {
 }
 
 /**
+ * Cryptographically verifies that incoming requests are genuinely from Fathom.
+ */
+export function verifyFathomWebhook(secret: string, headers: Headers, rawBody: string): boolean {
+  try {
+    const webhookId = headers.get('webhook-id')
+    const webhookTimestamp = headers.get('webhook-timestamp')
+    const webhookSignature = headers.get('webhook-signature')
+
+    if (!webhookId || !webhookTimestamp || !webhookSignature) {
+      return false
+    }
+
+    const timestamp = parseInt(webhookTimestamp, 10)
+    const currentTimestamp = Math.floor(Date.now() / 1000)
+    if (Math.abs(currentTimestamp - timestamp) > 300) {
+      return false
+    }
+
+    const signedContent = `${webhookId}.${webhookTimestamp}.${rawBody}`
+    const secretPart = secret.includes('_') ? secret.split('_')[1] : secret
+    const secretBytes = Buffer.from(secretPart, 'base64')
+
+    const crypto = require('crypto')
+    const expectedSignature = crypto
+      .createHmac('sha256', secretBytes)
+      .update(signedContent)
+      .digest('base64')
+
+    const signatures = webhookSignature.split(' ').map((sig: string) => {
+      const parts = sig.split(',')
+      return parts.length > 1 ? parts[1] : parts[0]
+    })
+
+    return signatures.some((sig: string) => {
+      try {
+        return crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(sig))
+      } catch {
+        return false
+      }
+    })
+  } catch (err) {
+    console.error('[Fathom Webhook Verification Error]', err)
+    return false
+  }
+}
+
+/**
  * Extracts normalized meeting data from various Fathom webhook payload structures.
  */
 export function parseFathomPayload(body: any): FathomParsedMeeting | null {
@@ -18,19 +65,34 @@ export function parseFathomPayload(body: any): FathomParsedMeeting | null {
 
   const meeting = body.meeting || body.data || body
 
-  // 1. Extract attendees
-  const rawAttendees = meeting.attendees || meeting.participants || body.attendees || []
+  // 1. Extract attendees / calendar invitees
+  // Fathom external webhook uses calendar_invitees with `is_external: true`
+  const invitees = meeting.calendar_invitees || body.calendar_invitees || []
+  const rawAttendees = meeting.attendees || meeting.participants || body.attendees || invitees
   let attendeeEmail = ''
   let attendeeName = ''
 
-  // Host emails to filter out
+  // Host emails / domains to filter out
   const hostDomainFilters = ['berinagents.com', 'berinia.com']
   const hostEmails = ['yannrosemark@gmail.com', 'martialandco@gmail.com']
+  if (meeting.recorded_by?.email) {
+    hostEmails.push(meeting.recorded_by.email.trim().toLowerCase())
+  }
 
-  if (Array.isArray(rawAttendees)) {
+  // 1a. Prioritize calendar_invitees marked as external
+  if (Array.isArray(invitees)) {
+    const externalInvitee = invitees.find((inv: any) => inv.is_external === true)
+    if (externalInvitee && externalInvitee.email) {
+      attendeeEmail = externalInvitee.email.trim().toLowerCase()
+      attendeeName = externalInvitee.name || externalInvitee.matched_speaker_display_name || ''
+    }
+  }
+
+  // 1b. Fallback on general attendees inspection
+  if (!attendeeEmail && Array.isArray(rawAttendees)) {
     for (const att of rawAttendees) {
       const email = typeof att === 'string' ? att : (att.email || '')
-      const name = typeof att === 'object' ? (att.name || att.displayName || '') : ''
+      const name = typeof att === 'object' ? (att.name || att.displayName || att.matched_speaker_display_name || '') : ''
       const cleanEmail = email.trim().toLowerCase()
 
       // Look for the prospect (non-host)
@@ -44,9 +106,9 @@ export function parseFathomPayload(body: any): FathomParsedMeeting | null {
     if (!attendeeEmail && rawAttendees.length > 0) {
       const first = rawAttendees[0]
       attendeeEmail = typeof first === 'string' ? first : (first.email || '')
-      attendeeName = typeof first === 'object' ? (first.name || '') : ''
+      attendeeName = typeof first === 'object' ? (first.name || first.displayName || '') : ''
     }
-  } else if (meeting.email || body.email) {
+  } else if (!attendeeEmail && (meeting.email || body.email)) {
     attendeeEmail = (meeting.email || body.email).trim().toLowerCase()
     attendeeName = meeting.name || body.name || ''
   }
@@ -58,7 +120,7 @@ export function parseFathomPayload(body: any): FathomParsedMeeting | null {
     transcriptText = rawTranscript.trim()
   } else if (Array.isArray(rawTranscript)) {
     transcriptText = rawTranscript.map((u: any) => {
-      const speaker = u.speaker?.name || u.speaker || 'Speaker'
+      const speaker = u.speaker?.display_name || u.speaker?.name || u.speaker || 'Speaker'
       const text = u.text || u.words || ''
       return `${speaker}: ${text}`
     }).join('\n')
@@ -70,14 +132,14 @@ export function parseFathomPayload(body: any): FathomParsedMeeting | null {
   if (typeof rawSummary === 'string') {
     summaryText = rawSummary.trim()
   } else if (rawSummary && typeof rawSummary === 'object') {
-    summaryText = rawSummary.markdown || rawSummary.overview || rawSummary.text || JSON.stringify(rawSummary)
+    summaryText = rawSummary.markdown_formatted || rawSummary.markdown || rawSummary.overview || rawSummary.text || JSON.stringify(rawSummary)
   }
 
   const actionItems: string[] = []
   const rawActions = meeting.action_items || body.action_items || rawSummary?.action_items
   if (Array.isArray(rawActions)) {
     rawActions.forEach((item: any) => {
-      const text = typeof item === 'string' ? item : (item.text || item.description || '')
+      const text = typeof item === 'string' ? item : (item.description || item.text || '')
       if (text) actionItems.push(text.trim())
     })
   }
@@ -88,7 +150,7 @@ export function parseFathomPayload(body: any): FathomParsedMeeting | null {
   return {
     attendeeEmail,
     attendeeName: attendeeName || null,
-    title: meeting.title || body.title || null,
+    title: meeting.title || meeting.meeting_title || body.title || null,
     recordingUrl,
     transcriptText,
     summaryText,
