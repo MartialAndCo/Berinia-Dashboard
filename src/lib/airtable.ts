@@ -82,22 +82,22 @@ export async function sendLeadToAirtable(data: AirtableLeadData): Promise<{ succ
   try {
     const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
     
-    // Map to the user's exact Airtable schema
+    // Map to the user's exact Airtable schema (English)
     const fields: Record<string, any> = {
       'Full Name': data.fullName,
       'Business Name': data.businessName,
       'Phone': data.phone,
       'Email': data.email,
-      'Source du Lead': 'Site Web (Démo)',
-      'Statut du Lead': data.status === 'called' ? 'Appel lancé' : 'Nouveau Lead'
+      'Lead Source': 'Website (Demo)',
+      'Lead Status': data.status === 'called' ? 'Call Triggered' : 'New Lead'
     }
 
     if (data.status === 'called') {
-      fields["Notes d'appel"] = "Appel en cours... (en attente du résumé Retell)"
+      fields['Call Notes'] = 'Call in progress... (waiting for Retell summary)'
     } else if (data.error) {
-      fields["Notes d'appel"] = `Erreur appel: ${data.error}`
+      fields['Call Notes'] = `Call error: ${data.error}`
     } else {
-      fields["Notes d'appel"] = "Nouveau Lead (en attente d'appel)"
+      fields['Call Notes'] = 'New Lead (waiting for demo call)'
     }
 
     const res = await fetch(url, {
@@ -155,25 +155,25 @@ export interface DetermineLeadStatusParams {
  * Intelligent lead qualification from call analysis data
  */
 export function determineLeadStatus(params: DetermineLeadStatusParams): {
-  status: 'RDV Programmé' | 'Pas intéressé' | 'Démo Réalisée' | 'Injoignable / Répondeur'
+  status: 'Meeting Scheduled' | 'Not Interested' | 'Demo Completed' | 'Unreachable / Voicemail'
   note?: string
 } {
-  // 1. RDV Programmé (highest priority)
+  // 1. Meeting Scheduled (highest priority)
   if (params.isBooked) {
-    return { status: 'RDV Programmé' }
+    return { status: 'Meeting Scheduled' }
   }
 
   // 2. Unreached calls (no answer, busy, failed, voicemail)
   const unreachedReasons = ['dial_no_answer', 'dial_busy', 'dial_failed', 'voicemail_reached']
   if (params.disconnectionReason && unreachedReasons.includes(params.disconnectionReason)) {
     const reasonMap: Record<string, string> = {
-      'dial_no_answer': 'Appel non abouti : Pas de réponse',
-      'dial_busy': 'Appel non abouti : Ligne occupée',
-      'voicemail_reached': 'Appel non abouti : Répondeur / Messagerie vocale',
-      'dial_failed': 'Appel non abouti : Échec d\'appel'
+      'dial_no_answer': 'Call unreached: No answer',
+      'dial_busy': 'Call unreached: Line busy',
+      'voicemail_reached': 'Call unreached: Voicemail reached',
+      'dial_failed': 'Call unreached: Dial failed'
     }
     return {
-      status: 'Injoignable / Répondeur',
+      status: 'Unreachable / Voicemail',
       note: reasonMap[params.disconnectionReason]
     }
   }
@@ -210,11 +210,11 @@ export function determineLeadStatus(params: DetermineLeadStatusParams): {
   const isCustomDeclined = custom.interested === false || custom.interest_level === 'not_interested' || custom.lead_interest === 'not_interested'
 
   if (matchesRefusal || isNegativeSentiment || isCustomDeclined) {
-    return { status: 'Pas intéressé' }
+    return { status: 'Not Interested' }
   }
 
   // 4. Default for completed calls without booking
-  return { status: 'Démo Réalisée' }
+  return { status: 'Demo Completed' }
 }
 
 /**
@@ -312,25 +312,25 @@ export async function updateAirtableLeadCallSummary(params: UpdateAirtableLeadSu
     const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${targetRecordId}`
 
     const fieldsToUpdate: Record<string, any> = {
-      "Statut du Lead": resolvedStatus
+      'Lead Status': resolvedStatus
     }
 
-    // Only update "Notes d'appel" if we have a real summary or a specific failure note
+    // Only update "Call Notes" if we have a real summary or a specific failure note
     // Never overwrite with generic "agent_hangup" or empty placeholders
     if (note) {
-      fieldsToUpdate["Notes d'appel"] = note
+      fieldsToUpdate['Call Notes'] = note
     }
 
-    // Populate Date RDV field if booking timestamp is present
+    // Populate Meeting Date field if booking timestamp is present
     if (params.bookedTime) {
       const isoDate = normalizeDateToISO(params.bookedTime)
       if (isoDate) {
-        fieldsToUpdate['Date RDV'] = isoDate
+        fieldsToUpdate['Meeting Date'] = isoDate
       }
     }
 
     // Populate Call Link with the appointment meeting link (Google Meet / Cal.com link) ONLY if a meeting was booked
-    const meetingLink = (params.isBooked || resolvedStatus === 'RDV Programmé')
+    const meetingLink = (params.isBooked || resolvedStatus === 'Meeting Scheduled' || resolvedStatus === 'RDV Programmé')
       ? (params.callLink || params.bookingUrl || null)
       : null
 
@@ -489,8 +489,8 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
         },
         body: JSON.stringify({
           fields: {
-            'Abonnement actif': true,
-            'Statut du Lead': 'GAGNÉ (Client)'
+            'Active Subscription': true,
+            'Lead Status': 'Closed Won'
           },
           typecast: true
         })
@@ -502,7 +502,7 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
         return { success: false, error: errText }
       }
 
-      console.log(`[Airtable] Successfully validated 'Abonnement actif' for record ${matchedRecord.id} (${cleanEmail || cleanCompany})`)
+      console.log(`[Airtable] Successfully validated 'Active Subscription' for record ${matchedRecord.id} (${cleanEmail || cleanCompany})`)
       return { success: true, recordId: matchedRecord.id }
     }
 
@@ -519,14 +519,14 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
         records: [
           {
             fields: {
-              'Full Name': params.fullName || params.companyName || 'Nouveau Client',
-              'Business Name': params.companyName || params.fullName || 'Nouveau Client',
+              'Full Name': params.fullName || params.companyName || 'New Client',
+              'Business Name': params.companyName || params.fullName || 'New Client',
               'Email': params.email || '',
               'Phone': params.phone || '',
-              'Source du Lead': 'Plateforme BerinAgents',
-              'Statut du Lead': 'GAGNÉ (Client)',
-              'Abonnement actif': true,
-              "Notes d'appel": 'Compte activé et premier abonnement réglé par CB'
+              'Lead Source': 'Platform Sign-up',
+              'Lead Status': 'Closed Won',
+              'Active Subscription': true,
+              'Call Notes': 'Account activated and first subscription paid by card'
             }
           }
         ],
@@ -626,13 +626,13 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
     }
 
     const fieldsToUpdate: Record<string, any> = {
-      'Statut du Lead': 'RDV Programmé'
+      'Lead Status': 'Meeting Scheduled'
     }
 
     if (params.startTime) {
       const isoDate = normalizeDateToISO(params.startTime)
       if (isoDate) {
-        fieldsToUpdate['Date RDV'] = isoDate
+        fieldsToUpdate['Meeting Date'] = isoDate
       }
     }
 
@@ -642,29 +642,29 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
     }
 
     if (params.notes && params.notes.trim()) {
-      const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
-      fieldsToUpdate["Notes d'appel"] = existingNotes ? `${existingNotes}\n\n${params.notes.trim()}` : params.notes.trim()
+      const existingNotes = matchedRecord?.fields?.['Call Notes'] || matchedRecord?.fields?.["Notes d'appel"] || ''
+      fieldsToUpdate['Call Notes'] = existingNotes ? `${existingNotes}\n\n${params.notes.trim()}` : params.notes.trim()
     }
 
     if (params.companyName) {
       fieldsToUpdate['Business Name'] = params.companyName
     }
 
-    // Set dedicated Single Select questionnaire fields
+    // Set dedicated Single Select questionnaire fields (English)
     if (params.businessType) {
-      fieldsToUpdate["Type d'activité"] = params.businessType
+      fieldsToUpdate['Business Type'] = params.businessType
     }
     if (params.revenue) {
-      fieldsToUpdate["Chiffre d'affaires"] = params.revenue
+      fieldsToUpdate['Annual Revenue'] = params.revenue
     }
     if (params.currentSystem) {
-      fieldsToUpdate["Système actuel"] = params.currentSystem
+      fieldsToUpdate['Current Phone System'] = params.currentSystem
     }
     if (params.afterHours) {
-      fieldsToUpdate["Gestion fermeture"] = params.afterHours
+      fieldsToUpdate['After-Hours Handling'] = params.afterHours
     }
     if (params.callVolume) {
-      fieldsToUpdate["Volume d'appels"] = params.callVolume
+      fieldsToUpdate['Monthly Call Volume'] = params.callVolume
     }
 
     if (matchedRecord) {
@@ -686,17 +686,17 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
         return { success: false, error: errText }
       }
 
-      console.log(`[Airtable] Successfully set 'RDV Programmé' and questionnaire answers for record ${matchedRecord.id}`)
+      console.log(`[Airtable] Successfully set 'Meeting Scheduled' and questionnaire answers for record ${matchedRecord.id}`)
       return { success: true, recordId: matchedRecord.id }
     } else {
       // Create new lead if not exists
       const postUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`
       const newLeadFields: Record<string, any> = {
-        'Full Name': params.fullName || 'Prospect Cal.com',
+        'Full Name': params.fullName || 'Cal.com Prospect',
         'Email': params.email || '',
         'Phone': params.phone || '',
-        'Source du Lead': 'Site Web (Démo)',
-        'Statut du Lead': 'RDV Programmé'
+        'Lead Source': 'Website (Demo)',
+        'Lead Status': 'Meeting Scheduled'
       }
 
       if (params.companyName) {
@@ -704,33 +704,33 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
       }
 
       if (params.notes && params.notes.trim()) {
-        newLeadFields["Notes d'appel"] = params.notes.trim()
+        newLeadFields['Call Notes'] = params.notes.trim()
       }
 
       const isoDate = normalizeDateToISO(params.startTime)
       if (isoDate) {
-        newLeadFields['Date RDV'] = isoDate
+        newLeadFields['Meeting Date'] = isoDate
       }
 
       if (meetingLink) {
         newLeadFields['Call Link'] = meetingLink
       }
 
-      // Set dedicated Single Select questionnaire fields
+      // Set dedicated Single Select questionnaire fields (English)
       if (params.businessType) {
-        newLeadFields["Type d'activité"] = params.businessType
+        newLeadFields['Business Type'] = params.businessType
       }
       if (params.revenue) {
-        newLeadFields["Chiffre d'affaires"] = params.revenue
+        newLeadFields['Annual Revenue'] = params.revenue
       }
       if (params.currentSystem) {
-        newLeadFields["Système actuel"] = params.currentSystem
+        newLeadFields['Current Phone System'] = params.currentSystem
       }
       if (params.afterHours) {
-        newLeadFields["Gestion fermeture"] = params.afterHours
+        newLeadFields['After-Hours Handling'] = params.afterHours
       }
       if (params.callVolume) {
-        newLeadFields["Volume d'appels"] = params.callVolume
+        newLeadFields['Monthly Call Volume'] = params.callVolume
       }
 
       const createRes = await fetch(postUrl, {

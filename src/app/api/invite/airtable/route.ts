@@ -53,7 +53,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
     const airtableRes = await getAirtableLeadRecord(recordId)
     if (airtableRes.success && airtableRes.record?.fields) {
       airtableFields = airtableRes.record.fields
-      existingAirtableNotes = airtableFields["Notes d'appel"] || ''
+      existingAirtableNotes = airtableFields['Call Notes'] || airtableFields["Notes d'appel"] || ''
       
       if (!email) {
         email = extractAirtableString(airtableFields['Email'] || airtableFields['email']) || ''
@@ -162,7 +162,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
     // Update Airtable
     if (recordId) {
       await updateAirtableLeadRecord(recordId, {
-        'Statut du Lead': 'Client Invité'
+        'Lead Status': 'Client Invited'
       }).catch(e => console.error('Airtable update error:', e))
     }
 
@@ -337,7 +337,7 @@ async function processAirtableInvite(params: ProcessInviteParams) {
   // 7. Update Airtable record
   if (recordId) {
     await updateAirtableLeadRecord(recordId, {
-      'Statut du Lead': 'Client Invité'
+      'Lead Status': 'Client Invited'
     }).catch(e => console.error('Airtable status update error:', e))
   }
 

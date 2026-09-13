@@ -85,33 +85,33 @@ const QUESTIONS: Question[] = [
 
 const AIRTABLE_SINGLE_SELECTS = {
   businessType: [
-    "Clinique / Santé / Dentaire / MedSpa",
-    "Services à domicile / BTP / Artisans",
-    "Cabinet Juridique / Finance / Conseil",
-    "Autre entreprise locale",
+    "Clinic / Healthcare / Dental / MedSpa",
+    "Home Services / Contractor / Trade",
+    "Legal / Financial / Professional Practice",
+    "Other Local Business",
   ],
   revenue: [
-    "< 250 000 $ / an",
-    "250 000 $ – 500 000 $ / an",
-    "500 000 $ – 1 000 000 $ / an",
-    "+ 1 000 000 $ / an",
+    "< $250,000 / year",
+    "$250,000 – $500,000 / year",
+    "$500,000 – $1,000,000 / year",
+    "$1,000,000+ / year",
   ],
   currentSystem: [
-    "Gérant lui-même",
-    "Assistante / Secrétaire interne",
-    "Centre d appels externe",
-    "Serveur vocal / Répondeur",
+    "Business Owner directly",
+    "In-house Receptionist / Assistant",
+    "Outsourced Call Center",
+    "Automated IVR / Voicemail",
   ],
   afterHours: [
-    "Répondeur vocal",
-    "Transfert sur téléphone portable",
-    "Permanence / Centre externe",
-    "Rien en place (appels perdus)",
+    "Voicemail",
+    "Forward to personal cell",
+    "Answering service / Call center",
+    "Nothing in place (calls ring out)",
   ],
   callVolume: [
-    "50 - 200 appels / mois",
-    "200 - 800 appels / mois",
-    "800+ appels / mois",
+    "50 - 200 calls / month",
+    "200 - 800 calls / month",
+    "800+ calls / month",
   ],
 };
 
