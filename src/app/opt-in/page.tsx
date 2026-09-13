@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { getFunnelConfig } from "@/lib/funnel-store";
-import FunnelView from "@/components/funnel/FunnelView";
+import OptInLandingPage from "@/components/optin-landing/OptInLandingPage";
 
 export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
-  title: "Turn more calls into opportunities",
+  title: "24/7 AI Receptionist | Never Miss Another Call or Booking",
   description:
-    "Tell us about your business and book a strategic call to explore your AI receptionist.",
+    "Automate your phone answering with hyper-realistic Voice AI. Sub-second latency, instant calendar scheduling, and zero missed calls.",
 };
 
-export default async function OptInPage() {
-  return <FunnelView config={await getFunnelConfig()} />;
+export default function OptIn() {
+  return <OptInLandingPage />;
 }

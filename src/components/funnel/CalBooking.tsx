@@ -5,7 +5,21 @@ import { useEffect, useState } from "react";
 import { calPath } from "@/lib/funnel";
 import { useRouter } from "next/navigation";
 
-export default function CalBooking({ url }: { url: string }) {
+export default function CalBooking({
+  url,
+  notes,
+  structuredAnswers,
+}: {
+  url: string;
+  notes?: string;
+  structuredAnswers?: {
+    businessType?: string;
+    revenue?: string;
+    currentSystem?: string;
+    afterHours?: string;
+    callVolume?: string;
+  };
+}) {
   const router = useRouter();
   const [failed, setFailed] = useState(false);
   const [config, setConfig] = useState<Record<string, string> | null>(null);
@@ -54,6 +68,25 @@ export default function CalBooking({ url }: { url: string }) {
           prefill.company = lead.company;
           prefill["metadata[company]"] = lead.company;
         }
+
+        let structured = structuredAnswers;
+        if (!structured) {
+          try {
+            structured = JSON.parse(sessionStorage.getItem("funnel-structured-answers") || "{}");
+          } catch {
+            structured = {};
+          }
+        }
+
+        if (structured?.businessType) prefill["metadata[businessType]"] = structured.businessType;
+        if (structured?.revenue) prefill["metadata[revenue]"] = structured.revenue;
+        if (structured?.currentSystem) prefill["metadata[currentSystem]"] = structured.currentSystem;
+        if (structured?.afterHours) prefill["metadata[afterHours]"] = structured.afterHours;
+        if (structured?.callVolume) prefill["metadata[callVolume]"] = structured.callVolume;
+
+        if (notes && notes.trim()) {
+          prefill.notes = notes.trim();
+        }
       } catch {
         /* Browser storage is optional. */
       }
@@ -93,7 +126,7 @@ export default function CalBooking({ url }: { url: string }) {
           namespace="strategy"
           calLink={path}
           config={config}
-          style={{ width: "100%", minHeight: 580, overflow: "auto" }}
+          style={{ width: "100%", minHeight: 650, overflow: "auto" }}
         />
       )}
       <div className="f-calendar-fallback">

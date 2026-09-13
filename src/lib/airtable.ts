@@ -558,6 +558,11 @@ export interface MarkAirtableMeetingBookedParams {
   meetingUrl?: string | null
   callLink?: string | null
   notes?: string | null
+  businessType?: string | null
+  revenue?: string | null
+  currentSystem?: string | null
+  afterHours?: string | null
+  callVolume?: string | null
 }
 
 /**
@@ -636,9 +641,30 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
       fieldsToUpdate['Call Link'] = meetingLink
     }
 
-    if (params.notes) {
+    if (params.notes && params.notes.trim()) {
       const existingNotes = matchedRecord?.fields?.["Notes d'appel"] || ''
-      fieldsToUpdate["Notes d'appel"] = existingNotes ? `${existingNotes}\n\n${params.notes}` : params.notes
+      fieldsToUpdate["Notes d'appel"] = existingNotes ? `${existingNotes}\n\n${params.notes.trim()}` : params.notes.trim()
+    }
+
+    if (params.companyName) {
+      fieldsToUpdate['Business Name'] = params.companyName
+    }
+
+    // Set dedicated Single Select questionnaire fields
+    if (params.businessType) {
+      fieldsToUpdate["Type d'activité"] = params.businessType
+    }
+    if (params.revenue) {
+      fieldsToUpdate["Chiffre d'affaires"] = params.revenue
+    }
+    if (params.currentSystem) {
+      fieldsToUpdate["Système actuel"] = params.currentSystem
+    }
+    if (params.afterHours) {
+      fieldsToUpdate["Gestion fermeture"] = params.afterHours
+    }
+    if (params.callVolume) {
+      fieldsToUpdate["Volume d'appels"] = params.callVolume
     }
 
     if (matchedRecord) {
@@ -660,7 +686,7 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
         return { success: false, error: errText }
       }
 
-      console.log(`[Airtable] Successfully set 'RDV Programmé' and Call Link for record ${matchedRecord.id}`)
+      console.log(`[Airtable] Successfully set 'RDV Programmé' and questionnaire answers for record ${matchedRecord.id}`)
       return { success: true, recordId: matchedRecord.id }
     } else {
       // Create new lead if not exists
@@ -670,8 +696,15 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
         'Email': params.email || '',
         'Phone': params.phone || '',
         'Source du Lead': 'Site Web (Démo)',
-        'Statut du Lead': 'RDV Programmé',
-        "Notes d'appel": params.notes || 'RDV réservé via Cal.com'
+        'Statut du Lead': 'RDV Programmé'
+      }
+
+      if (params.companyName) {
+        newLeadFields['Business Name'] = params.companyName
+      }
+
+      if (params.notes && params.notes.trim()) {
+        newLeadFields["Notes d'appel"] = params.notes.trim()
       }
 
       const isoDate = normalizeDateToISO(params.startTime)
@@ -681,6 +714,23 @@ export async function markAirtableMeetingBooked(params: MarkAirtableMeetingBooke
 
       if (meetingLink) {
         newLeadFields['Call Link'] = meetingLink
+      }
+
+      // Set dedicated Single Select questionnaire fields
+      if (params.businessType) {
+        newLeadFields["Type d'activité"] = params.businessType
+      }
+      if (params.revenue) {
+        newLeadFields["Chiffre d'affaires"] = params.revenue
+      }
+      if (params.currentSystem) {
+        newLeadFields["Système actuel"] = params.currentSystem
+      }
+      if (params.afterHours) {
+        newLeadFields["Gestion fermeture"] = params.afterHours
+      }
+      if (params.callVolume) {
+        newLeadFields["Volume d'appels"] = params.callVolume
       }
 
       const createRes = await fetch(postUrl, {
