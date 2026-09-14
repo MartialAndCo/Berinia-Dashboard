@@ -610,7 +610,7 @@ function ClientDashboardContent() {
   const isFiltersActive = selectedAgent !== 'all' || selectedSentiment !== 'all' || minDurationSecs > 0 || searchQuery !== '' || timeRange !== 'all'
 
   return (
-    <div className="p-4 sm:p-8">
+    <div className="p-3 sm:p-8 space-y-6 sm:space-y-8">
       {/* Payment Method Required Popup Modal */}
       {!isAdminView && showPaymentModal && (paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1a1918]/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -719,30 +719,19 @@ function ClientDashboardContent() {
         )}
 
         {/* Portal Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-1">
+            <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
               <span>•</span> CLIENT PORTAL
             </div>
-            <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">Welcome, {clientInfo?.company_name}</h1>
-            <p className="text-sm text-[#73706b]">Your voice AI assistant performance & call intelligence</p>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#1a1918]">Welcome, {clientInfo?.company_name}</h1>
+            <p className="text-xs sm:text-sm text-[#73706b]">Your voice AI assistant performance & call intelligence</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* CSV Export Action Button (Item #10) */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCSV}
-              className="border-[#e6e2d6] bg-white hover:bg-[#faf8f5] text-[#1a1918] rounded-sm text-xs font-semibold uppercase tracking-wider h-9 px-3.5 shadow-none flex items-center gap-1.5 cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5 text-[#9e4733]" />
-              Export CSV
-            </Button>
-
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar py-1">
             {/* Time range selector */}
-            <div className="inline-flex items-center gap-1 bg-[#ffffff] border border-[#e6e2d6] rounded-sm p-1 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-              <div className="pl-2 pr-1 text-[#73706b]">
+            <div className="inline-flex items-center gap-1 bg-[#ffffff] border border-[#e6e2d6] rounded-xl sm:rounded-sm p-1 shadow-[0_2px_8px_rgba(0,0,0,0.02)] shrink-0">
+              <div className="pl-1.5 pr-0.5 text-[#73706b]">
                 <Calendar className="h-3.5 w-3.5" />
               </div>
               {timeRanges.map(t => (
@@ -753,7 +742,7 @@ function ClientDashboardContent() {
                     setTimeRange(t.key)
                     setCurrentPage(1)
                   }}
-                  className={`px-3 py-1 text-xs font-semibold tracking-wider rounded-sm transition-all cursor-pointer ${
+                  className={`px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-semibold tracking-wider rounded-lg sm:rounded-sm transition-all cursor-pointer ${
                     timeRange === t.key
                       ? 'bg-[#1a1918] text-[#f6f4f0] shadow-sm'
                       : 'text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5]'
@@ -763,6 +752,18 @@ function ClientDashboardContent() {
                 </button>
               ))}
             </div>
+
+            {/* CSV Export Action Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="border-[#e6e2d6] bg-white hover:bg-[#faf8f5] text-[#1a1918] rounded-xl sm:rounded-sm text-[11px] sm:text-xs font-semibold uppercase tracking-wider h-8 sm:h-9 px-3 shadow-none flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <Download className="h-3.5 w-3.5 text-[#9e4733]" />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">CSV</span>
+            </Button>
           </div>
         </div>
 
@@ -934,34 +935,34 @@ function ClientDashboardContent() {
         </Card>
 
         {/* 4 KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] divide-y sm:divide-y-0 sm:divide-x divide-[#f0ece4] overflow-hidden">
-          <div className="p-6 space-y-1.5">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Calls</div>
-            <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1918]">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-0 sm:border sm:border-[#e6e2d6] sm:bg-[#ffffff] sm:rounded-sm sm:shadow-[0_4px_24px_rgba(0,0,0,0.02)] sm:divide-y-0 sm:divide-x divide-[#f0ece4] sm:overflow-hidden">
+          <div className="p-4 sm:p-6 bg-white sm:bg-transparent border sm:border-0 border-[#e6e2d6] rounded-2xl sm:rounded-none shadow-xs sm:shadow-none space-y-1 sm:space-y-1.5">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Calls</div>
+            <div className="font-serif text-2xl sm:text-4xl font-bold text-[#1a1918]">
               {callsInPeriod.length}
             </div>
-            <p className="text-xs text-[#73706b]">completed calls</p>
+            <p className="text-[11px] sm:text-xs text-[#73706b]">completed calls</p>
           </div>
-          <div className="p-6 space-y-1.5">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Minutes</div>
-            <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1918]">
+          <div className="p-4 sm:p-6 bg-white sm:bg-transparent border sm:border-0 border-[#e6e2d6] rounded-2xl sm:rounded-none shadow-xs sm:shadow-none space-y-1 sm:space-y-1.5">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Minutes</div>
+            <div className="font-serif text-2xl sm:text-4xl font-bold text-[#1a1918]">
               {totalMinutes.toFixed(1)}
             </div>
-            <p className="text-xs text-[#73706b]">billable minutes</p>
+            <p className="text-[11px] sm:text-xs text-[#73706b]">billable minutes</p>
           </div>
-          <div className="p-6 space-y-1.5">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Billed</div>
-            <div className="font-serif text-3xl sm:text-4xl font-bold text-[#9e4733]">
+          <div className="p-4 sm:p-6 bg-white sm:bg-transparent border sm:border-0 border-[#e6e2d6] rounded-2xl sm:rounded-none shadow-xs sm:shadow-none space-y-1 sm:space-y-1.5">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Total Billed</div>
+            <div className="font-serif text-2xl sm:text-4xl font-bold text-[#9e4733]">
               ${totalCost.toFixed(2)}
             </div>
-            <p className="text-xs text-[#73706b]">usage revenue</p>
+            <p className="text-[11px] sm:text-xs text-[#73706b]">usage revenue</p>
           </div>
-          <div className="p-6 space-y-1.5">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Avg. Duration</div>
-            <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1918]">
-              {avgDurationMinutes} <span className="font-serif font-normal text-2xl text-[#1a1918] ml-0.5">min</span>
+          <div className="p-4 sm:p-6 bg-white sm:bg-transparent border sm:border-0 border-[#e6e2d6] rounded-2xl sm:rounded-none shadow-xs sm:shadow-none space-y-1 sm:space-y-1.5">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[#73706b]">Avg. Duration</div>
+            <div className="font-serif text-2xl sm:text-4xl font-bold text-[#1a1918]">
+              {avgDurationMinutes} <span className="font-serif font-normal text-lg sm:text-2xl text-[#1a1918] ml-0.5">min</span>
             </div>
-            <p className="text-xs text-[#73706b]">per completed call</p>
+            <p className="text-[11px] sm:text-xs text-[#73706b]">per completed call</p>
           </div>
         </div>
 
@@ -1296,49 +1297,65 @@ function ClientDashboardContent() {
             </Table>
           </CardContent>
 
-          {/* Mobile Cards View (Item #16) */}
-          <div className="md:hidden divide-y divide-[#f0ece4] p-2 space-y-3">
+          {/* Mobile Cards View (iOS Recent Calls Style) */}
+          <div className="md:hidden divide-y divide-[#f0ece4] p-3 space-y-3">
             {paginatedCalls.map(call => (
-              <div key={call.id} className="p-4 bg-white border border-[#e6e2d6] rounded-sm space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-[#1a1918]">{call.agents?.agent_name}</span>
+              <div key={call.id} className="p-4 bg-white border border-[#e6e2d6] rounded-2xl shadow-xs space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-[#faf8f5] border border-[#e6e2d6] flex items-center justify-center text-[#1a1918] shrink-0">
+                      <Phone className="w-4 h-4 text-[#9e4733]" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[#1a1918] truncate">
+                        {call.from_number ? formatPhone(call.from_number) : (call.agents?.agent_name || 'Inbound Call')}
+                      </div>
+                      <div className="text-[10px] text-[#73706b] flex items-center gap-1 font-mono mt-0.5">
+                        <span>{call.agents?.agent_name}</span>
+                        <span>•</span>
+                        <span>{new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                  </div>
                   <SentimentBadge sentiment={call.user_sentiment} />
                 </div>
-                
-                <div className="flex items-center justify-between text-xs font-mono text-[#73706b]">
-                  <span>{new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                  <span>{formatDuration(call.duration_secs)} · ${Number(call.cost).toFixed(2)}</span>
+
+                <div className="flex items-center justify-between text-xs font-mono bg-[#faf8f5] px-3 py-1.5 rounded-xl border border-[#f0ece4]">
+                  <span className="text-[#73706b]">Duration: <strong className="text-[#1a1918]">{formatDuration(call.duration_secs)}</strong></span>
+                  <span className="text-[#73706b]">Cost: <strong className="text-[#1a1918]">${Number(call.cost).toFixed(2)}</strong></span>
                 </div>
 
-                {call.from_number && (
-                  <div className="text-xs text-[#73706b] flex items-center gap-1 font-mono">
-                    <Phone className="h-3 w-3 text-[#9e4733]" /> {formatPhone(call.from_number)}
+                {call.recording_url && (
+                  <div className="pt-1">
+                    <CallPlayer recordingUrl={call.recording_url} mode="compact" />
                   </div>
                 )}
 
                 <div className="pt-2 border-t border-[#f0ece4] flex items-center justify-between">
-                  <CallPlayer recordingUrl={call.recording_url} mode="compact" />
+                  <span className="text-[10px] text-[#73706b]">
+                    {call.call_summary ? 'Summary available' : 'Call audio log'}
+                  </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setExpandedCall(expandedCall === call.id ? null : call.id)}
-                    className="text-xs text-[#9e4733]"
+                    className="text-xs font-semibold text-[#9e4733] hover:text-[#853928] h-7 px-2 cursor-pointer"
                   >
-                    {expandedCall === call.id ? 'Hide Details' : 'View Details'}
+                    {expandedCall === call.id ? 'Close Details ▴' : 'View Details ▾'}
                   </Button>
                 </div>
 
                 {expandedCall === call.id && (
-                  <div className="pt-3 border-t border-[#e6e2d6] space-y-3 text-xs">
+                  <div className="pt-3 border-t border-[#e6e2d6] space-y-3 text-xs animate-in fade-in duration-150">
                     {call.call_summary && (
-                      <div className="bg-[#faf8f5] p-2.5 rounded-sm border border-[#e6e2d6]">
-                        <div className="font-bold text-[9px] uppercase text-[#9e4733] mb-1">Summary</div>
-                        <p>{call.call_summary}</p>
+                      <div className="bg-[#faf8f5] p-3 rounded-xl border border-[#e6e2d6]">
+                        <div className="font-bold text-[9px] uppercase tracking-wider text-[#9e4733] mb-1">Call Summary</div>
+                        <p className="leading-relaxed text-[#1a1918]">{call.call_summary}</p>
                       </div>
                     )}
                     {call.transcript && (
                       <div>
-                        <div className="font-bold text-[9px] uppercase text-[#73706b] mb-1">Transcript</div>
+                        <div className="font-bold text-[9px] uppercase tracking-wider text-[#73706b] mb-1.5">Transcript</div>
                         {renderFormattedTranscript(call.transcript)}
                       </div>
                     )}

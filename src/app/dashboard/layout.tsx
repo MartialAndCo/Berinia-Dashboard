@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Settings, LayoutDashboard, LogOut, Bot, Receipt, Menu, X, MessageSquare } from 'lucide-react'
+import { Settings, LayoutDashboard, LogOut, Bot, Receipt, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 import SupportChatBubble from '@/components/support/SupportChatBubble'
@@ -13,12 +13,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentClientId, setCurrentClientId] = useState<string | null>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     checkAuth()
     updateCurrentClient()
+    fetchUnreadSupport()
   }, [pathname])
+
+  const fetchUnreadSupport = async () => {
+    try {
+      const res = await fetch('/api/support/conversations')
+      const data = await res.json()
+      if (data.success && Array.isArray(data.conversations)) {
+        const total = data.conversations.reduce((acc: number, c: any) => acc + (c.unread_client || 0), 0)
+        setUnreadCount(total)
+      }
+    } catch {}
+  }
 
   const updateCurrentClient = () => {
     if (typeof window !== 'undefined') {
@@ -54,48 +66,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const navLinks = [
-    { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-    { href: '/dashboard/agents', label: 'Voice Agents', icon: Bot },
-    { href: '/dashboard/billing', label: 'Billing & Invoices', icon: Receipt },
-    { href: '/dashboard/support', label: 'Support & Chat', icon: MessageSquare },
-    ...(!isAdmin ? [{ href: '/dashboard/settings', label: 'Settings', icon: Settings }] : []),
+    { href: '/dashboard', label: 'Overview', shortLabel: 'Overview', icon: LayoutDashboard },
+    { href: '/dashboard/agents', label: 'Voice Agents', shortLabel: 'Agents', icon: Bot },
+    { href: '/dashboard/billing', label: 'Billing & Invoices', shortLabel: 'Billing', icon: Receipt },
+    { href: '/dashboard/support', label: 'Support', shortLabel: 'Support', icon: MessageSquare, badge: unreadCount },
+    ...(!isAdmin ? [{ href: '/dashboard/settings', label: 'Settings', shortLabel: 'Settings', icon: Settings }] : []),
   ]
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col md:flex-row bg-[#f6f4f0] text-[#1a1918]">
-      {/* Mobile Top Header */}
-      <div className="md:hidden flex items-center justify-between px-4 h-16 bg-[#ffffff] border-b border-[#e6e2d6] z-30 shrink-0 select-none">
-        <div className="flex items-center gap-2.5">
-          <img src="/logo-horizontal-black.png" alt="BerinAgents" className="h-5 w-auto object-contain" />
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold tracking-widest bg-[#faf8f5] border border-[#e6e2d6] text-[#73706b] uppercase">
+      {/* Mobile App Header (Minimal Apple style) */}
+      <header className="md:hidden flex items-center justify-between px-4 h-14 bg-[#ffffff]/90 backdrop-blur-md border-b border-[#e6e2d6] z-30 shrink-0 select-none">
+        <div className="flex items-center gap-2">
+          <img src="/logo-horizontal-black.png" alt="BerinAgents" className="h-4.5 w-auto object-contain" />
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-[#faf8f5] border border-[#e6e2d6] text-[#73706b] uppercase">
             Portal
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 text-[#1a1918] hover:bg-[#faf8f5] rounded-sm transition-colors cursor-pointer"
-          aria-label="Toggle navigation menu"
-        >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-      </div>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <div className="text-[10px] font-bold text-[#9e4733] bg-[#fdf2f0] px-2 py-0.5 rounded-full border border-[#fad4cf]">
+              ADMIN
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="p-1.5 text-[#73706b] hover:text-[#9e4733] transition-colors rounded-lg"
+            title="Log out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
 
-      {/* Mobile Drawer Backdrop */}
-      {mobileMenuOpen && (
-        <div 
-          className="md:hidden fixed inset-0 z-40 bg-[#1a1918]/40 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Sidebar (Desktop fixed, Mobile sliding drawer) */}
-      <aside 
-        className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#ffffff] border-r border-[#e6e2d6] flex flex-col shrink-0 select-none shadow-[1px_0_12px_rgba(0,0,0,0.02)] transition-transform duration-200 ease-in-out md:translate-x-0 ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="h-20 hidden md:flex flex-col justify-center px-6 border-b border-[#e6e2d6]">
+      {/* Desktop Sidebar (Left fixed) */}
+      <aside className="hidden md:flex inset-y-0 left-0 z-40 w-64 bg-[#ffffff] border-r border-[#e6e2d6] flex-col shrink-0 select-none shadow-[1px_0_12px_rgba(0,0,0,0.02)]">
+        <div className="h-20 flex flex-col justify-center px-6 border-b border-[#e6e2d6]">
           <div className="flex items-center justify-between">
             <img src="/logo-horizontal-black.png" alt="BerinAgents" className="h-6 w-auto object-contain" />
             <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold tracking-widest bg-[#faf8f5] border border-[#e6e2d6] text-[#73706b] uppercase">
@@ -115,15 +121,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={getHref(item.href)}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-sm text-xs tracking-wide transition-all ${
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-sm text-xs tracking-wide transition-all ${
                   isActive
                     ? 'bg-[#f0ede6] text-[#1a1918] font-semibold border-l-2 border-[#9e4733]' 
                     : 'text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5]'
                 }`}
               >
-                <Icon className={`h-4 w-4 ${isActive ? 'text-[#9e4733]' : 'text-[#73706b]'}`} />
-                {item.label}
+                <div className="flex items-center gap-3">
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-[#9e4733]' : 'text-[#73706b]'}`} />
+                  {item.label}
+                </div>
+                {item.badge && item.badge > 0 ? (
+                  <span className="w-4 h-4 rounded-full bg-[#9e4733] text-white text-[9px] font-bold flex items-center justify-center">
+                    {item.badge}
+                  </span>
+                ) : null}
               </Link>
             )
           })}
@@ -143,11 +155,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Main Content: Independently scrollable */}
-      <main className="flex-1 h-full overflow-y-auto min-w-0 bg-[#f6f4f0] relative">
+      {/* Main Content Area (With bottom padding on mobile for lowbar) */}
+      <main className="flex-1 h-full overflow-y-auto min-w-0 bg-[#f6f4f0] pb-24 md:pb-0 relative">
         {children}
-        <SupportChatBubble />
+        
+        {/* Support Chat Bubble: Visible ONLY on desktop so it NEVER blocks mobile typing or buttons */}
+        <div className="hidden md:block">
+          <SupportChatBubble />
+        </div>
       </main>
+
+      {/* Mobile Native Bottom Lowbar (Fixed Apple-style tab bar) */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#ffffff]/90 backdrop-blur-2xl border-t border-[#e6e2d6] pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_24px_rgba(0,0,0,0.06)]">
+        <div className="h-16 flex items-center justify-around px-2">
+          {navLinks.map((item) => {
+            const Icon = item.icon
+            const isActive = pathname === item.href
+            return (
+              <Link
+                key={item.href}
+                href={getHref(item.href)}
+                className={`relative flex flex-col items-center justify-center flex-1 py-1 transition-all ${
+                  isActive ? 'text-[#1a1918]' : 'text-[#8a867f] active:scale-95'
+                }`}
+              >
+                <div className="relative">
+                  <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'bg-[#1a1918] text-white shadow-xs' : 'text-[#73706b]'}`}>
+                    <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-[#73706b]'}`} />
+                  </div>
+                  {item.badge && item.badge > 0 ? (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#9e4733] text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </div>
+                <span className={`text-[10px] tracking-tight mt-0.5 ${isActive ? 'font-bold text-[#1a1918]' : 'font-medium text-[#73706b]'}`}>
+                  {item.shortLabel}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
     </div>
   )
 }

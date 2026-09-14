@@ -22,7 +22,7 @@ export async function notifyAdminNewMessage(params: {
           <h2 style="color: #f6f4f0; margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.5px;">BerinAgents Support</h2>
         </div>
         <div style="padding: 24px; color: #1a1918;">
-          <p style="font-size: 14px; margin-top: 0; color: #73706b;">Nouveau message reçu de :</p>
+          <p style="font-size: 14px; margin-top: 0; color: #73706b;">New support message received from:</p>
           <div style="background-color: #f6f4f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
             <strong style="font-size: 15px; color: #1a1918;">${params.companyName}</strong><br/>
             <span style="font-size: 13px; color: #73706b;">${params.clientEmail}</span>
@@ -32,7 +32,7 @@ export async function notifyAdminNewMessage(params: {
           </div>
           <div style="text-align: center; margin-top: 28px;">
             <a href="${dashboardUrl}" style="background-color: #1a1918; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 13px; font-weight: 600; border-radius: 8px; display: inline-block;">
-              Répondre dans la Console Admin →
+              Reply in Admin Console →
             </a>
           </div>
         </div>
@@ -42,7 +42,7 @@ export async function notifyAdminNewMessage(params: {
     await resend.emails.send({
       from: 'BerinAgents Support <support@berinagents.com>',
       to: adminEmails,
-      subject: `[Support BerinAgents] Nouveau message de ${params.companyName}`,
+      subject: `[BerinAgents Support] New message from ${params.companyName}`,
       html: htmlContent
     })
   } catch (err) {
@@ -67,14 +67,14 @@ export async function notifyClientNewReply(params: {
           <h2 style="color: #f6f4f0; margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.5px;">BerinAgents Support</h2>
         </div>
         <div style="padding: 24px; color: #1a1918;">
-          <p style="font-size: 14px; margin-top: 0;">Bonjour,</p>
-          <p style="font-size: 14px; color: #52504c;">Notre équipe technique vient de répondre à votre demande :</p>
+          <p style="font-size: 14px; margin-top: 0;">Hello,</p>
+          <p style="font-size: 14px; color: #52504c;">Our dedicated engineering team has replied to your request:</p>
           <div style="background-color: #f6f4f0; border-left: 3px solid #1a1918; padding: 14px 16px; margin: 20px 0; font-size: 14px; line-height: 1.5; color: #1a1918; border-radius: 4px; white-space: pre-wrap;">
             ${params.replyText}
           </div>
           <div style="text-align: center; margin-top: 28px;">
             <a href="${portalUrl}" style="background-color: #1a1918; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 13px; font-weight: 600; border-radius: 8px; display: inline-block;">
-              Accéder à votre conversation →
+              View Full Conversation →
             </a>
           </div>
         </div>
@@ -84,7 +84,7 @@ export async function notifyClientNewReply(params: {
     await resend.emails.send({
       from: 'BerinAgents Support <support@berinagents.com>',
       to: [params.clientEmail],
-      subject: `[BerinAgents] Nouvelle réponse de notre équipe support`,
+      subject: `[BerinAgents Support] New reply from your account manager`,
       html: htmlContent
     })
   } catch (err) {

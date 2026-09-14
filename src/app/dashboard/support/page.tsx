@@ -52,8 +52,9 @@ export default function ClientSupportPage() {
       const data = await res.json()
       if (data.success && Array.isArray(data.conversations)) {
         setConversations(data.conversations)
-        if (!selectedId && data.conversations.length > 0) {
-          setSelectedId(data.conversations[0].id)
+        // Auto-select first only on desktop screens
+        if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+          setSelectedId((prev) => prev || (data.conversations.length > 0 ? data.conversations[0].id : null))
         }
       }
     } catch (e) {
@@ -92,6 +93,8 @@ export default function ClientSupportPage() {
   useEffect(() => {
     if (selectedId) {
       fetchDetail(selectedId)
+    } else {
+      setSelectedConv(null)
     }
   }, [selectedId])
 
@@ -110,6 +113,7 @@ export default function ClientSupportPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [selectedConv?.messages])
 
+  // 0ms Optimistic Send
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedId || !newMessageText.trim() || sending) return
@@ -118,6 +122,27 @@ export default function ClientSupportPage() {
     setNewMessageText('')
     setSending(true)
 
+    const tempMsg: Message = {
+      id: 'temp-' + Date.now(),
+      conversation_id: selectedId,
+      sender: 'client',
+      sender_name: 'You',
+      content: text,
+      created_at: new Date().toISOString()
+    }
+
+    // 0ms Optimistic UI update
+    setSelectedConv((prev) =>
+      prev ? { ...prev, status: 'pending', messages: [...(prev.messages || []), tempMsg] } : prev
+    )
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === selectedId
+          ? { ...c, status: 'pending', last_message_preview: text, updated_at: new Date().toISOString() }
+          : c
+      )
+    )
+
     try {
       const res = await fetch(`/api/support/conversations/${selectedId}/messages`, {
         method: 'POST',
@@ -125,12 +150,18 @@ export default function ClientSupportPage() {
         body: JSON.stringify({ content: text })
       })
       const data = await res.json()
-      if (data.success) {
-        await fetchDetail(selectedId)
-        fetchList(false)
+      if (data.success && data.message) {
+        setSelectedConv((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: (prev.messages || []).map((m) => (m.id === tempMsg.id ? data.message : m))
+              }
+            : prev
+        )
       }
     } catch (e) {
-      console.error(e)
+      console.error('Error sending message:', e)
     } finally {
       setSending(false)
     }
@@ -139,14 +170,16 @@ export default function ClientSupportPage() {
   const handleToggleStatus = async () => {
     if (!selectedConv) return
     const newStatus = selectedConv.status === 'resolved' ? 'pending' : 'resolved'
+    setSelectedConv({ ...selectedConv, status: newStatus })
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedConv.id ? { ...c, status: newStatus } : c))
+    )
     try {
       await fetch(`/api/support/conversations/${selectedConv.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       })
-      setSelectedConv({ ...selectedConv, status: newStatus })
-      fetchList(false)
     } catch (e) {
       console.error(e)
     }
@@ -193,77 +226,77 @@ export default function ClientSupportPage() {
   })
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto h-[calc(100vh-4rem)] md:h-full flex flex-col">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#e6e2d6] shrink-0">
+    <div className="p-3 sm:p-8 max-w-7xl mx-auto h-[calc(100dvh-5.5rem)] md:h-[calc(100vh-4rem)] flex flex-col">
+      {/* Top Header - Hidden on mobile when inside a conversation */}
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 md:pb-6 border-b border-stone-200/80 shrink-0 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-[#1a1918]">Support & Assistance Dédiée</h1>
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-              <ShieldCheck className="w-3 h-3" /> Privé & Isolé
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1a1918]">Dedicated Support</h1>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <ShieldCheck className="w-3 h-3" /> Private Channel
             </span>
           </div>
           <p className="text-xs text-[#73706b] mt-1">
-            Échangez directement avec votre chargé de compte technique BerinAgents en toute confidentialité.
+            Connect directly with your dedicated BerinAgents account manager in complete confidentiality.
           </p>
         </div>
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1a1918] text-[#f6f4f0] hover:bg-[#33312e] rounded-xl text-xs font-semibold tracking-wide transition-all shadow-xs cursor-pointer shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1a1918] text-[#f6f4f0] hover:bg-[#33312e] active:scale-95 rounded-xl text-xs font-semibold tracking-wide transition-all shadow-sm cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
-          Nouveau Ticket
+          New Ticket
         </button>
       </div>
 
-      {/* Main 2-column layout */}
-      <div className="flex-1 min-h-0 pt-6 grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* Left Column: Tickets list */}
-        <div className={`md:col-span-4 flex flex-col bg-white border border-[#e6e2d6] rounded-2xl overflow-hidden shadow-xs ${selectedId ? 'hidden md:flex' : 'flex'}`}>
+      {/* Main Responsive Layout */}
+      <div className="flex-1 min-h-0 pt-3 md:pt-6 grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
+        {/* Left Column: Tickets list (Visible on mobile only if no ticket selected) */}
+        <div className={`md:col-span-4 flex flex-col bg-white border border-stone-200/80 rounded-2xl overflow-hidden shadow-sm ${selectedId ? 'hidden md:flex' : 'flex'}`}>
           {/* Filter tabs & Search */}
-          <div className="p-3 border-b border-[#e6e2d6] space-y-2 bg-[#faf8f5]">
-            <div className="flex items-center gap-1 bg-[#f0ede6] p-0.5 rounded-lg text-[11px] font-semibold">
+          <div className="p-3 border-b border-stone-200/80 space-y-2.5 bg-stone-50/70">
+            <div className="flex items-center gap-1 bg-stone-200/60 p-1 rounded-xl text-[11px] font-semibold">
               <button
                 onClick={() => setFilter('all')}
-                className={`flex-1 py-1.5 rounded-md transition-colors cursor-pointer ${filter === 'all' ? 'bg-white text-[#1a1918] shadow-xs' : 'text-[#73706b] hover:text-[#1a1918]'}`}
+                className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${filter === 'all' ? 'bg-white text-[#1a1918] shadow-xs' : 'text-[#73706b] hover:text-[#1a1918]'}`}
               >
-                Tous ({conversations.length})
+                All ({conversations.length})
               </button>
               <button
                 onClick={() => setFilter('pending')}
-                className={`flex-1 py-1.5 rounded-md transition-colors cursor-pointer ${filter === 'pending' ? 'bg-white text-[#1a1918] shadow-xs' : 'text-[#73706b] hover:text-[#1a1918]'}`}
+                className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${filter === 'pending' ? 'bg-white text-[#1a1918] shadow-xs' : 'text-[#73706b] hover:text-[#1a1918]'}`}
               >
-                En cours ({conversations.filter(c => c.status !== 'resolved').length})
+                Active ({conversations.filter(c => c.status !== 'resolved').length})
               </button>
               <button
                 onClick={() => setFilter('resolved')}
-                className={`flex-1 py-1.5 rounded-md transition-colors cursor-pointer ${filter === 'resolved' ? 'bg-white text-[#1a1918] shadow-xs' : 'text-[#73706b] hover:text-[#1a1918]'}`}
+                className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${filter === 'resolved' ? 'bg-white text-[#1a1918] shadow-xs' : 'text-[#73706b] hover:text-[#1a1918]'}`}
               >
-                Résolus ({conversations.filter(c => c.status === 'resolved').length})
+                Resolved ({conversations.filter(c => c.status === 'resolved').length})
               </button>
             </div>
 
             <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a49c]" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
                 type="text"
-                placeholder="Rechercher une demande..."
+                placeholder="Search tickets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full text-xs pl-8 pr-3 py-1.5 bg-white border border-[#e6e2d6] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1a1918]"
+                className="w-full text-base md:text-xs pl-9 pr-3 py-2 bg-white border border-stone-200/80 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#1a1918]"
               />
             </div>
           </div>
 
           {/* List items */}
-          <div className="flex-1 overflow-y-auto divide-y divide-[#f0ede6]">
+          <div className="flex-1 overflow-y-auto divide-y divide-stone-100">
             {loading ? (
-              <div className="p-8 text-center text-xs text-[#73706b]">Chargement de vos tickets...</div>
+              <div className="p-8 text-center text-xs text-stone-500">Loading your tickets...</div>
             ) : filteredConversations.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#73706b]">
+              <div className="p-8 text-center text-xs text-stone-500">
                 <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                Aucun ticket trouvé.
+                No tickets found.
               </div>
             ) : (
               filteredConversations.map((c) => {
@@ -273,33 +306,33 @@ export default function ClientSupportPage() {
                   <button
                     key={c.id}
                     onClick={() => setSelectedId(c.id)}
-                    className={`w-full text-left p-3.5 transition-all cursor-pointer block ${
+                    className={`w-full text-left p-3.5 transition-all cursor-pointer block active:bg-stone-100 ${
                       isSelected
-                        ? 'bg-[#f0ede6] border-l-4 border-[#9e4733]'
-                        : 'hover:bg-[#faf8f5]'
+                        ? 'bg-stone-100/80 md:border-l-4 md:border-[#9e4733]'
+                        : 'hover:bg-stone-50/70'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-bold text-[#1a1918] truncate">{c.subject}</span>
-                      <span className="text-[10px] text-[#a8a49c] shrink-0">
-                        {new Date(c.updated_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                      <span className="text-xs sm:text-sm font-bold text-[#1a1918] truncate">{c.subject}</span>
+                      <span className="text-[10px] text-stone-400 shrink-0">
+                        {new Date(c.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-[#73706b] truncate mt-1">
-                      {c.last_message_preview || 'Aucun message'}
+                    <p className="text-[11px] text-stone-600 truncate mt-1">
+                      {c.last_message_preview || 'No messages yet'}
                     </p>
 
                     <div className="flex items-center justify-between mt-2 pt-1">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
                           isResolved
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200/60'
                         }`}
                       >
-                        {isResolved ? <CheckCircle className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
-                        {isResolved ? 'Résolu' : 'En attente'}
+                        {isResolved ? <CheckCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                        {isResolved ? 'Resolved' : 'Pending'}
                       </span>
 
                       {c.unread_client > 0 && (
@@ -315,30 +348,31 @@ export default function ClientSupportPage() {
           </div>
         </div>
 
-        {/* Right Column: Chat thread */}
-        <div className={`md:col-span-8 flex flex-col bg-white border border-[#e6e2d6] rounded-2xl overflow-hidden shadow-xs ${!selectedId ? 'hidden md:flex' : 'flex'}`}>
+        {/* Right Column: Chat thread (Fullscreen on mobile when ticket is selected) */}
+        <div className={`md:col-span-8 flex flex-col bg-white border border-stone-200/80 rounded-2xl overflow-hidden shadow-sm ${!selectedId ? 'hidden md:flex' : 'flex'}`}>
           {selectedConv ? (
             <>
-              {/* Thread Header */}
-              <div className="px-5 py-3.5 bg-[#ffffff] border-b border-[#e6e2d6] flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
+              {/* Sticky Thread Header with Back Button on Mobile */}
+              <div className="px-4 py-3 bg-white border-b border-stone-200/80 flex items-center justify-between shrink-0 sticky top-0 z-10">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <button
                     onClick={() => setSelectedId(null)}
-                    className="md:hidden p-1.5 -ml-1 text-[#73706b] hover:text-[#1a1918] cursor-pointer"
+                    className="md:hidden inline-flex items-center gap-1 px-2.5 py-1.5 -ml-1 text-xs font-semibold text-stone-700 bg-stone-100 rounded-lg hover:bg-stone-200 cursor-pointer shrink-0"
                   >
-                    <ArrowLeft className="w-4 h-4" />
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Tickets</span>
                   </button>
-                  <div>
-                    <h2 className="text-sm font-bold text-[#1a1918]">{selectedConv.subject}</h2>
-                    <div className="text-[11px] text-[#73706b] flex items-center gap-2 mt-0.5">
-                      <span>Créé le {new Date(selectedConv.created_at).toLocaleDateString()}</span>
+                  <div className="min-w-0">
+                    <h2 className="text-xs sm:text-sm font-bold text-[#1a1918] truncate">{selectedConv.subject}</h2>
+                    <div className="text-[10px] sm:text-[11px] text-stone-500 flex items-center gap-1.5 mt-0.5 truncate">
+                      <span>Created {new Date(selectedConv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                       <span>•</span>
                       <span
                         className={`inline-flex items-center gap-1 font-semibold ${
                           selectedConv.status === 'resolved' ? 'text-emerald-700' : 'text-amber-700'
                         }`}
                       >
-                        {selectedConv.status === 'resolved' ? 'Ticket clôturé' : 'En cours de traitement'}
+                        {selectedConv.status === 'resolved' ? 'Closed' : 'In Progress'}
                       </span>
                     </div>
                   </div>
@@ -346,17 +380,17 @@ export default function ClientSupportPage() {
 
                 <button
                   onClick={handleToggleStatus}
-                  className="px-3 py-1.5 text-xs font-semibold border rounded-lg transition-colors cursor-pointer text-[#1a1918] hover:bg-[#faf8f5]"
+                  className="px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold border border-stone-200 rounded-lg transition-colors cursor-pointer text-[#1a1918] hover:bg-stone-50 shrink-0"
                 >
-                  {selectedConv.status === 'resolved' ? 'Rouvrir le ticket' : 'Marquer comme résolu'}
+                  {selectedConv.status === 'resolved' ? 'Reopen' : 'Mark Resolved'}
                 </button>
               </div>
 
               {/* Message List */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-[#faf8f5]/50">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-stone-50/50">
                 {(!selectedConv.messages || selectedConv.messages.length === 0) ? (
-                  <div className="h-full flex items-center justify-center text-xs text-[#73706b]">
-                    Aucun message dans ce fil.
+                  <div className="h-full flex items-center justify-center text-xs text-stone-500">
+                    No messages in this thread yet.
                   </div>
                 ) : (
                   selectedConv.messages.map((m) => {
@@ -366,9 +400,9 @@ export default function ClientSupportPage() {
                         key={m.id}
                         className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                       >
-                        <div className="text-[10px] text-[#a8a49c] mb-1 px-1 flex items-center gap-1.5">
-                          <span className="font-semibold text-[#73706b]">
-                            {isMe ? 'Vous' : 'Équipe Support BerinAgents'}
+                        <div className="text-[10px] text-stone-400 mb-1 px-1 flex items-center gap-1.5">
+                          <span className="font-semibold text-stone-600">
+                            {isMe ? 'You' : 'BerinAgents Support'}
                           </span>
                           <span>•</span>
                           <span>
@@ -376,10 +410,10 @@ export default function ClientSupportPage() {
                           </span>
                         </div>
                         <div
-                          className={`max-w-[75%] px-4 py-3 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap shadow-xs ${
+                          className={`max-w-[85%] sm:max-w-[75%] px-4 py-3 rounded-2xl text-xs sm:text-sm leading-relaxed whitespace-pre-wrap shadow-xs ${
                             isMe
                               ? 'bg-[#1a1918] text-[#f6f4f0] rounded-tr-xs'
-                              : 'bg-[#ffffff] text-[#1a1918] border border-[#e6e2d6] rounded-tl-xs'
+                              : 'bg-white text-[#1a1918] border border-stone-200/80 rounded-tl-xs'
                           }`}
                         >
                           {m.content}
@@ -391,38 +425,38 @@ export default function ClientSupportPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Composer */}
-              <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-[#e6e2d6] flex items-center gap-2 shrink-0">
+              {/* Message Composer */}
+              <form onSubmit={handleSendMessage} className="p-2.5 sm:p-3 bg-white border-t border-stone-200/80 flex items-center gap-2 shrink-0">
                 <input
                   type="text"
-                  placeholder="Écrivez votre réponse ici..."
+                  placeholder="Type your message here..."
                   value={newMessageText}
                   onChange={(e) => setNewMessageText(e.target.value)}
                   disabled={sending}
-                  className="flex-1 text-xs px-4 py-3 bg-[#f6f4f0] rounded-xl border border-transparent focus:border-[#e6e2d6] focus:bg-white focus:outline-none transition-all placeholder:text-[#a8a49c]"
+                  className="flex-1 text-base md:text-xs px-4 py-2.5 sm:py-3 bg-stone-100/70 rounded-xl border border-transparent focus:border-stone-300 focus:bg-white focus:outline-none transition-all placeholder:text-stone-400"
                 />
                 <button
                   type="submit"
                   disabled={!newMessageText.trim() || sending}
-                  className="px-4 py-3 rounded-xl bg-[#1a1918] text-[#f6f4f0] hover:bg-[#33312e] disabled:opacity-40 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer shrink-0"
+                  className="px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-xl bg-[#1a1918] text-[#f6f4f0] hover:bg-[#33312e] active:scale-95 disabled:opacity-40 transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer shrink-0"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  Envoyer
+                  <span className="hidden sm:inline">Send</span>
                 </button>
               </form>
             </>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center p-8 text-center text-[#73706b]">
+            <div className="h-full flex flex-col items-center justify-center p-8 text-center text-stone-500">
               <MessageSquare className="w-12 h-12 mb-3 opacity-20" />
-              <h3 className="text-sm font-bold text-[#1a1918]">Sélectionnez une conversation</h3>
-              <p className="text-xs text-[#73706b] mt-1 max-w-sm">
-                Choisissez un ticket à gauche pour lire les réponses ou ouvrez un nouveau ticket.
+              <h3 className="text-sm font-bold text-[#1a1918]">Select a ticket</h3>
+              <p className="text-xs text-stone-500 mt-1 max-w-sm">
+                Choose a conversation from the left to view messages or open a new support request.
               </p>
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="mt-4 px-4 py-2 bg-[#1a1918] text-white rounded-xl text-xs font-semibold cursor-pointer"
+                className="mt-4 px-4 py-2 bg-[#1a1918] text-white rounded-xl text-xs font-semibold cursor-pointer active:scale-95 transition-transform"
               >
-                + Nouveau ticket
+                + New Ticket
               </button>
             </div>
           )}
@@ -431,18 +465,18 @@ export default function ClientSupportPage() {
 
       {/* New Ticket Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-[#1a1918]/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-[#e6e2d6] rounded-2xl max-w-lg w-full p-6 shadow-2xl text-[#1a1918] space-y-4 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-stone-200/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl text-[#1a1918] space-y-4 animate-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold">Ouvrir un nouveau ticket de support</h3>
-                <p className="text-xs text-[#73706b] mt-0.5">
-                  Votre demande est directement assignée à votre interlocuteur technique.
+                <h3 className="text-base font-bold">Open a Support Ticket</h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Your request is directly routed to your dedicated account manager.
                 </p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-[#a8a49c] hover:text-[#1a1918] p-1 cursor-pointer"
+                className="text-stone-400 hover:text-stone-800 p-1 cursor-pointer"
               >
                 ✕
               </button>
@@ -451,29 +485,29 @@ export default function ClientSupportPage() {
             <form onSubmit={handleCreateTicket} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-[#1a1918] mb-1">
-                  Sujet de la demande
+                  Subject
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Ajustement du script d'appel, Facturation..."
+                  placeholder="e.g. Call script update, prompt adjustment, line setup..."
                   value={newSubject}
                   onChange={(e) => setNewSubject(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-[#f6f4f0] border border-[#e6e2d6] rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1a1918]"
+                  className="w-full text-base md:text-xs px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1a1918]"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[#1a1918] mb-1">
-                  Description détaillée
+                  Detailed Message
                 </label>
                 <textarea
                   required
                   rows={4}
-                  placeholder="Expliquez en détail ce que vous souhaitez modifier ou le problème rencontré..."
+                  placeholder="Describe your request or issue with as much detail as possible..."
                   value={newInitialMsg}
                   onChange={(e) => setNewInitialMsg(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-[#f6f4f0] border border-[#e6e2d6] rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1a1918]"
+                  className="w-full text-base md:text-xs px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1a1918]"
                 />
               </div>
 
@@ -481,16 +515,16 @@ export default function ClientSupportPage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-[#73706b] hover:text-[#1a1918] cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-stone-500 hover:text-stone-800 cursor-pointer"
                 >
-                  Annuler
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creatingTicket || !newSubject.trim() || !newInitialMsg.trim()}
                   className="px-4 py-2 text-xs font-semibold bg-[#1a1918] text-white hover:bg-[#33312e] rounded-xl disabled:opacity-50 transition-all cursor-pointer shadow-xs"
                 >
-                  {creatingTicket ? 'Création en cours...' : 'Envoyer la demande'}
+                  {creatingTicket ? 'Submitting...' : 'Submit Ticket'}
                 </button>
               </div>
             </form>
