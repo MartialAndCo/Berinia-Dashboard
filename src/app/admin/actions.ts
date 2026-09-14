@@ -274,25 +274,19 @@ export async function getClientDashboardAction(clientId: string) {
   if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-  const { data: client, error: clientErr } = await supabaseAdmin
-    .from('clients')
-    .select('*')
-    .eq('id', clientId)
-    .single()
+  // Parallelize client and calls query for fast load
+  const [clientRes, callsRes] = await Promise.all([
+    supabaseAdmin.from('clients').select('*').eq('id', clientId).single(),
+    supabaseAdmin.from('calls').select(`*, agents(agent_name)`).eq('client_id', clientId).order('created_at', { ascending: false })
+  ])
 
-  if (clientErr || !client) {
-    return { success: false, error: clientErr?.message || 'Client not found' }
+  if (clientRes.error || !clientRes.data) {
+    return { success: false, error: clientRes.error?.message || 'Client not found' }
   }
 
-  const { data: calls, error: callsErr } = await supabaseAdmin
-    .from('calls')
-    .select(`*, agents(agent_name)`)
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (callsErr) {
-    return { success: false, error: callsErr.message }
+  if (callsRes.error) {
+    return { success: false, error: callsRes.error.message }
   }
 
-  return { success: true, client, calls: calls || [] }
+  return { success: true, client: clientRes.data, calls: callsRes.data || [] }
 }

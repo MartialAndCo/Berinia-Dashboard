@@ -316,34 +316,27 @@ export async function getClientAgentsAction(targetClientId?: string) {
     const { client, supabaseAdmin } = await getValidatedClient(targetClientId)
     if (!client) return { success: false, error: 'Client not found', agents: [] }
 
-    // Fetch agents assigned to this client
-    const { data: agents, error } = await supabaseAdmin
-      .from('agents')
-      .select('*')
-      .eq('client_id', client.id)
-      .order('created_at', { ascending: false })
+    // Fetch agents and calls in parallel for fast loading
+    const [agentsRes, callsRes] = await Promise.all([
+      supabaseAdmin.from('agents').select('*').eq('client_id', client.id).order('created_at', { ascending: false }),
+      supabaseAdmin.from('calls').select('agent_id, duration_secs, user_sentiment').eq('client_id', client.id)
+    ])
 
-    if (error) return { success: false, error: error.message, agents: [] }
-
-    // Aggregate calls per agent
-    const { data: calls } = await supabaseAdmin
-      .from('calls')
-      .select('agent_id, duration_secs, user_sentiment')
-      .eq('client_id', client.id)
+    if (agentsRes.error) return { success: false, error: agentsRes.error.message, agents: [] }
+    const agents = agentsRes.data || []
+    const calls = callsRes.data || []
 
     const statsMap: Record<string, { totalCalls: number; totalMinutes: number; positiveCount: number }> = {}
-    if (calls) {
-      calls.forEach(c => {
-        if (!statsMap[c.agent_id]) {
-          statsMap[c.agent_id] = { totalCalls: 0, totalMinutes: 0, positiveCount: 0 }
-        }
-        statsMap[c.agent_id].totalCalls += 1
-        statsMap[c.agent_id].totalMinutes += (c.duration_secs || 0) / 60
-        if (c.user_sentiment?.toLowerCase() === 'positive') {
-          statsMap[c.agent_id].positiveCount += 1
-        }
-      })
-    }
+    calls.forEach(c => {
+      if (!statsMap[c.agent_id]) {
+        statsMap[c.agent_id] = { totalCalls: 0, totalMinutes: 0, positiveCount: 0 }
+      }
+      statsMap[c.agent_id].totalCalls += 1
+      statsMap[c.agent_id].totalMinutes += (c.duration_secs || 0) / 60
+      if (c.user_sentiment?.toLowerCase() === 'positive') {
+        statsMap[c.agent_id].positiveCount += 1
+      }
+    })
 
     const agentsWithStats = (agents || []).map(a => {
       const st = statsMap[a.id] || { totalCalls: 0, totalMinutes: 0, positiveCount: 0 }

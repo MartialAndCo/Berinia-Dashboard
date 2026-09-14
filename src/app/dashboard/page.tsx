@@ -53,6 +53,7 @@ function ClientDashboardContent() {
   const [selectedAgent, setSelectedAgent] = useState('all')
   const [selectedSentiment, setSelectedSentiment] = useState('all')
   const [minDurationSecs, setMinDurationSecs] = useState<number>(0)
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
 
   // Pagination (Item #3)
   const [currentPage, setCurrentPage] = useState(1)
@@ -189,29 +190,42 @@ function ClientDashboardContent() {
       
       const isDemo = client.status === 'Demo' || client.email === 'account@test.com'
 
-      if (isDemo) {
-        setPaymentStatus({
-          needsPaymentMethod: false,
-          payUrl: null,
-          cardInfo: { brand: 'visa', last4: '4242' }
-        })
-        setShowPaymentModal(false)
-      } else if (client.stripe_subscription_id) {
-        const pStatus = await getSubscriptionStatusAction(client.stripe_subscription_id)
-        setPaymentStatus(pStatus as any)
-        if (pStatus?.needsPaymentMethod || !pStatus?.cardInfo) {
-          setShowPaymentModal(true)
-        }
-      } else {
-        setShowPaymentModal(true)
-      }
-
-      const { data: callsData } = await supabase
+      // Fetch calls and payment status concurrently in parallel
+      const callsPromise = supabase
         .from('calls')
         .select(`*, agents(agent_name)`)
         .eq('client_id', client.id)
         .order('created_at', { ascending: false })
+
+      const paymentPromise = (async () => {
+        if (isDemo) {
+          return {
+            needsPaymentMethod: false,
+            payUrl: null,
+            cardInfo: { brand: 'visa', last4: '4242' }
+          }
+        } else if (client.stripe_subscription_id) {
+          try {
+            const pStatus = await getSubscriptionStatusAction(client.stripe_subscription_id)
+            if (pStatus?.needsPaymentMethod || !pStatus?.cardInfo) {
+              setShowPaymentModal(true)
+            }
+            return pStatus
+          } catch {
+            return null
+          }
+        } else {
+          setShowPaymentModal(true)
+          return { needsPaymentMethod: true, payUrl: null, cardInfo: null }
+        }
+      })()
+
+      const [{ data: callsData }, pStatusResult] = await Promise.all([callsPromise, paymentPromise])
       
+      if (pStatusResult) {
+        setPaymentStatus(pStatusResult as any)
+      }
+
       if (callsData) {
         setCalls(callsData)
         initNotesAndTags(callsData)
@@ -547,6 +561,26 @@ function ClientDashboardContent() {
     )
   }
 
+  const SentimentIcon = ({ sentiment }: { sentiment: string | null }) => {
+    if (!sentiment) return null
+    const s = sentiment.toLowerCase()
+    if (s === 'positive') return (
+      <span title="Positive sentiment">
+        <SmilePlus className="h-3.5 w-3.5 text-[#2e6b34] shrink-0" />
+      </span>
+    )
+    if (s === 'negative') return (
+      <span title="Negative sentiment">
+        <Frown className="h-3.5 w-3.5 text-[#9e4733] shrink-0" />
+      </span>
+    )
+    return (
+      <span title="Neutral sentiment">
+        <Meh className="h-3.5 w-3.5 text-[#8c6b1c] shrink-0" />
+      </span>
+    )
+  }
+
   const formatDuration = (secs: number) => {
     const m = Math.floor(secs / 60)
     const s = secs % 60
@@ -753,16 +787,15 @@ function ClientDashboardContent() {
               ))}
             </div>
 
-            {/* CSV Export Action Button */}
+            {/* CSV Export Action Button - Hidden on mobile */}
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportCSV}
-              className="border-[#e6e2d6] bg-white hover:bg-[#faf8f5] text-[#1a1918] rounded-xl sm:rounded-sm text-[11px] sm:text-xs font-semibold uppercase tracking-wider h-8 sm:h-9 px-3 shadow-none flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="border-[#e6e2d6] bg-white hover:bg-[#faf8f5] text-[#1a1918] rounded-xl sm:rounded-sm text-[11px] sm:text-xs font-semibold uppercase tracking-wider h-8 sm:h-9 px-3 shadow-none hidden sm:inline-flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <Download className="h-3.5 w-3.5 text-[#9e4733]" />
-              <span className="hidden sm:inline">Export CSV</span>
-              <span className="sm:hidden">CSV</span>
+              <span>Export CSV</span>
             </Button>
           </div>
         </div>
@@ -797,9 +830,9 @@ function ClientDashboardContent() {
           </div>
         )}
 
-        {/* Plan / Payment Status Banners */}
+        {/* Plan / Payment Status Banners - Hidden on mobile to keep overview clear */}
         {isAdminView ? (
-          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] text-[#1a1918] overflow-hidden">
+          <div className="hidden md:block rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] text-[#1a1918] overflow-hidden">
             <div className="flex items-center justify-between px-6 py-3.5 border-b border-[#f0ece4] bg-[#faf8f5]">
               <div className="text-[11px] font-semibold tracking-widest text-[#73706b] uppercase flex items-center gap-1.5">
                 <span className="text-[#9e4733]">•</span> CLIENT PLAN CONFIGURATION
@@ -853,7 +886,7 @@ function ClientDashboardContent() {
             </CardContent>
           </Card>
         ) : (
-          <div className="rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] text-[#1a1918] overflow-hidden">
+          <div className="hidden md:block rounded-sm border border-[#e6e2d6] bg-[#ffffff] shadow-[0_4px_24px_rgba(0,0,0,0.02)] text-[#1a1918] overflow-hidden">
             <div className="flex items-center justify-between px-6 py-3.5 border-b border-[#f0ece4] bg-[#faf8f5]">
               <div className="text-[11px] font-semibold tracking-widest text-[#73706b] uppercase flex items-center gap-1.5">
                 <span className="text-[#9e4733]">•</span> YOUR PLAN
@@ -895,8 +928,8 @@ function ClientDashboardContent() {
           </div>
         )}
 
-        {/* Continuous Calls Trend Chart (Item #14) */}
-        <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+        {/* Continuous Calls Trend Chart (Item #14) - Hidden on mobile */}
+        <Card className="hidden md:block border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
           <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
             <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
               <span>•</span> CALL ACTIVITY TIMELINE
@@ -966,8 +999,8 @@ function ClientDashboardContent() {
           </div>
         </div>
 
-        {/* Unified Calls Filter Bar */}
-        <div className="bg-white border border-[#e6e2d6] rounded-sm p-4 space-y-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+        {/* Unified Calls Filter Bar - Collapsible on mobile */}
+        <div className={`${isMobileFilterOpen ? 'block' : 'hidden md:block'} bg-white border border-[#e6e2d6] rounded-2xl md:rounded-sm p-3.5 sm:p-4 space-y-3.5 shadow-sm`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f0ece4]">
             {/* Sentiment Quick Filters */}
             <div className="flex flex-wrap items-center gap-2">
@@ -1103,31 +1136,51 @@ function ClientDashboardContent() {
           </div>
         </div>
 
-        {/* Calls Section: Table on Desktop, Cards on Mobile (Item #16) */}
+        {/* Calls Section: Table on Desktop, Compact Rows on Mobile */}
         <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
-          <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5] flex flex-row items-center justify-between">
+          <CardHeader className="border-b border-[#e6e2d6] py-3.5 sm:py-4 px-4 sm:px-6 bg-[#faf8f5] flex flex-row items-center justify-between">
             <div>
               <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
                 <span>•</span> RECORDS ({filteredCalls.length})
               </div>
-              <CardTitle className="font-serif text-xl font-bold text-[#1a1918]">Call History</CardTitle>
+              <CardTitle className="font-serif text-lg sm:text-xl font-bold text-[#1a1918]">Call History</CardTitle>
             </div>
             
-            {/* Page Size Selector */}
-            <div className="flex items-center gap-2 text-xs text-[#73706b]">
-              <span>Show:</span>
-              <select
-                value={pageSize}
-                onChange={e => {
-                  setPageSize(Number(e.target.value))
-                  setCurrentPage(1)
-                }}
-                className="h-7 px-2 border border-[#e2dfd8] bg-white rounded-sm"
+            <div className="flex items-center gap-2">
+              {/* Mobile Filter Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+                className={`md:hidden relative inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  isMobileFilterOpen || isFiltersActive
+                    ? 'bg-[#1a1918] text-white border-[#1a1918]'
+                    : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
+                }`}
+                aria-label="Filter Calls"
               >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Filter</span>
+                {isFiltersActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#9e4733]" />
+                )}
+              </button>
+
+              {/* Page Size Selector */}
+              <div className="flex items-center gap-1.5 text-xs text-[#73706b]">
+                <span className="hidden sm:inline">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                  className="h-7 px-2 border border-[#e2dfd8] bg-white rounded-lg sm:rounded-sm text-xs"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
             </div>
           </CardHeader>
 
@@ -1297,75 +1350,158 @@ function ClientDashboardContent() {
             </Table>
           </CardContent>
 
-          {/* Mobile Cards View (iOS Recent Calls Style) */}
-          <div className="md:hidden divide-y divide-[#f0ece4] p-3 space-y-3">
-            {paginatedCalls.map(call => (
-              <div key={call.id} className="p-4 bg-white border border-[#e6e2d6] rounded-2xl shadow-xs space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-[#faf8f5] border border-[#e6e2d6] flex items-center justify-center text-[#1a1918] shrink-0">
-                      <Phone className="w-4 h-4 text-[#9e4733]" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-[#1a1918] truncate">
-                        {call.from_number ? formatPhone(call.from_number) : (call.agents?.agent_name || 'Inbound Call')}
-                      </div>
-                      <div className="text-[10px] text-[#73706b] flex items-center gap-1 font-mono mt-0.5">
-                        <span>{call.agents?.agent_name}</span>
-                        <span>•</span>
-                        <span>{new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <SentimentBadge sentiment={call.user_sentiment} />
-                </div>
-
-                <div className="flex items-center justify-between text-xs font-mono bg-[#faf8f5] px-3 py-1.5 rounded-xl border border-[#f0ece4]">
-                  <span className="text-[#73706b]">Duration: <strong className="text-[#1a1918]">{formatDuration(call.duration_secs)}</strong></span>
-                  <span className="text-[#73706b]">Cost: <strong className="text-[#1a1918]">${Number(call.cost).toFixed(2)}</strong></span>
-                </div>
-
-                {call.recording_url && (
-                  <div className="pt-1">
-                    <CallPlayer recordingUrl={call.recording_url} mode="compact" />
-                  </div>
-                )}
-
-                <div className="pt-2 border-t border-[#f0ece4] flex items-center justify-between">
-                  <span className="text-[10px] text-[#73706b]">
-                    {call.call_summary ? 'Summary available' : 'Call audio log'}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setExpandedCall(expandedCall === call.id ? null : call.id)}
-                    className="text-xs font-semibold text-[#9e4733] hover:text-[#853928] h-7 px-2 cursor-pointer"
+          {/* Mobile Ultra-Compact Recent Calls (Apple iOS Phone Style) */}
+          <div className="md:hidden divide-y divide-stone-100">
+            {paginatedCalls.map(call => {
+              const isExpanded = expandedCall === call.id
+              return (
+                <div key={call.id} className="transition-colors">
+                  {/* Compact Header Row - approx 50px high */}
+                  <div
+                    onClick={() => setExpandedCall(isExpanded ? null : call.id)}
+                    className="flex items-center justify-between py-2.5 px-3.5 hover:bg-stone-50 active:bg-stone-100 cursor-pointer select-none"
                   >
-                    {expandedCall === call.id ? 'Close Details ▴' : 'View Details ▾'}
-                  </Button>
-                </div>
+                    {/* Left: Caller Phone + Mini Sentiment + Details subtitle */}
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#1a1918] truncate">
+                          {call.from_number ? formatPhone(call.from_number) : (call.agents?.agent_name || 'Inbound Call')}
+                        </span>
+                        <SentimentIcon sentiment={call.user_sentiment} />
+                      </div>
+                      
+                      {/* Compact Subtitle: duration • cost • date */}
+                      <div className="text-[11px] text-stone-500 font-mono flex items-center gap-1.5 mt-0.5 truncate">
+                        <span>{formatDuration(call.duration_secs)}</span>
+                        <span className="text-stone-300">•</span>
+                        <span className="font-semibold text-stone-800">${Number(call.cost).toFixed(2)}</span>
+                        <span className="text-stone-300">•</span>
+                        <span className="text-stone-400 truncate">
+                          {new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
+                    </div>
 
-                {expandedCall === call.id && (
-                  <div className="pt-3 border-t border-[#e6e2d6] space-y-3 text-xs animate-in fade-in duration-150">
-                    {call.call_summary && (
-                      <div className="bg-[#faf8f5] p-3 rounded-xl border border-[#e6e2d6]">
-                        <div className="font-bold text-[9px] uppercase tracking-wider text-[#9e4733] mb-1">Call Summary</div>
-                        <p className="leading-relaxed text-[#1a1918]">{call.call_summary}</p>
-                      </div>
-                    )}
-                    {call.transcript && (
-                      <div>
-                        <div className="font-bold text-[9px] uppercase tracking-wider text-[#73706b] mb-1.5">Transcript</div>
-                        {renderFormattedTranscript(call.transcript)}
-                      </div>
-                    )}
+                    {/* Right: Inline Audio Listen + Expand Chevron */}
+                    <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                      {call.recording_url && (
+                        <CallPlayer recordingUrl={call.recording_url} mode="compact" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCall(isExpanded ? null : call.id)}
+                        className="p-1 text-stone-400 hover:text-stone-700 cursor-pointer"
+                        aria-label="Toggle details"
+                      >
+                        <ChevronRight className={`h-4 w-4 transition-transform duration-150 ${isExpanded ? 'rotate-90 text-stone-900' : ''}`} />
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {/* Expanded Detail Drawer */}
+                  {isExpanded && (
+                    <div className="px-3.5 py-3 bg-stone-50 border-t border-b border-stone-100 space-y-3 text-xs animate-in fade-in duration-150">
+                      {/* Full Audio Player */}
+                      {call.recording_url && (
+                        <div>
+                          <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                            Audio Player &amp; Scrubber
+                          </div>
+                          <CallPlayer recordingUrl={call.recording_url} mode="full" />
+                        </div>
+                      )}
+
+                      {/* Agent & Detailed Date */}
+                      <div className="flex items-center justify-between text-[11px] text-stone-600 bg-white p-2.5 rounded-xl border border-stone-200/80">
+                        <span>Agent: <strong className="text-stone-900">{call.agents?.agent_name || 'Default'}</strong></span>
+                        <span className="font-mono text-stone-500">
+                          {new Date(call.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                        </span>
+                      </div>
+
+                      {/* AI Summary */}
+                      {call.call_summary && (
+                        <div className="bg-white p-3 rounded-xl border border-stone-200/80">
+                          <div className="font-bold text-[10px] uppercase tracking-wider text-[#9e4733] mb-1">
+                            AI Call Summary
+                          </div>
+                          <p className="leading-relaxed text-stone-800">{call.call_summary}</p>
+                        </div>
+                      )}
+
+                      {/* Transcript */}
+                      {call.transcript && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-[10px] uppercase tracking-wider text-stone-600">
+                              Transcript
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCopyTranscript(call.transcript)}
+                              className="h-6 text-[10px] text-stone-500 hover:text-stone-900 p-1"
+                            >
+                              <Copy className="h-3 w-3 mr-1" /> Copy
+                            </Button>
+                          </div>
+                          {renderFormattedTranscript(call.transcript)}
+                        </div>
+                      )}
+
+                      {/* Tags and Notes */}
+                      <div className="pt-2 border-t border-stone-200/80 space-y-2.5">
+                        <div>
+                          <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider block mb-1">Tags</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {COMMON_TAGS.map(t => {
+                              const isSelected = (callTags[call.id] || []).includes(t)
+                              return (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => toggleTag(call.id, t)}
+                                  className={`px-2 py-0.5 text-[10px] rounded-lg border transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-[#1a1918] text-white border-[#1a1918]'
+                                      : 'bg-white text-stone-600 border-stone-200 hover:border-stone-400'
+                                  }`}
+                                >
+                                  {t} {isSelected && '✓'}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider block mb-1">Notes</span>
+                          <textarea
+                            value={callNotes[call.id] || ''}
+                            onChange={e => setCallNotes({ ...callNotes, [call.id]: e.target.value })}
+                            placeholder="Add note for this call..."
+                            className="w-full text-xs p-2 bg-white border border-stone-200 rounded-xl focus:outline-none focus:border-[#1a1918] min-h-[50px]"
+                          />
+                          <div className="flex justify-end mt-1">
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveMeta(call.id)}
+                              disabled={savingCallMeta === call.id}
+                              className="bg-[#1a1918] hover:bg-[#2d2d2d] text-white rounded-lg text-[10px] uppercase tracking-wider h-7 px-3"
+                            >
+                              {savingCallMeta === call.id ? 'Saving...' : 'Save'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
             {filteredCalls.length === 0 && (
-              <div className="py-12 text-center text-sm text-[#73706b]">
-                No calls match your active filters.
+              <div className="py-10 text-center text-xs text-stone-500">
+                {isFiltersActive ? 'No calls match your active filter criteria.' : 'No calls recorded yet.'}
               </div>
             )}
           </div>
