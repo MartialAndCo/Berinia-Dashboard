@@ -443,7 +443,7 @@ export default function OptInConfirmationPage() {
           </p>
 
           {/* Main Headline */}
-          <h1 className="text-gray-900 text-3xl sm:text-4xl md:text-[44px] lg:text-[48px] font-black tracking-tight leading-[1.15] max-w-3xl mb-8">
+          <h1 className="text-gray-900 text-3xl sm:text-4xl md:text-[42px] lg:text-[46px] font-bold tracking-tight leading-[1.18] max-w-3xl mb-8">
             Almost Done: Watch The Video Below to Confirm Your Call Event!
           </h1>
 
@@ -505,7 +505,7 @@ export default function OptInConfirmationPage() {
             <p className="text-[#2563eb] font-extrabold text-xs sm:text-sm tracking-widest uppercase mb-2">
               FAQ's
             </p>
-            <h2 className="text-gray-900 text-2xl sm:text-3xl md:text-4xl font-black tracking-tight">
+            <h2 className="text-gray-900 text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">
               Frequently Asked Questions About Our Free Trial
             </h2>
             <p className="text-gray-500 text-sm sm:text-base mt-2 max-w-xl mx-auto">
