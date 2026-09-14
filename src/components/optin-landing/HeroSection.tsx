@@ -1,9 +1,25 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import LocalVslPlayer from "./LocalVslPlayer";
 
-export default function HeroSection() {
+export default function HeroSection({ initialSrc }: { initialSrc?: string }) {
+  const [videoSrc, setVideoSrc] = useState(
+    initialSrc || "/videos/New_Video_1789071155558.mp4"
+  );
+
+  useEffect(() => {
+    fetch("/api/admin/funnel-content")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.salesVideo) {
+          setVideoSrc(data.salesVideo);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <section className="w-full pt-8 md:pt-14 pb-12">
       <div className="max-w-4xl mx-auto px-4 flex flex-col items-center text-center">
@@ -38,7 +54,7 @@ export default function HeroSection() {
           </Link>
 
           {/* Blue & White Video Player below the button */}
-          <LocalVslPlayer src="/videos/New_Video_1789071155558.mp4" />
+          <LocalVslPlayer src={videoSrc} />
         </div>
       </div>
     </section>
