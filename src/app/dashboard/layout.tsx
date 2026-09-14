@@ -7,6 +7,8 @@ import { Settings, LayoutDashboard, LogOut, Bot, Receipt, MessageSquare } from '
 import Link from 'next/link'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 import SupportChatBubble from '@/components/support/SupportChatBubble'
+import PwaRegister from '@/components/pwa/PwaRegister'
+import PwaInstallPrompt from '@/components/pwa/PwaInstallPrompt'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -202,6 +204,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </div>
       </nav>
+      <PwaRegister />
+      <PwaInstallPrompt />
     </div>
   )
 }

@@ -1,30 +1,66 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import { Share, PlusSquare, Smartphone, X, Sparkles, CheckCircle2 } from 'lucide-react'
 
 export default function PwaInstallPrompt() {
+  const pathname = usePathname()
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [showPrompt, setShowPrompt] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [installed, setInstalled] = useState(false)
 
+  // 1. Path check: strictly authorized only on dashboard and admin portals
+  const isAllowedPath = pathname ? (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) : false
+
+  // 2. Auth verification: only logged in users can see the prompt
   useEffect(() => {
+    let isMounted = true
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (isMounted) {
+        setIsAuthenticated(!!session?.user)
+      }
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (isMounted) {
+        setIsAuthenticated(!!session?.user)
+      }
+    })
+
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  // 3. Prompt trigger logic
+  useEffect(() => {
+    // Only proceed if authenticated and on an allowed route
+    if (!isAuthenticated || !isAllowedPath) {
+      setShowPrompt(false)
+      return
+    }
+
     // Check if already running in standalone PWA mode
     const isStandalone = 
       window.matchMedia('(display-mode: standalone)').matches || 
       (window.navigator as any).standalone === true
 
-    if (isStandalone) {
+    if (isStandalone || localStorage.getItem('pwa_installed') === 'true') {
       setInstalled(true)
       return
     }
 
-    // Check if dismissed within the last 48 hours
+    // Check if dismissed within the last 7 days
     const dismissedAt = localStorage.getItem('pwa_prompt_dismissed')
     if (dismissedAt) {
-      const hours = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60)
-      if (hours < 48) return
+      const days = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60 * 24)
+      if (days < 7) return
     }
 
     // Detect iOS
@@ -33,7 +69,7 @@ export default function PwaInstallPrompt() {
     setIsIOS(isIosDevice)
 
     if (isIosDevice) {
-      const timer = setTimeout(() => setShowPrompt(true), 2500)
+      const timer = setTimeout(() => setShowPrompt(true), 3000)
       return () => clearTimeout(timer)
     }
 
@@ -46,7 +82,7 @@ export default function PwaInstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall)
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
-  }, [])
+  }, [isAuthenticated, isAllowedPath])
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return
@@ -55,6 +91,7 @@ export default function PwaInstallPrompt() {
     if (outcome === 'accepted') {
       setInstalled(true)
       setShowPrompt(false)
+      localStorage.setItem('pwa_installed', 'true')
     }
     setDeferredPrompt(null)
   }
@@ -64,7 +101,7 @@ export default function PwaInstallPrompt() {
     localStorage.setItem('pwa_prompt_dismissed', Date.now().toString())
   }
 
-  if (!showPrompt || installed) return null
+  if (!isAuthenticated || !isAllowedPath || !showPrompt || installed) return null
 
   return (
     <div className="fixed bottom-20 sm:bottom-6 left-3 right-3 sm:left-auto sm:right-6 sm:w-[420px] z-50 animate-in fade-in slide-in-from-bottom-6 duration-300">
@@ -77,13 +114,13 @@ export default function PwaInstallPrompt() {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="text-sm font-bold tracking-tight text-[#1a1918]">Install BerinAgents App</h3>
+                <h3 className="text-sm font-bold tracking-tight text-[#1a1918]">Installer l&apos;application BerinAgents</h3>
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-bold border border-emerald-200">
                   <Sparkles className="w-2.5 h-2.5" /> PWA
                 </span>
               </div>
               <p className="text-xs text-stone-500 mt-0.5">
-                Full-screen app experience & instant live alerts
+                Accédez à votre portail en 1 clic &amp; recevez vos alertes
               </p>
             </div>
           </div>
@@ -91,7 +128,7 @@ export default function PwaInstallPrompt() {
           <button 
             onClick={handleDismiss}
             className="p-1.5 -mr-1 text-stone-400 hover:text-stone-800 rounded-full transition-colors cursor-pointer"
-            aria-label="Close install prompt"
+            aria-label="Fermer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -100,13 +137,13 @@ export default function PwaInstallPrompt() {
         {/* Benefits bullets */}
         <div className="mt-3.5 py-2 px-3 bg-stone-50 rounded-xl border border-stone-100 flex items-center justify-between text-[11px] text-stone-600">
           <span className="flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> Real-time sound
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> Alertes en direct
           </span>
           <span className="flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> Full-screen UI
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> Plein écran
           </span>
           <span className="flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> 1-Tap launch
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> Accès 1 clic
           </span>
         </div>
 
@@ -118,11 +155,11 @@ export default function PwaInstallPrompt() {
                 1
               </div>
               <div className="flex items-center gap-1.5">
-                <span>Tap the</span>
+                <span>Touchez le bouton</span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 font-semibold border border-blue-200/60 text-[11px]">
-                  <Share className="w-3.5 h-3.5 text-blue-600" /> Share
+                  <Share className="w-3.5 h-3.5 text-blue-600" /> Partager
                 </span>
-                <span>button in Safari</span>
+                <span>dans Safari</span>
               </div>
             </div>
 
@@ -131,9 +168,9 @@ export default function PwaInstallPrompt() {
                 2
               </div>
               <div className="flex items-center gap-1.5">
-                <span>Scroll down and select</span>
+                <span>Faites défiler et sélectionnez</span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-200/80 text-stone-800 font-semibold text-[11px]">
-                  <PlusSquare className="w-3.5 h-3.5 text-stone-800" /> Add to Home Screen
+                  <PlusSquare className="w-3.5 h-3.5 text-stone-800" /> Sur l&apos;écran d&apos;accueil
                 </span>
               </div>
             </div>
@@ -143,7 +180,7 @@ export default function PwaInstallPrompt() {
                 onClick={handleDismiss}
                 className="text-xs text-stone-500 hover:text-stone-900 font-medium cursor-pointer"
               >
-                Got it, dismiss
+                Compris, fermer
               </button>
             </div>
           </div>
@@ -154,14 +191,14 @@ export default function PwaInstallPrompt() {
               onClick={handleDismiss}
               className="px-3 py-2 text-xs text-stone-500 hover:text-stone-900 font-medium transition-colors cursor-pointer"
             >
-              Maybe Later
+              Plus tard
             </button>
             <button
               onClick={handleInstallClick}
               className="px-4 py-2.5 text-xs font-semibold bg-[#1a1918] text-white hover:bg-[#33312e] active:scale-95 rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-2"
             >
               <Smartphone className="w-4 h-4" />
-              Install App
+              Installer l&apos;application
             </button>
           </div>
         )}

@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { LayoutDashboard, Receipt, LogOut, Settings, PhoneOutgoing, Film, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
+import PwaRegister from '@/components/pwa/PwaRegister'
+import PwaInstallPrompt from '@/components/pwa/PwaInstallPrompt'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -168,6 +170,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </div>
       </nav>
+      <PwaRegister />
+      <PwaInstallPrompt />
     </div>
   )
 }
