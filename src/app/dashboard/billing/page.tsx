@@ -11,18 +11,24 @@ import { CreditCard, ExternalLink, Download, ShieldCheck, Search, Banknote } fro
 import { toast } from 'sonner'
 import PageLoading from '@/components/PageLoading'
 
+// Module-level cache for instant 0ms tab switching
+let cachedInvoices: any[] | null = null
+let cachedClientInfo: any | null = null
+let cachedCurrentCycle: any | null = null
+let cachedPaymentStatus: any | null = null
+
 function BillingContent() {
   const searchParams = useSearchParams()
   const queryClientId = searchParams?.get('clientId')
-  const [invoices, setInvoices] = useState<any[]>([])
-  const [clientInfo, setClientInfo] = useState<any>(null)
-  const [currentCycle, setCurrentCycle] = useState<any>(null)
+  const [invoices, setInvoices] = useState<any[]>(() => cachedInvoices || [])
+  const [clientInfo, setClientInfo] = useState<any>(() => cachedClientInfo || null)
+  const [currentCycle, setCurrentCycle] = useState<any>(() => cachedCurrentCycle || null)
   const [paymentStatus, setPaymentStatus] = useState<{
     needsPaymentMethod: boolean
     payUrl: string | null
     cardInfo: { brand: string; last4: string } | null
-  }>({ needsPaymentMethod: false, payUrl: null, cardInfo: null })
-  const [loading, setLoading] = useState(true)
+  }>(() => cachedPaymentStatus || { needsPaymentMethod: false, payUrl: null, cardInfo: null })
+  const [loading, setLoading] = useState(() => !cachedInvoices)
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -30,18 +36,23 @@ function BillingContent() {
   }, [queryClientId])
 
   const fetchData = async () => {
-    setLoading(true)
+    if (!cachedInvoices) setLoading(true)
     const invRes = await getClientInvoicesAction(queryClientId || undefined)
     if (invRes.success) {
+      cachedInvoices = invRes.invoices || []
+      cachedClientInfo = invRes.client || null
+      cachedCurrentCycle = invRes.currentCycle || null
+      if (invRes.paymentStatus) {
+        cachedPaymentStatus = invRes.paymentStatus
+        setPaymentStatus(invRes.paymentStatus as any)
+      }
       setInvoices(invRes.invoices || [])
       setClientInfo(invRes.client || null)
       setCurrentCycle(invRes.currentCycle || null)
-      if (invRes.paymentStatus) {
-        setPaymentStatus(invRes.paymentStatus as any)
-      }
     } else {
       const subRes = await getSubscriptionStatusAction(null, queryClientId || undefined)
       if (subRes) {
+        cachedPaymentStatus = subRes
         setPaymentStatus(subRes as any)
       }
     }
@@ -98,7 +109,7 @@ function BillingContent() {
   }
 
   return (
-    <div className="p-3 sm:p-8 space-y-6 sm:space-y-8 max-w-6xl mx-auto">
+    <div className="p-3 sm:p-8 space-y-6 sm:space-y-8 max-w-6xl mx-auto pb-36 sm:pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -282,6 +293,9 @@ function BillingContent() {
           </Table>
         </div>
       </div>
+
+      {/* Safe mobile spacing for lowbar clearance */}
+      <div className="h-12 md:hidden" />
     </div>
   )
 }

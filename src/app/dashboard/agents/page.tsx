@@ -8,21 +8,27 @@ import { Badge } from '@/components/ui/badge'
 import { Bot, Phone, Activity, Clock, SmilePlus, Sparkles, CheckCircle2 } from 'lucide-react'
 import PageLoading from '@/components/PageLoading'
 
+// Module-level cache for instant 0ms tab switching
+let cachedAgents: any[] | null = null
+let cachedClientName: string | null = null
+
 function AgentsContent() {
   const searchParams = useSearchParams()
   const queryClientId = searchParams?.get('clientId')
-  const [agents, setAgents] = useState<any[]>([])
-  const [clientName, setClientName] = useState<string>('')
-  const [loading, setLoading] = useState(true)
+  const [agents, setAgents] = useState<any[]>(() => cachedAgents || [])
+  const [clientName, setClientName] = useState<string>(() => cachedClientName || '')
+  const [loading, setLoading] = useState(() => !cachedAgents)
 
   useEffect(() => {
     fetchAgents()
   }, [queryClientId])
 
   const fetchAgents = async () => {
-    setLoading(true)
+    if (!cachedAgents) setLoading(true)
     const res = await getClientAgentsAction(queryClientId || undefined)
     if (res.success) {
+      cachedAgents = res.agents || []
+      cachedClientName = res.clientName || ''
       setAgents(res.agents || [])
       setClientName(res.clientName || '')
     }
@@ -41,7 +47,7 @@ function AgentsContent() {
   }
 
   return (
-    <div className="p-3 sm:p-8 space-y-6 sm:space-y-8 max-w-6xl mx-auto">
+    <div className="p-3 sm:p-8 space-y-6 sm:space-y-8 max-w-6xl mx-auto pb-36 sm:pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
@@ -180,6 +186,9 @@ function AgentsContent() {
           </p>
         </div>
       )}
+
+      {/* Safe mobile spacing for lowbar clearance */}
+      <div className="h-12 md:hidden" />
     </div>
   )
 }

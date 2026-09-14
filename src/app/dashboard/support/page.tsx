@@ -25,13 +25,16 @@ interface Conversation {
   messages?: Message[]
 }
 
+// Module-level cache for instant 0ms tab switching
+let cachedConversations: Conversation[] | null = null
+
 export default function ClientSupportPage() {
-  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>(() => cachedConversations || [])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null)
   const [filter, setFilter] = useState<'all' | 'pending' | 'resolved'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !cachedConversations)
   const [newMessageText, setNewMessageText] = useState('')
   const [sending, setSending] = useState(false)
 
@@ -46,11 +49,12 @@ export default function ClientSupportPage() {
 
   // Fetch list
   const fetchList = async (showLoading = false) => {
-    if (showLoading) setLoading(true)
+    if (showLoading && !cachedConversations) setLoading(true)
     try {
       const res = await fetch('/api/support/conversations')
       const data = await res.json()
       if (data.success && Array.isArray(data.conversations)) {
+        cachedConversations = data.conversations
         setConversations(data.conversations)
         // Auto-select first only on desktop screens
         if (typeof window !== 'undefined' && window.innerWidth >= 768) {
@@ -60,7 +64,7 @@ export default function ClientSupportPage() {
     } catch (e) {
       console.error(e)
     } finally {
-      if (showLoading) setLoading(false)
+      setLoading(false)
     }
   }
 
@@ -226,7 +230,7 @@ export default function ClientSupportPage() {
   })
 
   return (
-    <div className="p-3 sm:p-8 max-w-7xl mx-auto h-[calc(100dvh-5.5rem)] md:h-[calc(100vh-4rem)] flex flex-col">
+    <div className="p-3 sm:p-8 max-w-7xl mx-auto h-full pb-20 md:pb-0 flex flex-col">
       {/* Top Header - Hidden on mobile when inside a conversation */}
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 md:pb-6 border-b border-stone-200/80 shrink-0 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
         <div>

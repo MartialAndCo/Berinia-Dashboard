@@ -36,10 +36,15 @@ const timeRanges: { key: TimeRange; label: string }[] = [
 
 const COMMON_TAGS = ['Follow-up', 'Qualified', 'Complaint', 'Urgent', 'Reviewed']
 
+// Module-level cache for instant 0ms tab switching
+let cachedCalls: any[] | null = null
+let cachedClientInfo: any | null = null
+let cachedPaymentStatus: any | null = null
+
 function ClientDashboardContent() {
-  const [calls, setCalls] = useState<any[]>([])
-  const [clientInfo, setClientInfo] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [calls, setCalls] = useState<any[]>(() => cachedCalls || [])
+  const [clientInfo, setClientInfo] = useState<any>(() => cachedClientInfo || null)
+  const [loading, setLoading] = useState(() => !cachedCalls || !cachedClientInfo)
   const [isAdminView, setIsAdminView] = useState(false)
   const [expandedCall, setExpandedCall] = useState<string | null>(null)
   
@@ -122,7 +127,9 @@ function ClientDashboardContent() {
   }, [clientInfo?.id])
 
   const fetchData = async () => {
-    setLoading(true)
+    if (!cachedCalls || !cachedClientInfo) {
+      setLoading(true)
+    }
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
       router.push('/login')
@@ -163,8 +170,10 @@ function ClientDashboardContent() {
 
       const dashRes = await getClientDashboardAction(targetId)
       if (dashRes.success && dashRes.client) {
-        setClientInfo(dashRes.client)
+        cachedClientInfo = dashRes.client
         const callsList = dashRes.calls || []
+        cachedCalls = callsList
+        setClientInfo(dashRes.client)
         setCalls(callsList)
         initNotesAndTags(callsList)
       } else {
@@ -186,6 +195,7 @@ function ClientDashboardContent() {
       .single()
     
     if (client) {
+      cachedClientInfo = client
       setClientInfo(client)
       
       const isDemo = client.status === 'Demo' || client.email === 'account@test.com'
@@ -223,10 +233,12 @@ function ClientDashboardContent() {
       const [{ data: callsData }, pStatusResult] = await Promise.all([callsPromise, paymentPromise])
       
       if (pStatusResult) {
+        cachedPaymentStatus = pStatusResult
         setPaymentStatus(pStatusResult as any)
       }
 
       if (callsData) {
+        cachedCalls = callsData
         setCalls(callsData)
         initNotesAndTags(callsData)
       }
@@ -644,7 +656,7 @@ function ClientDashboardContent() {
   const isFiltersActive = selectedAgent !== 'all' || selectedSentiment !== 'all' || minDurationSecs > 0 || searchQuery !== '' || timeRange !== 'all'
 
   return (
-    <div className="p-3 sm:p-8 space-y-6 sm:space-y-8">
+    <div className="p-3 sm:p-8 space-y-6 sm:space-y-8 pb-36 sm:pb-8">
       {/* Payment Method Required Popup Modal */}
       {!isAdminView && showPaymentModal && (paymentStatus.needsPaymentMethod || !paymentStatus.cardInfo) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1a1918]/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -1542,6 +1554,8 @@ function ClientDashboardContent() {
 
         </Card>
 
+        {/* Safe mobile spacing so bottom controls are never obstructed by lowbar */}
+        <div className="h-12 md:hidden" />
       </div>
     </div>
   )

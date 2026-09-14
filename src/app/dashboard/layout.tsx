@@ -17,8 +17,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     checkAuth()
-    updateCurrentClient()
     fetchUnreadSupport()
+    const interval = setInterval(fetchUnreadSupport, 20000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    updateCurrentClient()
   }, [pathname])
 
   const fetchUnreadSupport = async () => {
@@ -74,9 +79,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ]
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col md:flex-row bg-[#f6f4f0] text-[#1a1918]">
-      {/* Mobile App Header (Minimal Apple style) */}
-      <header className="md:hidden flex items-center justify-between px-4 h-14 bg-[#ffffff]/90 backdrop-blur-md border-b border-[#e6e2d6] z-30 shrink-0 select-none">
+    <div className="h-dvh w-screen overflow-hidden flex flex-col md:flex-row bg-[#f6f4f0] text-[#1a1918]">
+      {/* Mobile App Header (with safe-area-inset-top for iPhone notch/Dynamic Island) */}
+      <header className="md:hidden flex items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)] h-[calc(3.5rem+env(safe-area-inset-top,0px))] bg-[#ffffff]/95 backdrop-blur-md border-b border-[#e6e2d6] z-30 shrink-0 select-none">
         <div className="flex items-center gap-2">
           <img src="/logo-horizontal-black.png" alt="BerinAgents" className="h-4.5 w-auto object-contain" />
           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-[#faf8f5] border border-[#e6e2d6] text-[#73706b] uppercase">
@@ -91,7 +96,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
           <button
             onClick={handleLogout}
-            className="p-1.5 text-[#73706b] hover:text-[#9e4733] transition-colors rounded-lg"
+            className="p-1.5 text-[#73706b] hover:text-[#9e4733] transition-colors rounded-lg cursor-pointer"
             title="Log out"
           >
             <LogOut className="w-4 h-4" />
@@ -155,8 +160,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Main Content Area (With bottom padding on mobile for lowbar) */}
-      <main className="flex-1 h-full overflow-y-auto min-w-0 bg-[#f6f4f0] pb-24 md:pb-0 relative">
+      {/* Main Content Area */}
+      <main className="flex-1 min-h-0 overflow-y-auto min-w-0 bg-[#f6f4f0] relative">
         {children}
         
         {/* Support Chat Bubble: Visible ONLY on desktop so it NEVER blocks mobile typing or buttons */}
@@ -166,7 +171,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
 
       {/* Mobile Native Bottom Lowbar (Fixed Apple-style tab bar) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#ffffff]/90 backdrop-blur-2xl border-t border-[#e6e2d6] pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_24px_rgba(0,0,0,0.06)]">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#ffffff]/95 backdrop-blur-2xl border-t border-[#e6e2d6] pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-4px_24px_rgba(0,0,0,0.06)]">
         <div className="h-16 flex items-center justify-around px-2">
           {navLinks.map((item) => {
             const Icon = item.icon
