@@ -4,14 +4,13 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Receipt, LogOut, Settings, PhoneOutgoing, Film } from 'lucide-react'
+import { LayoutDashboard, Receipt, LogOut, Settings, PhoneOutgoing, Film, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -29,8 +28,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     })
   }, [router])
-
-  
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -64,6 +61,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <LayoutDashboard className="h-4 w-4" />
             Overview
+          </Link>
+          <Link 
+            href="/admin/support" 
+            className={`flex items-center gap-3 px-3 py-2 rounded-sm text-xs tracking-wide transition-all ${
+              pathname === '/admin/support' 
+                ? 'bg-[#f0ede6] text-[#1a1918] font-semibold border-l-2 border-[#9e4733]' 
+                : 'text-[#73706b] hover:text-[#1a1918] hover:bg-[#faf8f5]'
+            }`}
+          >
+            <MessageSquare className="h-4 w-4 text-[#9e4733]" />
+            Support (Tickets)
           </Link>
           <Link 
             href="/admin/billing" 

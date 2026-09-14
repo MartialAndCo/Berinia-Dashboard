@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Settings, LayoutDashboard, LogOut, Bot, Receipt, Menu, X } from 'lucide-react'
+import { Settings, LayoutDashboard, LogOut, Bot, Receipt, Menu, X, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
+import SupportChatBubble from '@/components/support/SupportChatBubble'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -56,6 +57,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { href: '/dashboard/agents', label: 'Voice Agents', icon: Bot },
     { href: '/dashboard/billing', label: 'Billing & Invoices', icon: Receipt },
+    { href: '/dashboard/support', label: 'Support & Chat', icon: MessageSquare },
     ...(!isAdmin ? [{ href: '/dashboard/settings', label: 'Settings', icon: Settings }] : []),
   ]
 
@@ -142,8 +144,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Content: Independently scrollable */}
-      <main className="flex-1 h-full overflow-y-auto min-w-0 bg-[#f6f4f0]">
+      <main className="flex-1 h-full overflow-y-auto min-w-0 bg-[#f6f4f0] relative">
         {children}
+        <SupportChatBubble />
       </main>
     </div>
   )
