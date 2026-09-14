@@ -12,9 +12,7 @@ import {
   Calendar,
   ExternalLink,
   Mail,
-  ChevronDown,
   ShieldCheck,
-  X,
 } from "lucide-react";
 import FooterSection from "./FooterSection";
 
@@ -378,7 +376,6 @@ export default function OptInConfirmationPage({
   initialConfirmationVideo,
   initialFaqVideos,
 }: OptInConfirmationPageProps) {
-  const [showModal, setShowModal] = useState(false);
   const [confirmationVideo, setConfirmationVideo] = useState(
     initialConfirmationVideo || "/videos/New_Video_1789071155558.mp4"
   );
@@ -402,10 +399,8 @@ export default function OptInConfirmationPage({
   }, []);
 
   const handleOpenGoogleCalendar = () => {
-    // Open Google Calendar in new tab
+    // Open Google Calendar directly in new tab
     window.open("https://calendar.google.com/calendar/u/0/r", "_blank", "noopener,noreferrer");
-    // Show visual confirmation helper modal
-    setShowModal(true);
   };
 
   return (
@@ -526,84 +521,7 @@ export default function OptInConfirmationPage({
         </div>
       </section>
 
-      {/* 3. Helper Modal: 3-Step Google Calendar Verification Guide */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-100 flex flex-col">
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#2563eb] flex items-center justify-center mb-4">
-              <Calendar className="w-6 h-6" />
-            </div>
-
-            <h3 className="text-xl sm:text-2xl font-black text-gray-900">
-              One Last Step To Guarantee Your Call!
-            </h3>
-            <p className="text-gray-600 text-sm mt-1.5">
-              Google Calendar was opened in a new tab. Follow these 2 quick steps:
-            </p>
-
-            {/* Visual Steps */}
-            <div className="mt-5 space-y-3.5">
-              <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-gray-50 border border-gray-100">
-                <div className="w-7 h-7 rounded-full bg-[#2563eb] text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                  1
-                </div>
-                <div>
-                  <p className="text-gray-900 font-bold text-sm">
-                    Open the BerinAgents calendar invitation
-                  </p>
-                  <p className="text-gray-500 text-xs mt-0.5">
-                    Find the strategy call event on your scheduled date & time.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                  2
-                </div>
-                <div>
-                  <p className="text-emerald-950 font-bold text-sm">
-                    Click "Going? YES / OUI"
-                  </p>
-                  <p className="text-emerald-800 text-xs mt-0.5">
-                    This confirms your attendance and protects your reserved slot from being reassigned.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  window.open("https://calendar.google.com/calendar/u/0/r", "_blank");
-                }}
-                className="w-full sm:flex-1 bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold py-3 px-4 rounded-xl text-sm transition-colors text-center cursor-pointer"
-              >
-                Re-open Calendar ↗
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-5 rounded-xl text-sm transition-colors cursor-pointer"
-              >
-                I Confirmed!
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Footer */}
+      {/* 3. Footer */}
       <FooterSection />
     </main>
   );
