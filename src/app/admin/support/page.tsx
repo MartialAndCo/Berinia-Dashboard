@@ -143,6 +143,9 @@ export default function AdminSupportPage() {
       if (data.success && data.conversation) {
         const conv = data.conversation
         setSelectedConv(conv)
+        setConversations((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, unread_admin: 0 } : c))
+        )
         const msgs = conv.messages || []
         prevMsgCountRef.current = msgs.length
       }
@@ -309,9 +312,14 @@ export default function AdminSupportPage() {
 
   const handleUpdateStatus = async (newStatus: 'pending' | 'in_progress' | 'resolved') => {
     if (!selectedConv) return
-    setSelectedConv({ ...selectedConv, status: newStatus })
+    const updated = {
+      ...selectedConv,
+      status: newStatus,
+      ...(newStatus === 'resolved' ? { unread_admin: 0, unread_client: 0 } : {})
+    }
+    setSelectedConv(updated)
     setConversations((prev) =>
-      prev.map((c) => (c.id === selectedConv.id ? { ...c, status: newStatus } : c))
+      prev.map((c) => (c.id === selectedConv.id ? updated : c))
     )
     try {
       await fetch(`/api/support/conversations/${selectedConv.id}/status`, {
@@ -467,7 +475,7 @@ export default function AdminSupportPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-xs sm:text-sm font-bold text-[#1a1918] truncate">{c.company_name}</span>
-                          {c.unread_admin > 0 && (
+                          {!isResolved && c.unread_admin > 0 && (
                             <span className="w-2 h-2 rounded-full bg-[#9e4733] animate-ping" />
                           )}
                         </div>

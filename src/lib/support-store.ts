@@ -49,7 +49,12 @@ export async function listSupportConversations(
 
   const { data, error } = await query
   if (error || !data) return []
-  return data as SupportConversation[]
+  return (data as SupportConversation[]).map((c) => {
+    if (c.status === 'resolved') {
+      return { ...c, unread_admin: 0, unread_client: 0 }
+    }
+    return c
+  })
 }
 
 export async function getSupportConversationMeta(
@@ -99,8 +104,14 @@ export async function getSupportConversation(
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
 
+  const conv = convData as SupportConversation
+  if (conv.status === 'resolved') {
+    conv.unread_admin = 0
+    conv.unread_client = 0
+  }
+
   return {
-    ...(convData as SupportConversation),
+    ...conv,
     messages: (messagesData as SupportMessage[]) || []
   }
 }
@@ -251,9 +262,15 @@ export async function updateSupportStatus(
   const { data, error: checkErr } = await query.single()
   if (checkErr || !data) return false
 
+  const updatePayload: Record<string, any> = { status, updated_at: now }
+  if (status === 'resolved') {
+    updatePayload.unread_admin = 0
+    updatePayload.unread_client = 0
+  }
+
   const { error } = await sb
     .from('support_conversations')
-    .update({ status, updated_at: now })
+    .update(updatePayload)
     .eq('id', conversationId)
   return !error
 }

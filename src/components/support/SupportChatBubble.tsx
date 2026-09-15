@@ -56,11 +56,11 @@ export default function SupportChatBubble() {
       const data = await res.json()
       if (data.success && Array.isArray(data.conversations)) {
         setConversations(data.conversations)
-        const totalUnread = data.conversations.reduce(
-          (acc: number, c: Conversation) => acc + (c.unread_client || 0),
-          0
-        )
-        setUnreadCount(totalUnread)
+        // Count unread active chats (1 notification per chat, ignore resolved)
+        const unreadChats = data.conversations.filter(
+          (c: Conversation) => c.status !== 'resolved' && (c.unread_client || 0) > 0
+        ).length
+        setUnreadCount(unreadChats)
 
         if (!activeConv && data.conversations.length > 0) {
           const firstOpen = data.conversations.find((c: Conversation) => c.status !== 'resolved') || data.conversations[0]
@@ -83,6 +83,14 @@ export default function SupportChatBubble() {
         const conv = data.conversation
         setActiveConv(conv)
         setIsCreatingNew(false)
+        setConversations((prev) => {
+          const updated = prev.map((c) => (c.id === id ? { ...c, unread_client: 0 } : c))
+          const unreadChats = updated.filter(
+            (c) => c.status !== 'resolved' && (c.unread_client || 0) > 0
+          ).length
+          setUnreadCount(unreadChats)
+          return updated
+        })
         const msgs = conv.messages || []
         
         if (
@@ -249,7 +257,20 @@ export default function SupportChatBubble() {
   const handleToggleResolve = async () => {
     if (!activeConv) return
     const newStatus = activeConv.status === 'resolved' ? 'pending' : 'resolved'
-    setActiveConv({ ...activeConv, status: newStatus })
+    const updatedConv: Conversation = {
+      ...activeConv,
+      status: newStatus,
+      ...(newStatus === 'resolved' ? { unread_client: 0 } : {})
+    }
+    setActiveConv(updatedConv)
+    setConversations((prev) => {
+      const updated = prev.map((c) => (c.id === activeConv.id ? updatedConv : c))
+      const unreadChats = updated.filter(
+        (c) => c.status !== 'resolved' && (c.unread_client || 0) > 0
+      ).length
+      setUnreadCount(unreadChats)
+      return updated
+    })
     try {
       await fetch(`/api/support/conversations/${activeConv.id}/status`, {
         method: 'PATCH',

@@ -58,10 +58,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const fetchPendingCount = async () => {
     try {
-      const res = await fetch('/api/support/conversations?status=pending')
+      const res = await fetch('/api/support/conversations')
       const data = await res.json()
       if (data.success && Array.isArray(data.conversations)) {
-        setPendingCount(data.conversations.length)
+        // Count active unread or pending chats (never resolved)
+        const count = data.conversations.filter(
+          (c: any) => c.status !== 'resolved' && (c.status === 'pending' || (c.unread_admin || 0) > 0)
+        ).length
+        setPendingCount(count)
       }
     } catch {}
   }

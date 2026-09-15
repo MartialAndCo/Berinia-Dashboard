@@ -33,9 +33,11 @@ export async function GET(
 
     // Only mark read if there are unread messages for this viewer
     if (isUserAdmin && conversation.unread_admin > 0) {
-      markSupportRead(id, 'admin', clientId)
+      await markSupportRead(id, 'admin', clientId)
+      conversation.unread_admin = 0
     } else if (!isUserAdmin && conversation.unread_client > 0) {
-      markSupportRead(id, 'client', clientId)
+      await markSupportRead(id, 'client', clientId)
+      conversation.unread_client = 0
     }
 
     return NextResponse.json({ success: true, conversation, isAdmin: isUserAdmin })

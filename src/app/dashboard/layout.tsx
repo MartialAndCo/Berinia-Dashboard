@@ -64,8 +64,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const res = await fetch('/api/support/conversations')
       const data = await res.json()
       if (data.success && Array.isArray(data.conversations)) {
-        const total = data.conversations.reduce((acc: number, c: any) => acc + (c.unread_client || 0), 0)
-        setUnreadCount(total)
+        // Count unread active chats (1 notification per chat, never for resolved)
+        const unreadChats = data.conversations.filter(
+          (c: any) => c.status !== 'resolved' && (c.unread_client || 0) > 0
+        ).length
+        setUnreadCount(unreadChats)
       }
     } catch {}
   }

@@ -87,6 +87,9 @@ export default function ClientSupportPage() {
       if (data.success && data.conversation) {
         const conv = data.conversation
         setSelectedConv(conv)
+        setConversations((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, unread_client: 0 } : c))
+        )
         const msgs = conv.messages || []
         if (msgs.length > prevMsgCountRef.current && prevMsgCountRef.current > 0) {
           const last = msgs[msgs.length - 1]
@@ -234,10 +237,15 @@ export default function ClientSupportPage() {
 
   const handleToggleStatus = async () => {
     if (!selectedConv) return
-    const newStatus = selectedConv.status === 'resolved' ? 'pending' : 'resolved'
-    setSelectedConv({ ...selectedConv, status: newStatus })
+    const newStatus: 'pending' | 'resolved' = selectedConv.status === 'resolved' ? 'pending' : 'resolved'
+    const updated = {
+      ...selectedConv,
+      status: newStatus,
+      ...(newStatus === 'resolved' ? { unread_client: 0 } : {})
+    }
+    setSelectedConv(updated)
     setConversations((prev) =>
-      prev.map((c) => (c.id === selectedConv.id ? { ...c, status: newStatus } : c))
+      prev.map((c) => (c.id === selectedConv.id ? updated : c))
     )
     try {
       await fetch(`/api/support/conversations/${selectedConv.id}/status`, {
@@ -400,9 +408,9 @@ export default function ClientSupportPage() {
                         {isResolved ? 'Resolved' : 'Pending'}
                       </span>
 
-                      {c.unread_client > 0 && (
+                      {!isResolved && c.unread_client > 0 && (
                         <span className="w-4 h-4 rounded-full bg-[#9e4733] text-white text-[9px] font-bold flex items-center justify-center">
-                          {c.unread_client}
+                          1
                         </span>
                       )}
                     </div>
