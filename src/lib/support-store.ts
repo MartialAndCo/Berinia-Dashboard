@@ -246,15 +246,32 @@ export async function addSupportMessage(params: {
   senderName: string
   content: string
   clientId?: string | null
+  existingConv?: SupportConversation | null
 }): Promise<SupportMessage> {
   const useDb = await checkDbTableExists()
   const sb = getServiceSupabase()
   const now = new Date().toISOString()
   const msgId = crypto.randomUUID()
 
-  const conv = await getSupportConversation(params.conversationId, params.clientId)
+  let conv = params.existingConv
   if (!conv) {
-    throw new Error('Conversation non trouvée ou accès refusé')
+    if (useDb) {
+      const { data, error } = await sb
+        .from('support_conversations')
+        .select('id, client_id, unread_admin, unread_client')
+        .eq('id', params.conversationId)
+        .single()
+        
+      if (error || !data || (params.clientId && data.client_id !== params.clientId)) {
+        throw new Error('Conversation non trouvée ou accès refusé')
+      }
+      conv = data as unknown as SupportConversation
+    } else {
+      conv = await getSupportConversation(params.conversationId, params.clientId)
+      if (!conv) {
+        throw new Error('Conversation non trouvée ou accès refusé')
+      }
+    }
   }
 
   const newMsg: SupportMessage = {

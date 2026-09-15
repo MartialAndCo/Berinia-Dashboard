@@ -66,7 +66,8 @@ export async function POST(
       sender: isUserAdmin ? 'admin' : 'client',
       senderName,
       content: content.trim(),
-      clientId: isUserAdmin ? null : clientId
+      clientId: isUserAdmin ? null : clientId,
+      existingConv
     })
 
     // Trigger email alert

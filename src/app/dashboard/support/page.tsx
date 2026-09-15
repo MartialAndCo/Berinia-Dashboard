@@ -113,15 +113,65 @@ export default function ClientSupportPage() {
     }
   }, [selectedId])
 
-  // Polling every 5s
+  // Supabase Realtime for instant messages + 30s fallback polling
   useEffect(() => {
+    // Realtime: listen to new messages on the selected conversation
+    const channels: ReturnType<typeof supabase.channel>[] = []
+
+    if (selectedId) {
+      const msgChannel = supabase
+        .channel(`support-msgs-client-${selectedId}`)
+        .on(
+          'postgres_changes' as any,
+          { event: 'INSERT', schema: 'public', table: 'support_messages', filter: `conversation_id=eq.${selectedId}` },
+          (payload: any) => {
+            const newMsg = payload.new as Message
+            if (!newMsg || !newMsg.id) return
+            // Skip if this is our own optimistic message
+            setSelectedConv((prev) => {
+              if (!prev) return prev
+              const exists = prev.messages?.some((m) => m.id === newMsg.id || (m.id.startsWith('temp-') && m.content === newMsg.content))
+              if (exists) {
+                // Replace temp message with real one
+                return { ...prev, messages: (prev.messages || []).map((m) => m.id.startsWith('temp-') && m.content === newMsg.content ? newMsg : m) }
+              }
+              // New message from admin — play chime
+              if (newMsg.sender === 'admin') {
+                playSupportChime()
+              }
+              return { ...prev, messages: [...(prev.messages || []), newMsg] }
+            })
+          }
+        )
+        .subscribe()
+      channels.push(msgChannel)
+    }
+
+    // Listen to conversation list updates (status, unread, etc.)
+    const convChannel = supabase
+      .channel('support-convs-client')
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'support_conversations' },
+        () => {
+          fetchList(false)
+        }
+      )
+      .subscribe()
+    channels.push(convChannel)
+
+    // Fallback polling every 30s (in case Realtime disconnects)
     const interval = setInterval(() => {
       fetchList(false)
       if (selectedId) {
         fetchDetail(selectedId)
       }
-    }, 5000)
-    return () => clearInterval(interval)
+    }, 30000)
+
+    return () => {
+      clearInterval(interval)
+      channels.forEach((ch) => supabase.removeChannel(ch))
+    }
   }, [selectedId])
 
   useEffect(() => {

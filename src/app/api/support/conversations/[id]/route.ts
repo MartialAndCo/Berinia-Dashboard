@@ -31,8 +31,12 @@ export async function GET(
       return NextResponse.json({ error: 'Conversation non trouvée ou accès refusé' }, { status: 404 })
     }
 
-    // Auto-mark read for the current viewer
-    await markSupportRead(id, isUserAdmin ? 'admin' : 'client', clientId)
+    // Only mark read if there are unread messages for this viewer
+    if (isUserAdmin && conversation.unread_admin > 0) {
+      markSupportRead(id, 'admin', clientId)
+    } else if (!isUserAdmin && conversation.unread_client > 0) {
+      markSupportRead(id, 'client', clientId)
+    }
 
     return NextResponse.json({ success: true, conversation, isAdmin: isUserAdmin })
   } catch (err: any) {

@@ -107,16 +107,63 @@ export default function SupportChatBubble() {
     fetchConversations()
   }, [])
 
+  // Supabase Realtime for instant messages + 30s fallback polling
   useEffect(() => {
+    const channels: ReturnType<typeof supabase.channel>[] = []
+
+    if (activeConv) {
+      const msgChannel = supabase
+        .channel(`support-bubble-msgs-${activeConv.id}`)
+        .on(
+          'postgres_changes' as any,
+          { event: 'INSERT', schema: 'public', table: 'support_messages', filter: `conversation_id=eq.${activeConv.id}` },
+          (payload: any) => {
+            const newMsg = payload.new as Message
+            if (!newMsg || !newMsg.id) return
+            setMessages((prev) => {
+              const exists = prev.some((m) => m.id === newMsg.id || (m.id.startsWith('temp-') && m.content === newMsg.content))
+              if (exists) {
+                return prev.map((m) => m.id.startsWith('temp-') && m.content === newMsg.content ? newMsg : m)
+              }
+              if (newMsg.sender === 'admin' && soundEnabled) {
+                playSupportChime()
+              }
+              prevMsgCountRef.current += 1
+              return [...prev, newMsg]
+            })
+          }
+        )
+        .subscribe()
+      channels.push(msgChannel)
+    }
+
+    // Listen for conversation-level updates (unread counts, new tickets)
+    const convChannel = supabase
+      .channel('support-bubble-convs')
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'support_conversations' },
+        () => {
+          fetchConversations()
+        }
+      )
+      .subscribe()
+    channels.push(convChannel)
+
+    // Fallback polling every 30s
     const interval = setInterval(() => {
       if (activeConv) {
         loadConversation(activeConv.id)
       } else {
         fetchConversations()
       }
-    }, 6000)
-    return () => clearInterval(interval)
-  }, [activeConv, soundEnabled])
+    }, 30000)
+
+    return () => {
+      clearInterval(interval)
+      channels.forEach((ch) => supabase.removeChannel(ch))
+    }
+  }, [activeConv?.id, soundEnabled])
 
   useEffect(() => {
     if (isOpen) {

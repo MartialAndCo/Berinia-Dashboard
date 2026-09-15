@@ -163,15 +163,81 @@ export default function AdminSupportPage() {
     }
   }, [selectedId])
 
-  // Polling every 4s
+  // Supabase Realtime for instant messages + 30s fallback polling
   useEffect(() => {
+    const channels: ReturnType<typeof supabase.channel>[] = []
+
+    // Listen for new messages in real-time on the selected conversation
+    if (selectedId) {
+      const msgChannel = supabase
+        .channel(`support-msgs-admin-${selectedId}`)
+        .on(
+          'postgres_changes' as any,
+          { event: 'INSERT', schema: 'public', table: 'support_messages', filter: `conversation_id=eq.${selectedId}` },
+          (payload: any) => {
+            const newMsg = payload.new as Message
+            if (!newMsg || !newMsg.id) return
+            setSelectedConv((prev) => {
+              if (!prev) return prev
+              const exists = prev.messages?.some((m) => m.id === newMsg.id || (m.id.startsWith('temp-') && m.content === newMsg.content))
+              if (exists) {
+                return { ...prev, messages: (prev.messages || []).map((m) => m.id.startsWith('temp-') && m.content === newMsg.content ? newMsg : m) }
+              }
+              // New message from client — play chime and notify
+              if (newMsg.sender === 'client' && soundEnabled) {
+                playSupportChime()
+              }
+              return { ...prev, messages: [...(prev.messages || []), newMsg] }
+            })
+          }
+        )
+        .subscribe()
+      channels.push(msgChannel)
+    }
+
+    // Listen for conversation-level changes (new tickets, status updates)
+    const convChannel = supabase
+      .channel('support-convs-admin')
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'support_conversations' },
+        (payload: any) => {
+          const updated = payload.new as Conversation | undefined
+          // Trigger a toast for new client messages
+          if (updated && payload.eventType !== 'DELETE' && updated.last_sender === 'client') {
+            const old = prevConvsRef.current.find((c) => c.id === updated.id)
+            const isNewer = !old || new Date(updated.updated_at).getTime() > new Date(old.updated_at).getTime()
+            if (isNewer) {
+              if (soundEnabled) playSupportChime()
+              toast.info(`New message from ${updated.company_name}`, {
+                description: updated.last_message_preview
+              })
+              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                new Notification(`Support: ${updated.company_name}`, {
+                  body: updated.last_message_preview || 'New support message received',
+                  icon: '/icon-192.png'
+                })
+              }
+            }
+          }
+          fetchConversations(false)
+        }
+      )
+      .subscribe()
+    channels.push(convChannel)
+
+    // Fallback polling every 30s
     const interval = setInterval(() => {
       fetchConversations(false)
       if (selectedId) {
         fetchDetail(selectedId)
       }
-    }, 4000)
-    return () => clearInterval(interval)
+    }, 30000)
+
+    return () => {
+      clearInterval(interval)
+      channels.forEach((ch) => supabase.removeChannel(ch))
+    }
   }, [selectedId, soundEnabled])
 
   useEffect(() => {
