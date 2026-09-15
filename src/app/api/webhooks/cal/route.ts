@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { markAirtableMeetingBooked, cancelAirtableMeeting } from '@/lib/airtable'
+import { dispatchReminder } from '@/lib/sendblue'
 
 /**
  * Cal.com Webhook Handler
@@ -156,6 +157,19 @@ export async function POST(req: Request) {
         callVolume,
         leadSource
       })
+
+      // Dispatch immediate Sendblue iMessage asking to reply "YES" to confirm
+      if (!isRescheduled && attendeePhone) {
+        dispatchReminder({
+          phone: attendeePhone,
+          fullName: attendeeName,
+          startTime: startTime,
+          meetingLink: meetingLink,
+          step: 'direct',
+        }).catch((err) => {
+          console.error('[Cal.com Webhook] Failed to dispatch Sendblue direct message:', err)
+        })
+      }
 
       return NextResponse.json({ success: true, airtable: res })
     }

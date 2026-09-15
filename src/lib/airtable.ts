@@ -835,7 +835,7 @@ export interface MarkAirtableMeetingBookedParams {
   meetingUrl?: string | null
   callLink?: string | null
   notes?: string | null
-  showUpStatus?: 'Scheduled' | 'Rescheduled' | 'Attended' | 'Cancelled' | null
+  showUpStatus?: 'Scheduled' | 'Rescheduled' | 'Attended' | 'Cancelled' | 'Confirmed' | null
   businessType?: string | null
   revenue?: string | null
   currentSystem?: string | null
@@ -1285,6 +1285,97 @@ export async function cancelAirtableMeeting(params: CancelAirtableMeetingParams)
     return { success: false, error: err?.message }
   }
 }
+
+export interface ConfirmAirtableMeetingParams {
+  email?: string | null
+  phone?: string | null
+  replyText?: string | null
+  source?: string | null
+}
+
+/**
+ * Marks a lead as 'Confirmed' in Airtable when they reply 'YES' (via Sendblue iMessage/SMS or Zapier)
+ */
+export async function confirmAirtableMeeting(params: ConfirmAirtableMeetingParams): Promise<{ success: boolean; recordId?: string; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  const cleanEmail = params.email?.trim().toLowerCase()
+  const cleanPhone = (params.phone || '').replace(/\D/g, '')
+
+  try {
+    const searchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const listRes = await fetch(searchUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!listRes.ok) {
+      const err = await listRes.text().catch(() => '')
+      return { success: false, error: err }
+    }
+
+    const data = await listRes.json()
+    const records = data.records || []
+
+    let matchedRecord = records.find((r: any) => {
+      const rEmail = (r.fields?.['Email'] || '').trim().toLowerCase()
+      return rEmail && cleanEmail && rEmail === cleanEmail
+    })
+
+    if (!matchedRecord && cleanPhone) {
+      matchedRecord = records.find((r: any) => {
+        const rPhone = (r.fields?.['Phone'] || '').replace(/\D/g, '')
+        return rPhone && (rPhone === cleanPhone || rPhone.endsWith(cleanPhone) || cleanPhone.endsWith(rPhone))
+      })
+    }
+
+    if (!matchedRecord) {
+      console.warn('[Airtable] No matching lead record found to confirm meeting for:', params.email, params.phone)
+      return { success: false, error: 'Record not found in Airtable' }
+    }
+
+    const fieldsToUpdate: Record<string, any> = {
+      'Show-up Status': 'Confirmed',
+      'Operations Metrics': ['recGIbV6Jd2rc3MXf']
+    }
+
+    const existingNotes = matchedRecord.fields?.['Call Notes'] || ''
+    const replyNote = `[Sendblue iMessage Confirmation] Prospect replied "${params.replyText || 'YES'}" at ${new Date().toISOString()}`
+    fieldsToUpdate['Call Notes'] = existingNotes ? `${existingNotes}\n\n${replyNote}` : replyNote
+
+    const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${matchedRecord.id}`
+    const patchRes = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fields: fieldsToUpdate,
+        typecast: true
+      })
+    })
+
+    if (!patchRes.ok) {
+      const errText = await patchRes.text().catch(() => '')
+      return { success: false, error: errText }
+    }
+
+    console.log(`[Airtable] Successfully marked meeting as 'Confirmed' for record ${matchedRecord.id}`)
+    return { success: true, recordId: matchedRecord.id }
+  } catch (err: any) {
+    console.error('[Airtable confirmAirtableMeeting Exception]', err)
+    return { success: false, error: err?.message }
+  }
+}
+
 
 export interface FathomAnalysisResult {
   callOutcome: 'Closed Won (One-Call)' | 'Proposal / Contract Sent' | 'Second Call Scheduled' | 'Under Consideration (Hot)' | 'Nurturing (Cold)' | 'Closed Lost' | 'Disqualified'
