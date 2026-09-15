@@ -1909,9 +1909,7 @@ export async function getOrCreateAirtableAbonnement(params: {
     }
 
     // 2. If no exact match exists, create a tailored plan record in table Abonnement
-    const planName = params.companyName 
-      ? `${params.companyName} ($${params.monthlyRetainer}/mo)`
-      : `Plan $${params.monthlyRetainer}/mo ($${params.setupFee} setup)`
+    const planName = `Plan $${params.monthlyRetainer}/mo ($${params.setupFee} setup, $${params.billingRate}/min)`
 
     const createRes = await fetch(`https://api.airtable.com/v0/${baseId}/${abonnementTableId}`, {
       method: 'POST',
