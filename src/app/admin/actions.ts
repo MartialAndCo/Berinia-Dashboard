@@ -3,6 +3,7 @@
 import { checkAdminAuth, isAdminUser, countActiveAdmins } from '@/utils/supabase/server'
 import Retell from 'retell-sdk'
 import { createClient } from '@supabase/supabase-js'
+import { getAirtableBookedLeads } from '@/lib/airtable'
 
 export async function deleteClientAction(clientId: string) {
   try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
@@ -289,4 +290,40 @@ export async function getClientDashboardAction(clientId: string) {
   }
 
   return { success: true, client: clientRes.data, calls: callsRes.data || [] }
+}
+
+export async function getAirtableBookedLeadsAction() {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized', leads: [] }; }
+
+  try {
+    const res = await getAirtableBookedLeads()
+    if (!res.success) {
+      return { success: false, error: res.error, leads: [] }
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { data: existingClients } = await supabaseAdmin
+      .from('clients')
+      .select('email, company_name')
+
+    const existingEmails = new Set((existingClients || []).map(c => (c.email || '').toLowerCase()).filter(Boolean))
+    const existingCompanies = new Set((existingClients || []).map(c => (c.company_name || '').toLowerCase()).filter(Boolean))
+
+    const leads = (res.leads || []).map(lead => {
+      const isRegistered = 
+        (lead.email && existingEmails.has(lead.email.toLowerCase())) ||
+        (lead.companyName && existingCompanies.has(lead.companyName.toLowerCase()))
+      return {
+        ...lead,
+        isRegistered: Boolean(isRegistered)
+      }
+    })
+
+    return { success: true, leads }
+  } catch (err: any) {
+    return { success: false, error: err.message, leads: [] }
+  }
 }

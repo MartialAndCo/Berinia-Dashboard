@@ -1739,4 +1739,129 @@ export async function submitClientOnboardingToAirtable(data: ClientOnboardingFor
   }
 }
 
+export interface BookedLead {
+  recordId: string
+  companyName: string
+  fullName: string
+  email: string
+  phone: string
+  meetingDate?: string | null
+  status: string
+  monthlyRetainer?: number
+  billingRate?: number
+  setupFee?: number
+}
+
+/**
+ * Fetches leads from Airtable that have a meeting booked / scheduled status.
+ * Used in the admin client onboarding flow to pre-populate client fields in 1 click.
+ */
+export async function getAirtableBookedLeads(): Promise<{ success: boolean; leads: BookedLead[]; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
+
+  if (!apiKey || !baseId) {
+    return { success: false, leads: [], error: 'Airtable credentials not configured' }
+  }
+
+  try {
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!res.ok) {
+      const err = await res.text().catch(() => '')
+      return { success: false, leads: [], error: `Airtable error: ${err}` }
+    }
+
+    const data = await res.json()
+    const records = data.records || []
+    const bookedLeads: BookedLead[] = []
+
+    const extractNum = (val: any): number | undefined => {
+      if (Array.isArray(val)) val = val[0]
+      if (typeof val === 'number' && !isNaN(val)) return val
+      if (typeof val === 'string') {
+        const p = parseFloat(val.replace(/[^0-9.-]/g, ''))
+        if (!isNaN(p)) return p
+      }
+      return undefined
+    }
+
+    for (const r of records) {
+      const fields = r.fields || {}
+      const status = (fields['Lead Status'] || '').trim()
+      const statusLower = status.toLowerCase()
+      const showUpStatus = (fields['Show-up Status'] || '').toLowerCase()
+      const meetingDate = fields['Meeting Date'] || fields['Date RDV'] || null
+
+      const isBooked =
+        statusLower.includes('meeting') ||
+        statusLower.includes('scheduled') ||
+        statusLower.includes('booked') ||
+        statusLower.includes('rdv') ||
+        showUpStatus.includes('scheduled') ||
+        showUpStatus.includes('confirmed') ||
+        showUpStatus.includes('attended') ||
+        Boolean(meetingDate && !statusLower.includes('lost') && !statusLower.includes('not interested'))
+
+      // Filter out explicitly lost/disqualified
+      if (isBooked && !statusLower.includes('lost') && !statusLower.includes('not interested') && !statusLower.includes('disqualified')) {
+        const companyName = (fields['Business Name'] || fields['Company'] || fields['Entreprise'] || fields['Full Name'] || 'Unknown Company').trim()
+        const fullName = (fields['Full Name'] || fields['Nom'] || '').trim()
+        const email = (fields['Email'] || fields['email'] || '').trim()
+        const phone = (fields['Phone'] || fields['Téléphone'] || '').trim()
+
+        const monthlyRetainer = extractNum(
+          fields['Monthly Subscription (from Abonnement)'] ||
+          fields['Monthly Retainer (from Abonnement)'] ||
+          fields['Monthly Subscription'] ||
+          fields['Monthly Retainer']
+        )
+        const billingRate = extractNum(
+          fields['Cost Per Min (from Abonnement)'] ||
+          fields['Cost Per Min'] ||
+          fields['Billing Rate']
+        )
+        const setupFee = extractNum(
+          fields['Setup Fee (from Abonnement)'] ||
+          fields['Setup Fee']
+        )
+
+        bookedLeads.push({
+          recordId: r.id,
+          companyName,
+          fullName,
+          email,
+          phone,
+          meetingDate,
+          status,
+          monthlyRetainer,
+          billingRate,
+          setupFee
+        })
+      }
+    }
+
+    // Sort by meeting date descending, or alphabetically
+    bookedLeads.sort((a, b) => {
+      if (a.meetingDate && b.meetingDate) {
+        return new Date(b.meetingDate).getTime() - new Date(a.meetingDate).getTime()
+      }
+      if (a.meetingDate) return -1
+      if (b.meetingDate) return 1
+      return a.companyName.localeCompare(b.companyName)
+    })
+
+    return { success: true, leads: bookedLeads }
+  } catch (err: any) {
+    console.error('[getAirtableBookedLeads Error]', err)
+    return { success: false, leads: [], error: err.message }
+  }
+}
+
 

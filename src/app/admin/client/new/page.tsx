@@ -8,16 +8,32 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { ArrowLeft, Building2, CreditCard, Bot, UserPlus } from 'lucide-react'
-import { getRetellAgentsAction, addAgentAction } from '../../actions'
+import { ArrowLeft, Building2, CreditCard, Bot, UserPlus, RefreshCw, CalendarCheck, Sparkles, Check } from 'lucide-react'
+import { getRetellAgentsAction, addAgentAction, getAirtableBookedLeadsAction } from '../../actions'
 
 export default function NewClientPage() {
   const router = useRouter()
 
+  // Airtable Leads dropdown state
+  const [airtableLeads, setAirtableLeads] = useState<any[]>([])
+  const [loadingLeads, setLoadingLeads] = useState(false)
+  const [selectedLeadId, setSelectedLeadId] = useState('')
+  const [airtableRecordId, setAirtableRecordId] = useState('')
+
+  // Company Profile states
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
+
+  // Free Custom Pricing states (any price can be entered freely)
+  const [setupFee, setSetupFee] = useState('0')
+  const [setupInstallments, setSetupInstallments] = useState<number>(1) // 1, 2, or 3
   const [billingRate, setBillingRate] = useState('0.50')
   const [retainer, setRetainer] = useState('500')
+  const [discountPercent, setDiscountPercent] = useState('')
+  const [discountMonths, setDiscountMonths] = useState('3')
+  const [showDiscountInput, setShowDiscountInput] = useState(false)
+
+  // Agent states
   const [initialAgentToAssign, setInitialAgentToAssign] = useState('')
   const [forwardWebhookUrl, setForwardWebhookUrl] = useState('')
   const [backfillHistory, setBackfillHistory] = useState(false)
@@ -25,8 +41,24 @@ export default function NewClientPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchRetellAgents()
+    fetchInitialData()
   }, [])
+
+  const fetchInitialData = async () => {
+    fetchAirtableLeads()
+    fetchRetellAgents()
+  }
+
+  const fetchAirtableLeads = async () => {
+    setLoadingLeads(true)
+    const res = await getAirtableBookedLeadsAction()
+    if (res.success && res.leads) {
+      setAirtableLeads(res.leads)
+    } else if (res.error) {
+      console.warn('Airtable leads error:', res.error)
+    }
+    setLoadingLeads(false)
+  }
 
   const fetchRetellAgents = async () => {
     const res = await getRetellAgentsAction()
@@ -35,10 +67,50 @@ export default function NewClientPage() {
     }
   }
 
+  const handleSelectLead = (leadId: string) => {
+    setSelectedLeadId(leadId)
+    if (!leadId) {
+      setAirtableRecordId('')
+      return
+    }
+
+    const lead = airtableLeads.find(l => l.recordId === leadId)
+    if (lead) {
+      setCompanyName(lead.companyName || lead.fullName || '')
+      setEmail(lead.email || '')
+      setAirtableRecordId(lead.recordId)
+
+      if (lead.monthlyRetainer !== undefined && lead.monthlyRetainer > 0) {
+        setRetainer(String(lead.monthlyRetainer))
+      }
+      if (lead.billingRate !== undefined && lead.billingRate > 0) {
+        setBillingRate(String(lead.billingRate))
+      }
+      if (lead.setupFee !== undefined && lead.setupFee > 0) {
+        setSetupFee(String(lead.setupFee))
+      }
+
+      toast.success(`Prospect "${lead.companyName || lead.fullName}" sélectionné !`)
+    }
+  }
+
+  // Calculations for live breakdown
+  const numSetup = parseFloat(setupFee) || 0
+  const numRetainer = parseFloat(retainer) || 0
+  const numRate = parseFloat(billingRate) || 0
+  const numDiscount = parseFloat(discountPercent) || 0
+  const discountFactor = numDiscount > 0 ? (1 - numDiscount / 100) : 1
+  const discountedRetainer = Math.max(0, numRetainer * discountFactor)
+
+  const setupPerInstallment = setupInstallments > 0 ? numSetup / setupInstallments : numSetup
+  const month1Total = (setupInstallments > 1 ? setupPerInstallment : numSetup) + (numDiscount > 0 ? discountedRetainer : numRetainer)
+  const month2Total = (setupInstallments >= 2 ? setupPerInstallment : 0) + (parseInt(discountMonths) >= 2 && numDiscount > 0 ? discountedRetainer : numRetainer)
+  const month3Total = (setupInstallments >= 3 ? setupPerInstallment : 0) + (parseInt(discountMonths) >= 3 && numDiscount > 0 ? discountedRetainer : numRetainer)
+
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const toastId = toast.loading("Creating client & sending invitation...")
+    const toastId = toast.loading("Création du client & configuration Stripe en cours...")
 
     try {
       const res = await fetch('/api/invite', {
@@ -47,38 +119,43 @@ export default function NewClientPage() {
         body: JSON.stringify({
           email,
           company_name: companyName,
-          billing_rate: parseFloat(billingRate),
-          monthly_retainer: parseFloat(retainer)
+          billing_rate: parseFloat(billingRate) || 0,
+          monthly_retainer: parseFloat(retainer) || 0,
+          setup_fee: parseFloat(setupFee) || 0,
+          setup_installments: setupInstallments,
+          discount_percent: discountPercent ? parseFloat(discountPercent) : 0,
+          discount_duration_months: discountMonths ? parseInt(discountMonths) : 1,
+          airtable_record_id: airtableRecordId || undefined
         })
       })
 
       const json = await res.json()
       if (res.ok && json.success) {
-        toast.success("Client onboarded and invited successfully!", { id: toastId })
+        toast.success("Client créé et invitation envoyée avec succès !", { id: toastId })
 
         // Assign initial agent if selected
         if (initialAgentToAssign && json.clientId) {
           const selectedRetellObj = retellAgents.find(a => a.agent_id === initialAgentToAssign)
           if (selectedRetellObj) {
             await addAgentAction(json.clientId, selectedRetellObj.agent_name, selectedRetellObj.agent_id, forwardWebhookUrl, backfillHistory)
-            toast.success(backfillHistory ? "Agent assigned with past call history." : "Agent assigned (clean history starting from 0).")
+            toast.success(backfillHistory ? "Agent assigné avec historique." : "Agent assigné (historique vierge).")
           }
         }
 
         // Navigate to the newly created client detail page
         router.push(`/admin/client/${json.clientId}`)
       } else {
-        toast.error(json.error || "Failed to create client", { id: toastId })
+        toast.error(json.error || "Erreur lors de la création du client", { id: toastId })
       }
     } catch (err: any) {
-      toast.error("Network or server error", { id: toastId })
+      toast.error("Erreur réseau ou serveur", { id: toastId })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       <div className="max-w-3xl mx-auto space-y-8">
         
         {/* Header & Back Button */}
@@ -87,20 +164,90 @@ export default function NewClientPage() {
             <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
               <span>•</span> CLIENT ONBOARDING
             </div>
-            <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">New Client (Pod)</h1>
-            <p className="text-sm text-[#73706b]">Create a new client account, configure pricing parameters, and assign voice agents.</p>
+            <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">Nouveau Client (Pod)</h1>
+            <p className="text-sm text-[#73706b]">
+              Sélectionnez un prospect Airtable ou remplissez manuellement. Choisissez librement vos prix.
+            </p>
           </div>
           <div>
             <Link href="/admin">
               <Button variant="outline" size="sm" className="border-[#e6e2d6] bg-white text-[#1a1918] hover:bg-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-4">
-                <ArrowLeft className="h-4 w-4 mr-2" /> Back to Overview
+                <ArrowLeft className="h-4 w-4 mr-2" /> Retour Overview
               </Button>
             </Link>
           </div>
         </div>
 
         {/* Full Page Form */}
-        <form onSubmit={handleCreateClient} className="space-y-8">
+        <form onSubmit={handleCreateClient} className="space-y-6">
+          
+          {/* Card 0: Airtable Dropdown */}
+          <Card className="border-2 border-[#9e4733]/30 bg-[#faf8f5] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+            <CardHeader className="border-b border-[#e6e2d6] py-3.5 px-6 bg-white flex flex-row items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase">
+                  <Sparkles className="w-3.5 h-3.5 text-[#9e4733]" /> PULL AIRTABLE • RDV RÉSERVÉS
+                </div>
+                <CardTitle className="font-serif text-lg font-bold text-[#1a1918]">
+                  Importer un prospect qualifié
+                </CardTitle>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={fetchAirtableLeads}
+                disabled={loadingLeads}
+                className="text-xs text-[#73706b] hover:text-[#1a1918] h-8 px-2 cursor-pointer"
+                title="Actualiser depuis Airtable"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loadingLeads ? 'animate-spin' : ''}`} />
+                Actualiser
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-4 pb-5 px-6 space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
+                  Sélectionner un lead (RDV réservé) pour pré-remplir
+                </Label>
+                <select
+                  className="flex h-11 w-full items-center justify-between rounded-sm border border-[#e2dfd8] bg-white px-3.5 py-2 text-sm text-[#1a1918] focus:outline-none focus:ring-1 focus:ring-[#1a1918] cursor-pointer"
+                  value={selectedLeadId}
+                  onChange={e => handleSelectLead(e.target.value)}
+                >
+                  <option value="">
+                    {loadingLeads ? 'Chargement des prospects Airtable...' : '-- Sélectionner un prospect (RDV réservé) pour pré-remplir --'}
+                  </option>
+                  {airtableLeads.map(lead => {
+                    const displayDate = lead.meetingDate
+                      ? new Date(lead.meetingDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                      : null
+                    return (
+                      <option key={lead.recordId} value={lead.recordId}>
+                        {lead.companyName} {lead.fullName ? `(${lead.fullName})` : ''} — {lead.email || 'Pas d\'email'}
+                        {displayDate ? ` • RDV: ${displayDate}` : ''}
+                        {lead.isRegistered ? ' [Déjà client]' : ''}
+                      </option>
+                    )
+                  })}
+                </select>
+                <p className="text-[11px] text-[#73706b]">
+                  {airtableLeads.length > 0 
+                    ? `${airtableLeads.length} prospect(s) qualifié(s) trouvé(s) dans Airtable.` 
+                    : 'Aucun prospect avec RDV programmé trouvé dans Airtable.'}
+                </p>
+              </div>
+
+              {selectedLeadId && (
+                <div className="p-3 bg-white border border-[#e2dfd8] rounded-sm text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-700 font-medium">
+                    <Check className="w-4 h-4" /> Données pré-remplies depuis Airtable
+                  </div>
+                  <span className="text-[11px] text-[#73706b] font-mono">ID: {airtableRecordId}</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
           
           {/* Card 1: Company Profile */}
           <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
@@ -150,46 +297,185 @@ export default function NewClientPage() {
           <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
             <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
               <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
-                <span>•</span> STEP 2
+                <span>•</span> ÉTAPE 2
               </div>
               <CardTitle className="font-serif text-xl font-bold text-[#1a1918] flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-[#9e4733]" /> Rates & Subscription Terms
+                <CreditCard className="w-5 h-5 text-[#9e4733]" /> Tarification sur-mesure (Prix Libres)
               </CardTitle>
               <CardDescription className="text-xs text-[#73706b]">
-                Stripe customer and subscription products will be provisioned automatically.
+                Définissez librement les montants. Stripe facturera au centime près les prix indiqués.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pt-6">
+            <CardContent className="space-y-5 pt-6">
+              
+              {/* Setup Fee & Échelonnement */}
+              <div className="p-4 bg-[#faf9f7] border border-[#e2dfd8] rounded-sm space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
+                      Frais de Setup ($)
+                    </Label>
+                    <p className="text-[11px] text-[#73706b]">Facturés à l'onboarding (0 si aucun)</p>
+                  </div>
+                  <Input 
+                    type="number" 
+                    step="1" 
+                    min="0"
+                    value={setupFee} 
+                    onChange={e => setSetupFee(e.target.value)} 
+                    className="border-[#e2dfd8] bg-white rounded-sm h-10 text-sm font-mono w-full sm:w-36 text-right font-bold" 
+                  />
+                </div>
+
+                {numSetup > 0 && (
+                  <div className="pt-2 border-t border-[#e2dfd8]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span className="text-xs text-[#73706b]">Modalité de paiement du Setup :</span>
+                    <div className="inline-flex rounded-sm border border-[#e2dfd8] bg-white p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setSetupInstallments(1)}
+                        className={`px-3 py-1 text-xs font-semibold rounded-sm transition-all cursor-pointer ${setupInstallments === 1 ? 'bg-[#1a1918] text-white' : 'text-[#73706b] hover:text-[#1a1918]'}`}
+                      >
+                        1x Comptant
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSetupInstallments(2)}
+                        className={`px-3 py-1 text-xs font-semibold rounded-sm transition-all cursor-pointer ${setupInstallments === 2 ? 'bg-[#1a1918] text-white' : 'text-[#73706b] hover:text-[#1a1918]'}`}
+                      >
+                        2x sans frais (${(numSetup / 2).toFixed(0)}/m)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSetupInstallments(3)}
+                        className={`px-3 py-1 text-xs font-semibold rounded-sm transition-all cursor-pointer ${setupInstallments === 3 ? 'bg-[#1a1918] text-white' : 'text-[#73706b] hover:text-[#1a1918]'}`}
+                      >
+                        3x sans frais (${(numSetup / 3).toFixed(0)}/m)
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Retainer & Minute Rate */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
-                    Rate per minute ($) <span className="text-[#9e4733]">*</span>
-                  </Label>
-                  <Input 
-                    required 
-                    type="number" 
-                    step="0.01" 
-                    value={billingRate} 
-                    onChange={e => setBillingRate(e.target.value)} 
-                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" 
-                  />
-                  <p className="text-[11px] text-[#73706b]">Billed based on total call duration in seconds.</p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
-                    Monthly Subscription ($) <span className="text-[#9e4733]">*</span>
+                    Abonnement Mensuel ($) <span className="text-[#9e4733]">*</span>
                   </Label>
                   <Input 
                     required 
                     type="number" 
                     step="1" 
+                    min="0"
                     value={retainer} 
                     onChange={e => setRetainer(e.target.value)} 
-                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono" 
+                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono text-base font-bold" 
                   />
-                  <p className="text-[11px] text-[#73706b]">Fixed subscription charged automatically each month.</p>
+                  <p className="text-[11px] text-[#73706b]">Montant fixe récurrent prélevé chaque mois.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
+                    Tarif par minute ($) <span className="text-[#9e4733]">*</span>
+                  </Label>
+                  <Input 
+                    required 
+                    type="number" 
+                    step="0.01" 
+                    min="0"
+                    value={billingRate} 
+                    onChange={e => setBillingRate(e.target.value)} 
+                    className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm font-mono text-base font-bold" 
+                  />
+                  <p className="text-[11px] text-[#73706b]">Facturé à la seconde selon la durée des appels.</p>
                 </div>
               </div>
+
+              {/* Ristourne / Remise Optionnelle */}
+              <div className="border-t border-[#f0ece4] pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-[#1a1918]">Ristourne / Remise Stripe (Optionnel)</span>
+                    <p className="text-[11px] text-[#73706b]">Génère un coupon de réduction sur la facture Stripe.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowDiscountInput(!showDiscountInput)
+                      if (showDiscountInput) setDiscountPercent('')
+                    }}
+                    className="border-[#e2dfd8] text-xs h-8 cursor-pointer"
+                  >
+                    {showDiscountInput ? 'Annuler la remise' : '+ Ajouter une remise'}
+                  </Button>
+                </div>
+
+                {showDiscountInput && (
+                  <div className="mt-3 p-3 bg-[#faf9f7] border border-[#e2dfd8] rounded-sm grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-semibold text-[#73706b]">Pourcentage de remise (%)</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="100"
+                        placeholder="ex: 20"
+                        value={discountPercent}
+                        onChange={e => setDiscountPercent(e.target.value)}
+                        className="bg-white h-9 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-semibold text-[#73706b]">Durée (nombre de mois)</Label>
+                      <select
+                        className="flex h-9 w-full rounded-sm border border-[#e2dfd8] bg-white px-2 py-1 text-xs text-[#1a1918]"
+                        value={discountMonths}
+                        onChange={e => setDiscountMonths(e.target.value)}
+                      >
+                        <option value="1">1 mois (1ère facture)</option>
+                        <option value="2">2 mois</option>
+                        <option value="3">3 mois</option>
+                        <option value="6">6 mois</option>
+                        <option value="12">12 mois</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Simulation en direct */}
+              <div className="p-3.5 bg-[#1a1918] text-[#f6f4f0] rounded-sm space-y-2">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-[#9e4733] flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-[#9e4733]" /> SIMULATION DE FACTURATION STRIPE
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5 text-xs">
+                  <div className="bg-white/5 p-2 rounded-sm">
+                    <div className="text-[10px] text-stone-400 uppercase">Mois 1 (À l'inscription)</div>
+                    <div className="font-serif text-base font-bold text-white mt-0.5">${month1Total.toFixed(2)}</div>
+                    <div className="text-[10px] text-stone-400 truncate">
+                      {numSetup > 0 ? `Setup (${setupInstallments > 1 ? `1/${setupInstallments}` : '1x'}) + ` : ''}Abonnement
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 p-2 rounded-sm">
+                    <div className="text-[10px] text-stone-400 uppercase">Mois 2 {setupInstallments >= 3 ? '& 3' : ''}</div>
+                    <div className="font-serif text-base font-bold text-white mt-0.5">
+                      ${setupInstallments >= 2 ? month2Total.toFixed(2) : numRetainer.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-stone-400 truncate">
+                      {setupInstallments >= 2 ? 'Échéance setup + ' : ''}Abonnement + consos
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 p-2 rounded-sm">
+                    <div className="text-[10px] text-stone-400 uppercase">Mois suivants</div>
+                    <div className="font-serif text-base font-bold text-white mt-0.5">${numRetainer.toFixed(2)}</div>
+                    <div className="text-[10px] text-stone-400 truncate">Abonnement + ${numRate}/min</div>
+                  </div>
+                </div>
+              </div>
+
             </CardContent>
           </Card>
 

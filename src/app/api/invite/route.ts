@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { updateAirtableLeadRecord } from '@/lib/airtable'
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy')
 
@@ -12,7 +13,19 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { email, company_name, billing_rate, monthly_retainer } = await req.json()
+    const body = await req.json()
+    const { 
+      email, 
+      company_name, 
+      billing_rate, 
+      monthly_retainer, 
+      setup_fee, 
+      setup_installments, 
+      discount_percent, 
+      discount_amount, 
+      discount_duration_months, 
+      airtable_record_id 
+    } = body
 
     if (!email || !company_name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -34,7 +47,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: inviteError.message }, { status: 400 })
     }
 
-    // 2. STRIPE INTEGRATION (Customer + Retainer + Metered Usage)
+    // 2. STRIPE INTEGRATION (Customer + Retainer + Metered Usage + Setup + Discounts)
     let stripeCustomerId = null
     let stripeSubscriptionId = null
     let invoiceUrl = ''
@@ -52,9 +65,33 @@ export async function POST(req: Request) {
       })
       stripeCustomerId = customer.id
 
+      // Handle Setup Fee (1x comptant or installments)
+      const rawSetupFee = typeof setup_fee === 'number' ? setup_fee : parseFloat(setup_fee || '0')
+      const rawInstallments = parseInt(setup_installments) || 1
+      const numInstallments = Math.max(1, Math.min(3, rawInstallments))
+
+      if (rawSetupFee > 0) {
+        if (numInstallments > 1) {
+          const installmentAmount = Math.round((rawSetupFee / numInstallments) * 100)
+          await stripe.invoiceItems.create({
+            customer: customer.id,
+            amount: installmentAmount,
+            currency: 'usd',
+            description: `Setup Fee (Échéance 1 sur ${numInstallments}) - ${company_name}`
+          })
+        } else {
+          await stripe.invoiceItems.create({
+            customer: customer.id,
+            amount: Math.round(rawSetupFee * 100),
+            currency: 'usd',
+            description: `Setup Fee - ${company_name}`
+          })
+        }
+      }
+
       const items: any[] = []
 
-      // Monthly Subscription
+      // Monthly Subscription (exact retainer chosen by admin)
       if (monthly_retainer > 0) {
         const productSubscription = await stripe.products.create({ name: `Monthly Subscription - ${company_name}` })
         const priceSubscription = await stripe.prices.create({
@@ -66,7 +103,7 @@ export async function POST(req: Request) {
         items.push({ price: priceSubscription.id })
       }
 
-      // Usage-based billing (Metered per second)
+      // Usage-based billing (Metered per second, exact rate chosen by admin)
       if (billing_rate > 0) {
         const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${company_name}` })
         const priceUsage = await stripe.prices.create({
@@ -81,14 +118,42 @@ export async function POST(req: Request) {
         items.push({ price: priceUsage.id })
       }
 
+      // Optional Stripe Coupon (discounts)
+      let discounts: any[] | undefined = undefined
+      if (discount_percent && discount_percent > 0) {
+        const durMonths = parseInt(discount_duration_months) || 1
+        const coupon = await stripe.coupons.create({
+          percent_off: discount_percent,
+          duration: durMonths > 1 ? 'repeating' : 'once',
+          duration_in_months: durMonths > 1 ? durMonths : undefined,
+          name: `Remise ${discount_percent}% - ${company_name}`
+        })
+        discounts = [{ coupon: coupon.id }]
+      } else if (discount_amount && discount_amount > 0) {
+        const durMonths = parseInt(discount_duration_months) || 1
+        const coupon = await stripe.coupons.create({
+          amount_off: Math.round(discount_amount * 100),
+          currency: 'usd',
+          duration: durMonths > 1 ? 'repeating' : 'once',
+          duration_in_months: durMonths > 1 ? durMonths : undefined,
+          name: `Remise $${discount_amount} - ${company_name}`
+        })
+        discounts = [{ coupon: coupon.id }]
+      }
+
       if (items.length > 0) {
-        const subscription = await stripe.subscriptions.create({
+        const subPayload: any = {
           customer: customer.id,
           items: items,
           payment_behavior: 'default_incomplete',
           payment_settings: { save_default_payment_method: 'on_subscription' },
           expand: ['latest_invoice']
-        })
+        }
+        if (discounts && discounts.length > 0) {
+          subPayload.discounts = discounts
+        }
+
+        const subscription = await stripe.subscriptions.create(subPayload)
         stripeSubscriptionId = subscription.id
 
         if (subscription.latest_invoice && typeof subscription.latest_invoice !== 'string') {
@@ -99,7 +164,34 @@ export async function POST(req: Request) {
       console.error('Stripe error:', stripeErr)
     }
 
-    // 3. Create the client record in the database
+    // 3. Update Airtable record if provided
+    if (airtable_record_id) {
+      try {
+        const rawSetupFee = typeof setup_fee === 'number' ? setup_fee : parseFloat(setup_fee || '0')
+        const rawInstallments = parseInt(setup_installments) || 1
+        const numInstallments = Math.max(1, Math.min(3, rawInstallments))
+        const pricingSummary = [
+          `[Abonnement Configuré]:`,
+          `• Retainer: $${monthly_retainer}/mois`,
+          `• Tarif appels: $${billing_rate}/min`,
+          rawSetupFee > 0 ? `• Setup: $${rawSetupFee}${numInstallments > 1 ? ` (en ${numInstallments}x)` : ' (comptant)'}` : null,
+          discount_percent > 0 ? `• Remise: -${discount_percent}%` : null,
+          discount_amount > 0 ? `• Remise: -$${discount_amount}` : null
+        ].filter(Boolean).join('\n')
+
+        await updateAirtableLeadRecord(airtable_record_id, {
+          'Lead Status': 'Client Invited',
+          'Monthly Subscription': monthly_retainer || 0,
+          'Cost Per Min': billing_rate || 0,
+          'Setup Fee': rawSetupFee || 0,
+          'Call Notes': pricingSummary
+        })
+      } catch (atErr) {
+        console.warn('[Invite API] Could not update Airtable lead:', atErr)
+      }
+    }
+
+    // 4. Create the client record in the database
     const { data: clientData, error: clientError } = await supabaseAdmin
       .from('clients')
       .insert({
