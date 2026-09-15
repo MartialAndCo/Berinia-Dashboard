@@ -808,7 +808,9 @@ export async function markAirtableSubscriptionEnded(params: MarkAirtableSubscrip
       body: JSON.stringify({
         fields: {
           'Active Subscription': false,
-          'Subscription End Date': effectiveEndDate
+          'Lead Status': 'Lost Client',
+          'Subscription End Date': effectiveEndDate,
+          'Operations Metrics': ['recGIbV6Jd2rc3MXf']
         },
         typecast: true
       })
@@ -1808,7 +1810,7 @@ export async function getAirtableBookedLeads(): Promise<{ success: boolean; lead
         status === 'Call Scheduled'
 
       // Exclude cancelled meetings or already closed leads
-      if (isMeetingBooked && showUpStatus !== 'Cancelled' && status !== 'Closed Won' && status !== 'Client Invited' && status !== 'Closed Lost') {
+      if (isMeetingBooked && showUpStatus !== 'Cancelled' && status !== 'Closed Won' && status !== 'Client Invited' && status !== 'Closed Lost' && status !== 'Lost Client') {
         const companyName = (fields['Business Name'] || fields['Company'] || fields['Entreprise'] || fields['Full Name'] || 'Unknown Company').trim()
         const fullName = (fields['Full Name'] || fields['Nom'] || '').trim()
         const email = (fields['Email'] || fields['email'] || '').trim()

@@ -196,10 +196,37 @@ export async function POST(req: Request) {
             console.error('[Stripe Webhook] Error fetching customer for subscription update:', e)
           }
         }
-      } else if (subscription.status === 'past_due' || subscription.status === 'unpaid' || subscription.status === 'canceled') {
+      } else if (subscription.status === 'canceled' || subscription.status === 'unpaid') {
         if (client) {
-          console.warn(`[Stripe Webhook] Subscription status is ${subscription.status} for client ${client.company_name}`)
+          console.warn(`[Stripe Webhook] Subscription status is ${subscription.status} for client ${client.company_name}. Marking as Lost Client.`)
           await suspendClientAgent(client.id, `subscription_${subscription.status}`)
+        }
+        const cancelDate = subscription.canceled_at 
+          ? new Date(subscription.canceled_at * 1000).toISOString().slice(0, 10)
+          : (subscription.ended_at ? new Date(subscription.ended_at * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10))
+
+        let customerEmail = client?.email
+        let customerName = client?.company_name
+        if (!customerEmail && subscription.customer) {
+          try {
+            const customer = await stripe.customers.retrieve(subscription.customer)
+            if (customer && !customer.deleted) {
+              customerEmail = customer.email
+              customerName = customer.name
+            }
+          } catch (e) {
+            console.error('[Stripe Webhook] Error fetching customer for subscription cancelation:', e)
+          }
+        }
+
+        await markAirtableSubscriptionEnded({
+          email: customerEmail,
+          companyName: customerName,
+          endDate: cancelDate
+        }).catch(err => console.error('[Stripe Webhook] Airtable markAirtableSubscriptionEnded error:', err))
+      } else if (subscription.status === 'past_due') {
+        if (client) {
+          console.warn(`[Stripe Webhook] Subscription status is past_due for client ${client.company_name}. In grace period (Stripe smart retries in progress).`)
         }
       }
     }

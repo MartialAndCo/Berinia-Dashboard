@@ -5,6 +5,7 @@ import { checkAdminAuth, isAdminUser, countActiveAdmins } from '@/utils/supabase
 import { getServiceSupabase } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
 import { suspendClientAgent, reactivateClientAgent } from '@/lib/agent-activation'
+import { markAirtableSubscriptionEnded } from '@/lib/airtable'
 
 const supabaseAdmin = getServiceSupabase()
 
@@ -329,7 +330,16 @@ export async function deleteClientAction(clientId: string) {
       }
     }
 
-    // 3. Just in case, delete from clients explicitly
+    // 3. Mark Airtable subscription ended and status as 'Lost Client'
+    if (client.email || client.company_name) {
+      await markAirtableSubscriptionEnded({
+        email: client.email,
+        companyName: client.company_name,
+        endDate: new Date().toISOString().slice(0, 10)
+      }).catch(e => console.error('[deleteClientAction] Airtable markAirtableSubscriptionEnded error:', e))
+    }
+
+    // 4. Delete from clients explicitly
     await supabaseAdmin.from('clients').delete().eq('id', clientId)
 
     return { success: true }
