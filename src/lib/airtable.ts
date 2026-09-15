@@ -486,7 +486,8 @@ export async function markAirtableSubscriptionActive(params: MarkAirtableSubscri
       const existingStartDate = matchedRecord.fields?.['Subscription Start Date']
       const patchFields: Record<string, any> = {
         'Active Subscription': true,
-        'Lead Status': 'Closed Won'
+        'Lead Status': 'Closed Won',
+        'Operations Metrics': ['recGIbV6Jd2rc3MXf']
       }
       if (!existingStartDate) {
         patchFields['Subscription Start Date'] = new Date().toISOString().slice(0, 10)
@@ -646,7 +647,8 @@ export async function recordStripeInvoicePayment(params: RecordStripeInvoicePaym
         'Total Billed (Stripe LTV)': newTotalBilled,
         'Total Usage Billed': newTotalUsage,
         'Active Subscription': true,
-        'Lead Status': 'Closed Won'
+        'Lead Status': 'Closed Won',
+        'Operations Metrics': ['recGIbV6Jd2rc3MXf']
       }
 
       if (!existingStartDate) {
@@ -1858,6 +1860,90 @@ export async function getAirtableBookedLeads(): Promise<{ success: boolean; lead
     console.error('[getAirtableBookedLeads Error]', err)
     return { success: false, leads: [], error: err.message }
   }
+}
+
+/**
+ * Finds an existing Abonnement record matching the exact monthlyRetainer, setupFee, and billingRate,
+ * or creates a new one so Airtable's Lookups (Monthly Subscription, Setup Fee, Cost Per Min) and
+ * Calc MRR / Calc Setup Fee formulas evaluate to the exact negotiated prices.
+ */
+export async function getOrCreateAirtableAbonnement(params: {
+  monthlyRetainer: number
+  setupFee: number
+  billingRate: number
+  companyName?: string
+}): Promise<string | null> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const abonnementTableId = 'tblUxLyfQRyzaL1Dl' // Table Abonnement
+
+  if (!apiKey || !baseId) return null
+
+  try {
+    const listUrl = `https://api.airtable.com/v0/${baseId}/${abonnementTableId}`
+    const res = await fetch(listUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      const records = data.records || []
+
+      // 1. Check if an existing plan matches these exact numbers
+      const matched = records.find((r: any) => {
+        const ret = Number(r.fields?.['Monthly Retainer'] || 0)
+        const setup = Number(r.fields?.['Setup Fee'] || 0)
+        const rate = Number(r.fields?.['Cost Per Min'] || 0)
+        return (
+          Math.abs(ret - params.monthlyRetainer) < 0.01 &&
+          Math.abs(setup - params.setupFee) < 0.01 &&
+          Math.abs(rate - params.billingRate) < 0.001
+        )
+      })
+
+      if (matched) {
+        return matched.id
+      }
+    }
+
+    // 2. If no exact match exists, create a tailored plan record in table Abonnement
+    const planName = params.companyName 
+      ? `${params.companyName} ($${params.monthlyRetainer}/mo)`
+      : `Plan $${params.monthlyRetainer}/mo ($${params.setupFee} setup)`
+
+    const createRes = await fetch(`https://api.airtable.com/v0/${baseId}/${abonnementTableId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        records: [
+          {
+            fields: {
+              'Name': planName,
+              'Monthly Retainer': params.monthlyRetainer,
+              'Setup Fee': params.setupFee,
+              'Cost Per Min': params.billingRate
+            }
+          }
+        ]
+      })
+    })
+
+    if (createRes.ok) {
+      const createData = await createRes.json()
+      return createData.records?.[0]?.id || null
+    } else {
+      const err = await createRes.text()
+      console.warn('[getOrCreateAirtableAbonnement Error]', err)
+    }
+  } catch (e) {
+    console.error('[getOrCreateAirtableAbonnement Exception]', e)
+  }
+  return null
 }
 
 
