@@ -10,8 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2, ShieldAlert, KeyRound, Save, RefreshCw, Eye, ExternalLink, FileText, CheckCircle2, Mic, Globe } from 'lucide-react'
-import { updateClientConfigAction, forceUpdateClientEmailAction, recalculateClientCallsCostAction, deleteClientAction, toggleClientAgentStatusAction, getClientOnboardingDataAction } from './actions'
+import { ArrowLeft, Trash2, ShieldAlert, KeyRound, Save, RefreshCw, Eye, ExternalLink, FileText, CheckCircle2, Mic, Globe, Archive } from 'lucide-react'
+import { updateClientConfigAction, forceUpdateClientEmailAction, recalculateClientCallsCostAction, deleteClientAction, toggleClientAgentStatusAction, getClientOnboardingDataAction, archiveClientAction } from './actions'
 import { addAgentAction, deleteAgentAction, getRetellAgentsAction, updateAgentWebhookAction, syncRetellAgentWebhookAction } from '../../actions'
 import { DeleteClientModal } from '@/components/DeleteClientModal'
 import PageLoading from '@/components/PageLoading'
@@ -164,6 +164,18 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  const handleArchiveClient = async () => {
+    if (!confirm(`Do you want to archive "${client.company_name}"?\n\nThis will suspend their voice agent, cancel any recurring Stripe subscription, and mark them as Lost Client in Airtable.\nTheir past invoices and call logs will remain safely stored for accounting.`)) return
+    const toastId = toast.loading("Archiving client account...")
+    const res = await archiveClientAction(clientId)
+    if (res.success) {
+      toast.success("Client account successfully archived.", { id: toastId })
+      fetchData()
+    } else {
+      toast.error("Error archiving client: " + res.error, { id: toastId })
+    }
+  }
+
   const handleDeleteClient = async () => {
     const toastId = toast.loading("Deleting client...")
     const res = await deleteClientAction(clientId)
@@ -193,7 +205,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   if (!client) return <div className="p-8 text-[#9e4733]">Client not found</div>
 
   const isClientActive = client.status === 'Active' || client.status === 'Actif'
-  const isDemo = client.email === 'demo@berinagents.com' || client.company_name?.toLowerCase().includes('demo')
+  const isDemo = client.email === 'demo@berinagents.com' || client.email === 'account@test.com' || client.status === 'Demo' || client.company_name?.toLowerCase().includes('demo') || client.company_name?.toLowerCase().includes('apex health')
 
   return (
     <div className="p-8">
@@ -207,7 +219,15 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             </div>
             <div className="flex items-center gap-3">
               <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">{client.company_name}</h1>
-              {isClientActive ? (
+              {isDemo ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-sm uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Demo / Showcase
+                </span>
+              ) : client.status === 'Archived' ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-stone-600 bg-stone-100 border border-stone-300 px-2.5 py-0.5 rounded-sm uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-stone-400" /> Archived
+                </span>
+              ) : isClientActive ? (
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-sm uppercase tracking-wider">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
                 </span>
@@ -224,7 +244,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             <p className="text-sm text-[#73706b]">Detailed client management & configuration</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {!isDemo && (
+            {!isDemo && client.status !== 'Archived' && (
               isClientActive ? (
                 <Button 
                   onClick={() => handleToggleAgentStatus('Suspended')} 
@@ -254,6 +274,16 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                 <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
               </Button>
             </Link>
+            {!isDemo && client.status !== 'Archived' && (
+              <Button 
+                onClick={handleArchiveClient} 
+                variant="outline" 
+                size="sm" 
+                className="border-stone-300 bg-stone-50 text-stone-700 hover:bg-stone-100 rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer"
+              >
+                <Archive className="h-4 w-4 mr-1.5 text-stone-600" /> Archive
+              </Button>
+            )}
             <Button onClick={() => setShowDeleteModal(true)} variant="outline" size="sm" className="border-[#fad4cf] bg-[#fdf2f0] text-[#9e4733] hover:bg-[#fad4cf] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-3 cursor-pointer">
               <Trash2 className="h-4 w-4 mr-1.5" /> Delete
             </Button>

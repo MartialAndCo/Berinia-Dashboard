@@ -3,7 +3,68 @@
 import { checkAdminAuth, isAdminUser, countActiveAdmins } from '@/utils/supabase/server'
 import Retell from 'retell-sdk'
 import { createClient } from '@supabase/supabase-js'
-import { getAirtableBookedLeads } from '@/lib/airtable'
+import { getAirtableBookedLeads, markAirtableSubscriptionEnded } from '@/lib/airtable'
+import { suspendClientAgent } from '@/lib/agent-activation'
+import { revalidatePath } from 'next/cache'
+
+export async function archiveClientAction(clientId: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Config manquante' }
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+  try {
+    const { data: client } = await supabaseAdmin
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .single()
+
+    if (!client) return { success: false, error: 'Client not found' }
+
+    // 1. Suspend the client's Retell agents so no new calls are accepted
+    await suspendClientAgent(clientId, 'Client account archived')
+
+    // 2. Cancel Stripe subscription if active (stops recurring billing)
+    if (client.stripe_subscription_id) {
+      const stripeKey = process.env.STRIPE_SECRET_KEY
+      if (stripeKey && stripeKey !== 'dummy_key') {
+        try {
+          const Stripe = require('stripe').default || require('stripe')
+          const stripe = new Stripe(stripeKey)
+          await stripe.subscriptions.cancel(client.stripe_subscription_id)
+        } catch (e) {
+          console.error('[archiveClientAction] Error canceling Stripe subscription:', e)
+        }
+      }
+    }
+
+    // 3. Mark Airtable subscription ended and status as 'Lost Client'
+    if (client.email || client.company_name) {
+      await markAirtableSubscriptionEnded({
+        email: client.email,
+        companyName: client.company_name,
+        endDate: new Date().toISOString().slice(0, 10)
+      }).catch(e => console.error('[archiveClientAction] Airtable markAirtableSubscriptionEnded error:', e))
+    }
+
+    // 4. Update status in Supabase clients table to 'Archived' (keeping past calls, client row, and past invoices in Stripe)
+    const { error } = await supabaseAdmin
+      .from('clients')
+      .update({ status: 'Archived' })
+      .eq('id', clientId)
+
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/admin')
+    revalidatePath('/admin/billing')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
 
 export async function deleteClientAction(clientId: string) {
   try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
@@ -14,7 +75,7 @@ export async function deleteClientAction(clientId: string) {
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
   
   // 1. Get the client before deleting
-  const { data: clientData } = await supabaseAdmin.from('clients').select('user_id, email, company_name').eq('id', clientId).single()
+  const { data: clientData } = await supabaseAdmin.from('clients').select('*').eq('id', clientId).single()
   
   // 2. Safety check: Protect administrator accounts
   if (clientData?.user_id) {
@@ -30,11 +91,38 @@ export async function deleteClientAction(clientId: string) {
     }
   }
 
-  // 3. Delete the client row (cascades to agents + calls)
+  // 3. Delete calls and agents from Supabase
+  await supabaseAdmin.from('calls').delete().eq('client_id', clientId)
+  await supabaseAdmin.from('agents').delete().eq('client_id', clientId)
+
+  // 4. Delete Stripe customer (and their subscriptions)
+  if (clientData?.stripe_customer_id) {
+    const stripeKey = process.env.STRIPE_SECRET_KEY
+    if (stripeKey && stripeKey !== 'dummy_key') {
+      try {
+        const Stripe = require('stripe').default || require('stripe')
+        const stripe = new Stripe(stripeKey)
+        await stripe.customers.del(clientData.stripe_customer_id)
+      } catch (e: any) {
+        console.error("[deleteClientAction] Failed to delete Stripe customer:", e)
+      }
+    }
+  }
+
+  // 5. Mark Airtable subscription ended
+  if (clientData?.email || clientData?.company_name) {
+    await markAirtableSubscriptionEnded({
+      email: clientData.email,
+      companyName: clientData.company_name,
+      endDate: new Date().toISOString().slice(0, 10)
+    }).catch(e => console.error('[deleteClientAction] Airtable markAirtableSubscriptionEnded error:', e))
+  }
+
+  // 6. Delete the client row from clients
   const { error } = await supabaseAdmin.from('clients').delete().eq('id', clientId)
   if (error) return { success: false, error: error.message }
   
-  // 4. Delete the auth user ONLY if it is not an administrator
+  // 7. Delete the auth user ONLY if it is not an administrator
   if (clientData?.user_id) {
     const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(clientData.user_id)
     if (authUserData?.user && isAdminUser(authUserData.user)) {
@@ -44,6 +132,8 @@ export async function deleteClientAction(clientId: string) {
     }
   }
   
+  revalidatePath('/admin')
+  revalidatePath('/admin/billing')
   return { success: true }
 }
 

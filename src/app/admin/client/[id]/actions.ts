@@ -275,35 +275,92 @@ export async function forceUpdateClientEmailAction(userId: string, clientId: str
   }
 }
 
-export async function deleteClientAction(clientId: string) {
+export async function archiveClientAction(clientId: string) {
   try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
 
   try {
-    const { data: client, error: fetchError } = await supabaseAdmin
+    const { data: client } = await supabaseAdmin
       .from('clients')
       .select('*')
       .eq('id', clientId)
       .single()
 
-    if (fetchError || !client) {
-      return { success: false, error: fetchError?.message || 'Client not found' }
+    if (!client) return { success: false, error: 'Client not found' }
+
+    // 1. Suspend the client's Retell agents so no new calls are accepted
+    await suspendClientAgent(clientId, 'Client account archived')
+
+    // 2. Cancel Stripe subscription if active
+    if (client.stripe_subscription_id) {
+      const stripeKey = process.env.STRIPE_SECRET_KEY
+      if (stripeKey && stripeKey !== 'dummy_key') {
+        try {
+          const Stripe = require('stripe').default || require('stripe')
+          const stripe = new Stripe(stripeKey)
+          await stripe.subscriptions.cancel(client.stripe_subscription_id)
+        } catch (e) {
+          console.error('[archiveClientAction] Error canceling Stripe subscription:', e)
+        }
+      }
     }
 
-    // Safety check: Is this client linked to an admin user?
+    // 3. Mark Airtable subscription ended and status as 'Lost Client'
+    if (client.email || client.company_name) {
+      await markAirtableSubscriptionEnded({
+        email: client.email,
+        companyName: client.company_name,
+        endDate: new Date().toISOString().slice(0, 10)
+      }).catch(e => console.error('[archiveClientAction] Airtable markAirtableSubscriptionEnded error:', e))
+    }
+
+    // 4. Update status in Supabase clients table to 'Archived' (keeping past calls, client row, and past invoices in Stripe)
+    const { error } = await supabaseAdmin
+      .from('clients')
+      .update({ status: 'Archived' })
+      .eq('id', clientId)
+
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath(`/admin/client/${clientId}`)
+    revalidatePath('/admin')
+    revalidatePath('/admin/billing')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+
+export async function deleteClientAction(clientId: string) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+
+  try {
+    const { data: client } = await supabaseAdmin
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .single()
+
+    if (!client) return { success: false, error: 'Client not found' }
+
+    // Safety check: Protect administrator accounts
     if (client.user_id) {
       const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(client.user_id)
       if (authUserData?.user && isAdminUser(authUserData.user)) {
         const adminCount = await countActiveAdmins(supabaseAdmin)
         if (adminCount <= 1) {
-          return {
-            success: false,
-            error: "Action bloquée : ce compte est associé au dernier administrateur actif. Il est impossible de supprimer le dernier compte administrateur de la plateforme."
+          return { 
+            success: false, 
+            error: "Action bloquée : ce compte est associé au dernier administrateur actif. Il est impossible de supprimer le dernier compte administrateur de la plateforme." 
           }
         }
       }
     }
 
-    // 1. Delete Stripe customer (cascades to subscriptions)
+    // 1. Delete associated calls and agents in Supabase
+    await supabaseAdmin.from('calls').delete().eq('client_id', clientId)
+    await supabaseAdmin.from('agents').delete().eq('client_id', clientId)
+
+    // 2. Delete Stripe customer (cascades to subscriptions and draft invoices)
     if (client.stripe_customer_id) {
       const stripeKey = process.env.STRIPE_SECRET_KEY
       if (stripeKey && stripeKey !== 'dummy_key') {
@@ -317,7 +374,16 @@ export async function deleteClientAction(clientId: string) {
       }
     }
 
-    // 2. Delete Supabase user from auth.users ONLY if it is not an administrator
+    // 3. Mark Airtable subscription ended and status as 'Lost Client'
+    if (client.email || client.company_name) {
+      await markAirtableSubscriptionEnded({
+        email: client.email,
+        companyName: client.company_name,
+        endDate: new Date().toISOString().slice(0, 10)
+      }).catch(e => console.error('[deleteClientAction] Airtable markAirtableSubscriptionEnded error:', e))
+    }
+
+    // 4. Delete Supabase user from auth.users ONLY if it is not an administrator
     if (client.user_id) {
       const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(client.user_id)
       if (authUserData?.user && isAdminUser(authUserData.user)) {
@@ -330,18 +396,11 @@ export async function deleteClientAction(clientId: string) {
       }
     }
 
-    // 3. Mark Airtable subscription ended and status as 'Lost Client'
-    if (client.email || client.company_name) {
-      await markAirtableSubscriptionEnded({
-        email: client.email,
-        companyName: client.company_name,
-        endDate: new Date().toISOString().slice(0, 10)
-      }).catch(e => console.error('[deleteClientAction] Airtable markAirtableSubscriptionEnded error:', e))
-    }
-
-    // 4. Delete from clients explicitly
+    // 5. Delete from clients explicitly
     await supabaseAdmin.from('clients').delete().eq('id', clientId)
 
+    revalidatePath('/admin')
+    revalidatePath('/admin/billing')
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err.message }

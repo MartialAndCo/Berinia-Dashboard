@@ -32,10 +32,16 @@ export default function AdminDashboard() {
 
   const isDemoClient = (c: any) => {
     if (!c) return false
-    const email = (c.email || '').toLowerCase()
-    const company = (c.company_name || '').toLowerCase()
-    const status = (c.status || '').toLowerCase()
-    return email === 'demo@berinagents.com' || company.includes('demo') || status === 'demo'
+    const email = (c.email || '').toLowerCase().trim()
+    const company = (c.company_name || '').toLowerCase().trim()
+    const status = (c.status || '').toLowerCase().trim()
+    return (
+      email === 'demo@berinagents.com' ||
+      email === 'account@test.com' ||
+      company.includes('demo') ||
+      company.includes('apex health') ||
+      status === 'demo'
+    )
   }
 
   const fetchClientsAndStats = async () => {
@@ -48,13 +54,14 @@ export default function AdminDashboard() {
         .select('client_id, cost, retell_cost, duration_secs, created_at')
   
       if (clientsData) {
-        // Exclude demo client from statistics, overview, and call trends
-        const realClients = clientsData.filter(c => !isDemoClient(c))
-        const realClientIds = new Set(realClients.map(c => c.id))
+        // Commercial paying clients = not demo, not archived
+        const commercialClients = clientsData.filter(c => !isDemoClient(c) && c.status !== 'Archived')
+        const commercialClientIds = new Set(commercialClients.map(c => c.id))
 
-        setClients(realClients)
+        // All accounts available for management or demo showcase
+        setClients(clientsData)
         
-        const activeClients = realClients.filter(c => c.status === 'Actif' || c.status === 'Active')
+        const activeClients = commercialClients.filter(c => c.status === 'Actif' || c.status === 'Active')
         const totalMRR = activeClients.reduce((acc, c) => acc + Number(c.monthly_retainer || 0), 0)
         
         let totalUsageRevenue = 0
@@ -63,12 +70,12 @@ export default function AdminDashboard() {
         let totalSeconds = 0
         const perClient: Record<string, { calls: number, revenue: number, retellCost: number }> = {}
         
-        // Chart grouping (only for real client calls)
+        // Chart grouping (only for commercial client calls)
         const callsByDate: Record<string, number> = {}
 
         if (callsData) {
-          // Exclude demo calls: only include calls belonging to real paying clients
-          const realCalls = callsData.filter(call => call.client_id && realClientIds.has(call.client_id))
+          // Exclude demo calls and archived accounts from commercial agency KPIs
+          const realCalls = callsData.filter(call => call.client_id && commercialClientIds.has(call.client_id))
 
           totalCalls = realCalls.length
           realCalls.forEach(call => {
@@ -76,7 +83,15 @@ export default function AdminDashboard() {
             totalRetellCost += Number(call.retell_cost || 0)
             totalSeconds += Number(call.duration_secs || 0)
             
-            // Per-client stats
+            // Chart stats
+            if (call.created_at) {
+              const date = new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              callsByDate[date] = (callsByDate[date] || 0) + 1
+            }
+          })
+
+          // Per-client stats (computed for table rows, including demo accounts for preview)
+          callsData.forEach(call => {
             if (call.client_id) {
               if (!perClient[call.client_id]) {
                 perClient[call.client_id] = { calls: 0, revenue: 0, retellCost: 0 }
@@ -84,12 +99,6 @@ export default function AdminDashboard() {
               perClient[call.client_id].calls++
               perClient[call.client_id].revenue += Number(call.cost || 0)
               perClient[call.client_id].retellCost += Number(call.retell_cost || 0)
-            }
-
-            // Chart stats
-            if (call.created_at) {
-              const date = new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-              callsByDate[date] = (callsByDate[date] || 0) + 1
             }
           })
         }
@@ -101,7 +110,7 @@ export default function AdminDashboard() {
         setClientCallStats(perClient)
         setStats({
           activeClients: activeClients.length,
-          totalClients: realClients.length,
+          totalClients: commercialClients.length,
           mrr: totalMRR,
           usageRevenue: totalUsageRevenue,
           retellCost: totalRetellCost,
@@ -299,13 +308,27 @@ export default function AdminDashboard() {
                       <div className="text-xs text-[#73706b]">{client.email || 'No email provided'}</div>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium ${
-                        client.status === 'Actif' || client.status === 'Active' 
-                          ? 'bg-[#eef7ee] text-[#2e6930] border border-[#d2ead2]' 
-                          : 'bg-[#faf4e6] text-[#8a6519] border border-[#eeddb8]'
-                      }`}>
-                        {client.status === 'Actif' || client.status === 'Active' ? 'Active' : (client.status === 'En attente' ? 'Pending' : (client.status || 'Active'))}
-                      </span>
+                      {isDemoClient(client) ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-[#f0f4f8] text-[#1d4ed8] border border-[#bfdbfe]">
+                          Demo / Showcase
+                        </span>
+                      ) : client.status === 'Archived' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-[#f5f4f0] text-[#73706b] border border-[#e2dfd8]">
+                          Archived
+                        </span>
+                      ) : client.status === 'Suspended' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-[#fdf2f0] text-[#9e4733] border border-[#f5c6cb]">
+                          Suspended
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium ${
+                          client.status === 'Actif' || client.status === 'Active' 
+                            ? 'bg-[#eef7ee] text-[#2e6930] border border-[#d2ead2]' 
+                            : 'bg-[#faf4e6] text-[#8a6519] border border-[#eeddb8]'
+                        }`}>
+                          {client.status === 'Actif' || client.status === 'Active' ? 'Active' : (client.status === 'En attente' ? 'Pending' : (client.status || 'Active'))}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-[#55524d]">${client.billing_rate_per_min}</TableCell>
                     <TableCell className="text-[#55524d]">${client.monthly_retainer}</TableCell>

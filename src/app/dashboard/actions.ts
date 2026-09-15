@@ -232,7 +232,9 @@ export async function getClientInvoicesAction(targetClientId?: string) {
       limit: 50,
     })
 
-    const formatted = invoices.data.map((inv: any) => {
+    const formatted = invoices.data
+      .filter((inv: any) => inv.status !== 'void')
+      .map((inv: any) => {
       let pStart = inv.period_start ? inv.period_start * 1000 : null
       let pEnd = inv.period_end ? inv.period_end * 1000 : null
 

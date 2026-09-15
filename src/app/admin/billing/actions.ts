@@ -1,6 +1,7 @@
 'use server'
 
 import { checkAdminAuth } from '@/utils/supabase/server'
+import { getServiceSupabase } from '@/lib/supabase'
 
 const Stripe = require('stripe').default || require('stripe')
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
@@ -9,7 +10,23 @@ export async function getBillingStatsAction() {
   try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
 
   try {
-    // Fetch last 100 invoices
+    const supabaseAdmin = getServiceSupabase()
+    const { data: existingClients } = await supabaseAdmin
+      .from('clients')
+      .select('id, email, company_name, stripe_customer_id, status')
+
+    // Filter out demo accounts from commercial billing ledger
+    const eligibleClients = (existingClients || []).filter(c => {
+      const email = (c.email || '').toLowerCase().trim()
+      const name = (c.company_name || '').toLowerCase().trim()
+      const status = (c.status || '').toLowerCase().trim()
+      return status !== 'demo' && email !== 'demo@berinagents.com' && email !== 'account@test.com' && !name.includes('demo')
+    })
+
+    const allowedCustomerIds = new Set(eligibleClients.map(c => c.stripe_customer_id).filter(Boolean))
+    const allowedEmails = new Set(eligibleClients.map(c => (c.email || '').toLowerCase().trim()).filter(Boolean))
+
+    // Fetch last 100 invoices from Stripe
     const invoices = await stripe.invoices.list({ limit: 100 })
     
     let totalCollected = 0
@@ -23,9 +40,14 @@ export async function getBillingStatsAction() {
 
     const formattedInvoices = (invoices.data || [])
       .filter((inv: any) => {
-        const email = (inv.customer_email || '').toLowerCase()
-        const name = (inv.customer_name || '').toLowerCase()
-        return email !== 'demo@berinagents.com' && !name.includes('demo')
+        // 1. NEVER display or count void invoices
+        if (inv.status === 'void') return false
+
+        // 2. Only show invoices belonging to existing clients (Active or Archived). Exclude deleted accounts and demo accounts.
+        const custId = inv.customer
+        const email = (inv.customer_email || '').toLowerCase().trim()
+        const isEligible = (custId && allowedCustomerIds.has(custId)) || (email && allowedEmails.has(email))
+        return isEligible
       })
       .map((inv: any) => {
       if (inv.created >= currentMonthUnix) {
