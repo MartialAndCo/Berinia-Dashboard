@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, X, Send, CheckCircle, Clock, Volume2, VolumeX, ExternalLink, Plus } from 'lucide-react'
 import { playSupportChime } from '@/lib/chime'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 
 interface Message {
   id: string
@@ -150,20 +150,33 @@ export default function SupportChatBubble() {
       .subscribe()
     channels.push(convChannel)
 
-    // Fallback polling every 30s
-    const interval = setInterval(() => {
-      if (activeConv) {
-        loadConversation(activeConv.id)
-      } else {
-        fetchConversations()
+    // Fallback polling only when chat bubble is open and active
+    let interval: NodeJS.Timeout | null = null
+    if (isOpen) {
+      interval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+        if (activeConv) {
+          loadConversation(activeConv.id)
+        } else {
+          fetchConversations()
+        }
+      }, 30000)
+    }
+
+    const handleFocus = () => {
+      if (isOpen) {
+        if (activeConv) loadConversation(activeConv.id)
+        else fetchConversations()
       }
-    }, 30000)
+    }
+    window.addEventListener('focus', handleFocus)
 
     return () => {
-      clearInterval(interval)
+      if (interval) clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
       channels.forEach((ch) => supabase.removeChannel(ch))
     }
-  }, [activeConv?.id, soundEnabled])
+  }, [activeConv?.id, soundEnabled, isOpen])
 
   useEffect(() => {
     if (isOpen) {

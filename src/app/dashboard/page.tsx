@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, Suspense } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -18,7 +18,16 @@ import {
 } from 'lucide-react'
 import { getSubscriptionStatusAction, updateCallMetadataAction } from './actions'
 import { getClientDashboardAction, getClientsListAction } from '@/app/admin/actions'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import dynamic from 'next/dynamic'
+
+const CallsBarChart = dynamic(() => import('@/components/charts/CallsBarChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center text-[#73706b] text-xs animate-pulse">
+      Loading chart...
+    </div>
+  ),
+})
 import { toast } from 'sonner'
 import PageLoading from '@/components/PageLoading'
 import AgentSetupHub from '@/components/dashboard/AgentSetupHub'
@@ -203,12 +212,13 @@ function ClientDashboardContent() {
       
       const isDemo = client.status === 'Demo' || client.email === 'account@test.com'
 
-      // Fetch calls, payment status, and agents concurrently in parallel
+      // Fetch calls (capped at 100 most recent for fast loading), payment status, and agents concurrently in parallel
       const callsPromise = supabase
         .from('calls')
         .select(`*, agents(agent_name)`)
         .eq('client_id', client.id)
         .order('created_at', { ascending: false })
+        .limit(100)
 
       const agentsPromise = supabase
         .from('agents')
@@ -1001,30 +1011,7 @@ function ClientDashboardContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="h-[260px] pt-6">
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e6e2d6" />
-                  <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} stroke="#73706b" />
-                  <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#73706b" />
-                  <Tooltip 
-                    cursor={{ fill: '#faf8f5' }} 
-                    contentStyle={{ 
-                      backgroundColor: '#ffffff', 
-                      border: '1px solid #e6e2d6', 
-                      borderRadius: '2px', 
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                      fontSize: '12px'
-                    }} 
-                  />
-                  <Bar dataKey="calls" name="Calls" fill="#1a1918" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-[#73706b] text-xs">
-                Not enough call data to display trend chart for this period.
-              </div>
-            )}
+            <CallsBarChart data={chartData} emptyMessage="Not enough call data to display trend chart for this period." />
           </CardContent>
         </Card>
 

@@ -38,6 +38,7 @@ export async function getDemoCallsDashboardAction() {
       .select('*, agents(agent_name)')
       .eq('client_id', demoMeta.clientId)
       .order('created_at', { ascending: false })
+      .limit(100)
 
     if (callsErr) {
       return { success: false, error: callsErr.message }

@@ -29,7 +29,16 @@ import {
   Loader2,
   ExternalLink
 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import dynamic from 'next/dynamic'
+
+const CallsBarChart = dynamic(() => import('@/components/charts/CallsBarChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center text-[#73706b] text-xs animate-pulse">
+      Loading chart...
+    </div>
+  ),
+})
 import { toast } from 'sonner'
 import { getDemoCallsDashboardAction, syncRetellDemoCallsAction } from './actions'
 import PageLoading from '@/components/PageLoading'
@@ -77,11 +86,16 @@ function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   )
 }
 
+// Module-level cache for instant 0ms tab switching
+let cachedDemoData: { calls: any[]; settings: any; configured: boolean } | null = null
+let lastDemoFetchTime = 0
+const DEMO_CACHE_TTL = 60 * 1000
+
 export default function DemoCallsPage() {
-  const [calls, setCalls] = useState<any[]>([])
-  const [settings, setSettings] = useState<any>(null)
-  const [configured, setConfigured] = useState(true)
-  const [loading, setLoading] = useState(true)
+  const [calls, setCalls] = useState<any[]>(() => cachedDemoData?.calls || [])
+  const [settings, setSettings] = useState<any>(() => cachedDemoData?.settings || null)
+  const [configured, setConfigured] = useState(() => cachedDemoData?.configured ?? true)
+  const [loading, setLoading] = useState(() => !cachedDemoData)
   const [syncing, setSyncing] = useState(false)
   const [expandedCall, setExpandedCall] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
@@ -93,13 +107,26 @@ export default function DemoCallsPage() {
     loadData()
   }, [])
 
-  const loadData = async () => {
-    setLoading(true)
+  const loadData = async (force = false) => {
+    const now = Date.now()
+    if (!force && cachedDemoData && (now - lastDemoFetchTime < DEMO_CACHE_TTL)) {
+      return
+    }
+    if (!cachedDemoData) {
+      setLoading(true)
+    }
     const res = await getDemoCallsDashboardAction()
     if (res.success) {
-      setConfigured(res.configured ?? true)
-      setSettings(res.settings)
-      setCalls(res.calls || [])
+      const payload = {
+        calls: res.calls || [],
+        settings: res.settings,
+        configured: res.configured ?? true,
+      }
+      cachedDemoData = payload
+      lastDemoFetchTime = Date.now()
+      setConfigured(payload.configured)
+      setSettings(payload.settings)
+      setCalls(payload.calls)
     } else {
       toast.error(res.error || 'Failed to load demo calls.')
     }
@@ -114,7 +141,7 @@ export default function DemoCallsPage() {
 
     if (res.success) {
       toast.success(`Synced ${res.count} outbound call(s) successfully!`, { id: toastId })
-      loadData()
+      loadData(true)
     } else {
       toast.error(res.error || 'Sync failed.', { id: toastId })
     }
@@ -388,30 +415,12 @@ export default function DemoCallsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="h-[240px] pt-6">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e6e2d6" />
-                <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} stroke="#73706b" />
-                <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#73706b" allowDecimals={false} />
-                <Tooltip 
-                  cursor={{ fill: '#faf8f5' }} 
-                  contentStyle={{ 
-                    backgroundColor: '#ffffff', 
-                    border: '1px solid #e6e2d6', 
-                    borderRadius: '2px', 
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                    fontSize: '12px'
-                  }} 
-                />
-                <Bar dataKey="calls" name="Outbound Calls" fill="#1a1918" radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-[#73706b] text-xs">
-              No outbound calls recorded for this period.
-            </div>
-          )}
+          <CallsBarChart
+            data={chartData}
+            name="Outbound Calls"
+            emptyMessage="No outbound calls recorded for this period."
+            allowDecimals={false}
+          />
         </CardContent>
       </Card>
 

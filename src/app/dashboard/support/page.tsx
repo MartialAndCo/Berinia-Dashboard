@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Plus, CheckCircle, Clock, Send, ShieldCheck, Search, ArrowLeft } from 'lucide-react'
 import { playSupportChime } from '@/lib/chime'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 
 interface Message {
   id: string

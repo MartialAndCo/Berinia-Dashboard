@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { LayoutDashboard, Receipt, LogOut, Settings, PhoneOutgoing, Film, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 import PwaRegister from '@/components/pwa/PwaRegister'
-import PwaInstallPrompt from '@/components/pwa/PwaInstallPrompt'
+
+const PwaInstallPrompt = dynamic(() => import('@/components/pwa/PwaInstallPrompt'), { ssr: false })
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -31,7 +33,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     })
     fetchPendingCount()
-  }, [router, pathname])
+
+    // Recheck pending count when window regains focus
+    const handleFocus = () => fetchPendingCount()
+    window.addEventListener('focus', handleFocus)
+
+    // Realtime badge updates without polling
+    const channel = supabase
+      .channel('admin_layout_support_badge')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'support_conversations' },
+        () => {
+          fetchPendingCount()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      supabase.removeChannel(channel)
+    }
+  }, [router])
 
   const fetchPendingCount = async () => {
     try {

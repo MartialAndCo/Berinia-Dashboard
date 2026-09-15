@@ -235,32 +235,45 @@ async function processAirtableInvite(params: ProcessInviteParams) {
     }
 
     const items: any[] = []
+    const productTasks: Promise<void>[] = []
 
     // Monthly Subscription product & price
     if (monthly_retainer > 0) {
-      const productSub = await stripe.products.create({ name: `Monthly Subscription - ${company_name}` })
-      const priceSub = await stripe.prices.create({
-        product: productSub.id,
-        unit_amount: Math.round(monthly_retainer * 100),
-        currency: 'usd',
-        recurring: { interval: 'month' }
-      })
-      items.push({ price: priceSub.id })
+      productTasks.push(
+        (async () => {
+          const productSub = await stripe.products.create({ name: `Monthly Subscription - ${company_name}` })
+          const priceSub = await stripe.prices.create({
+            product: productSub.id,
+            unit_amount: Math.round(monthly_retainer * 100),
+            currency: 'usd',
+            recurring: { interval: 'month' }
+          })
+          items.push({ price: priceSub.id })
+        })()
+      )
     }
 
     // Usage calls metered per second (from "Cost Per Min (from Abonnement)")
     if (billing_rate > 0) {
-      const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${company_name}` })
-      const priceUsage = await stripe.prices.create({
-        product: productUsage.id,
-        currency: 'usd',
-        unit_amount_decimal: ((billing_rate * 100) / 60).toFixed(12),
-        recurring: {
-          interval: 'month',
-          usage_type: 'metered'
-        }
-      })
-      items.push({ price: priceUsage.id })
+      productTasks.push(
+        (async () => {
+          const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${company_name}` })
+          const priceUsage = await stripe.prices.create({
+            product: productUsage.id,
+            currency: 'usd',
+            unit_amount_decimal: ((billing_rate * 100) / 60).toFixed(12),
+            recurring: {
+              interval: 'month',
+              usage_type: 'metered'
+            }
+          })
+          items.push({ price: priceUsage.id })
+        })()
+      )
+    }
+
+    if (productTasks.length > 0) {
+      await Promise.all(productTasks)
     }
 
     if (items.length > 0) {
@@ -297,9 +310,11 @@ async function processAirtableInvite(params: ProcessInviteParams) {
     return { success: false, error: clientError.message, company_name }
   }
 
-  // 6. Send the customized welcome email with password creation link via Resend
-  const inviteUrl = inviteData.properties?.action_link
-  if (inviteUrl) {
+  // 6 & 7. Send the customized welcome email via Resend and update Airtable in parallel
+  const emailTask = (async () => {
+    const inviteUrl = inviteData.properties?.action_link
+    if (!inviteUrl) return
+
     const { getEmailTemplate } = require('@/lib/email-template')
 
     const contentHtml = `
@@ -331,15 +346,17 @@ async function processAirtableInvite(params: ProcessInviteParams) {
       to: [email],
       subject: 'Access your BerinAgents Portal',
       html: htmlEmail,
-    }).catch(e => console.error('Resend error:', e))
-  }
+    }).catch((e: any) => console.error('Resend error:', e))
+  })()
 
-  // 7. Update Airtable record
-  if (recordId) {
+  const airtableTask = (async () => {
+    if (!recordId) return
     await updateAirtableLeadRecord(recordId, {
       'Lead Status': 'Client Invited'
-    }).catch(e => console.error('Airtable status update error:', e))
-  }
+    }).catch((e: any) => console.error('Airtable status update error:', e))
+  })()
+
+  await Promise.all([emailTask, airtableTask])
 
   return {
     success: true,

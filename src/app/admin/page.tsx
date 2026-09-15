@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -9,20 +9,37 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner'
 import { Plus, Users, DollarSign, TrendingUp, Trash2, Eye } from 'lucide-react'
 import { deleteClientAction } from './actions'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import PageLoading from '@/components/PageLoading'
 
+const CallsBarChart = dynamic(() => import('@/components/charts/CallsBarChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center text-[#73706b] text-xs animate-pulse">
+      Loading chart...
+    </div>
+  ),
+})
+
+// Module-level cache for instant 0ms tab switching
+let cachedClients: any[] | null = null
+let cachedStats: any = null
+let cachedClientCallStats: Record<string, { calls: number, revenue: number, retellCost: number }> | null = null
+let cachedChartData: any[] | null = null
+let lastFetchTime = 0
+const CACHE_TTL_MS = 60 * 1000
+
 export default function AdminDashboard() {
-  const [clients, setClients] = useState<any[]>([])
-  const [stats, setStats] = useState({ 
+  const [clients, setClients] = useState<any[]>(() => cachedClients || [])
+  const [stats, setStats] = useState(() => cachedStats || { 
     activeClients: 0, totalClients: 0, mrr: 0, 
     usageRevenue: 0, retellCost: 0, margin: 0, 
     totalCalls: 0, totalMinutes: 0 
   })
-  const [clientCallStats, setClientCallStats] = useState<Record<string, { calls: number, revenue: number, retellCost: number }>>({})
-  const [chartData, setChartData] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [clientCallStats, setClientCallStats] = useState<Record<string, { calls: number, revenue: number, retellCost: number }>>(() => cachedClientCallStats || {})
+  const [chartData, setChartData] = useState<any[]>(() => cachedChartData || [])
+  const [loading, setLoading] = useState(() => !cachedClients)
   
   const router = useRouter()
 
@@ -44,15 +61,30 @@ export default function AdminDashboard() {
     )
   }
 
-  const fetchClientsAndStats = async () => {
-    setLoading(true)
+  const fetchClientsAndStats = async (force = false) => {
+    const now = Date.now()
+    if (!force && cachedClients && (now - lastFetchTime < CACHE_TTL_MS)) {
+      return
+    }
+    if (!cachedClients) {
+      setLoading(true)
+    }
     try {
-      const { data: clientsData } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
+      // 30-day window for calls stats & trends (eliminates massive full-table scan)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+      const [clientsRes, callsRes] = await Promise.all([
+        supabase.from('clients').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('calls')
+          .select('client_id, cost, retell_cost, duration_secs, created_at')
+          .gte('created_at', thirtyDaysAgo)
+          .limit(2000)
+      ])
+
+      const clientsData = clientsRes.data
+      const callsData = callsRes.data
     
-      const { data: callsData } = await supabase
-        .from('calls')
-        .select('client_id, cost, retell_cost, duration_secs, created_at')
-  
       if (clientsData) {
         // Commercial paying clients = not demo, not archived
         const commercialClients = clientsData.filter(c => !isDemoClient(c) && c.status !== 'Archived')
@@ -106,9 +138,7 @@ export default function AdminDashboard() {
         // Build chart array (last 30 days)
         const chartArray = Object.entries(callsByDate).map(([date, calls]) => ({ date, calls }))
         
-        setChartData(chartArray)
-        setClientCallStats(perClient)
-        setStats({
+        const computedStats = {
           activeClients: activeClients.length,
           totalClients: commercialClients.length,
           mrr: totalMRR,
@@ -117,7 +147,18 @@ export default function AdminDashboard() {
           margin: totalMRR + totalUsageRevenue - totalRetellCost,
           totalCalls: totalCalls,
           totalMinutes: totalSeconds / 60,
-        })
+        }
+
+        setChartData(chartArray)
+        setClientCallStats(perClient)
+        setStats(computedStats)
+
+        // Write to module-level cache
+        cachedClients = clientsData
+        cachedStats = computedStats
+        cachedClientCallStats = perClient
+        cachedChartData = chartArray
+        lastFetchTime = Date.now()
       }
     } finally {
       setLoading(false)
@@ -137,7 +178,7 @@ export default function AdminDashboard() {
       toast.error("Error deleting client: " + res.error, { id: toastId })
     } else {
       toast.success("Client deleted successfully", { id: toastId })
-      fetchClientsAndStats()
+      fetchClientsAndStats(true)
     }
   }
 
@@ -179,30 +220,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="h-[250px] p-6">
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e6e2d6" />
-                  <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} stroke="#73706b" />
-                  <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#73706b" />
-                  <Tooltip 
-                    cursor={{ fill: 'rgba(0,0,0,0.03)' }} 
-                    contentStyle={{ 
-                      backgroundColor: '#ffffff', 
-                      borderColor: '#e6e2d6', 
-                      borderRadius: '2px', 
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.05)', 
-                      fontSize: '12px' 
-                    }} 
-                  />
-                  <Bar dataKey="calls" name="Calls" fill="#1a1918" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                Not enough data to display the chart.
-              </div>
-            )}
+            <CallsBarChart data={chartData} emptyMessage="Not enough data to display the chart." />
           </CardContent>
         </Card>
 

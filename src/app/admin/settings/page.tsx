@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded, PhoneOutgoing, Database, User } from 'lucide-react'
 import { fetchDemoConfigAction, saveDemoConfigAction, testDemoCallAction, RetellAgentOption } from './actions'

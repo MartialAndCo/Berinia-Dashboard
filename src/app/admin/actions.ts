@@ -368,7 +368,7 @@ export async function getClientDashboardAction(clientId: string) {
   // Parallelize client and calls query for fast load
   const [clientRes, callsRes] = await Promise.all([
     supabaseAdmin.from('clients').select('*').eq('id', clientId).single(),
-    supabaseAdmin.from('calls').select(`*, agents(agent_name)`).eq('client_id', clientId).order('created_at', { ascending: false })
+    supabaseAdmin.from('calls').select(`*, agents(agent_name)`).eq('client_id', clientId).order('created_at', { ascending: false }).limit(100)
   ])
 
   if (clientRes.error || !clientRes.data) {

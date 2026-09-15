@@ -7,7 +7,16 @@ import {
   ArrowLeft,
   Check,
 } from "lucide-react";
-import CalBooking from "@/components/funnel/CalBooking";
+import dynamic from "next/dynamic";
+
+const CalBooking = dynamic(() => import("@/components/funnel/CalBooking"), {
+  ssr: false,
+  loading: () => (
+    <p className="f-calendar-fallback" role="status">
+      Loading available times…
+    </p>
+  ),
+});
 
 interface Question {
   id: number;

@@ -100,7 +100,7 @@ export default function CallPlayer({ recordingUrl, mode = 'compact', className =
   if (mode === 'compact') {
     return (
       <div className={`flex items-center space-x-1.5 ${className}`} onClick={(e) => e.stopPropagation()}>
-        <audio ref={audioRef} src={recordingUrl} preload="metadata" className="hidden" />
+        <audio ref={audioRef} src={recordingUrl} preload="none" className="hidden" />
         <Button 
           variant="outline" 
           size="sm" 
@@ -145,7 +145,7 @@ export default function CallPlayer({ recordingUrl, mode = 'compact', className =
       className={`p-3.5 bg-[#faf8f5] border border-[#e6e2d6] rounded-sm flex flex-col gap-2.5 ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
-      <audio ref={audioRef} src={recordingUrl} preload="metadata" className="hidden" />
+      <audio ref={audioRef} src={recordingUrl} preload="none" className="hidden" />
       
       {/* Top Bar: Play, Skip, Duration, Speed, Volume, Download */}
       <div className="flex items-center justify-between gap-3">

@@ -91,31 +91,44 @@ export async function POST(req: Request) {
 
       const items: any[] = []
 
-      // Monthly Subscription (exact retainer chosen by admin)
+      // Create subscription and usage products/prices concurrently
+      const productTasks: Promise<void>[] = []
+
       if (monthly_retainer > 0) {
-        const productSubscription = await stripe.products.create({ name: `Monthly Subscription - ${company_name}` })
-        const priceSubscription = await stripe.prices.create({
-          product: productSubscription.id,
-          unit_amount: Math.round(monthly_retainer * 100),
-          currency: 'usd',
-          recurring: { interval: 'month' }
-        })
-        items.push({ price: priceSubscription.id })
+        productTasks.push(
+          (async () => {
+            const productSubscription = await stripe.products.create({ name: `Monthly Subscription - ${company_name}` })
+            const priceSubscription = await stripe.prices.create({
+              product: productSubscription.id,
+              unit_amount: Math.round(monthly_retainer * 100),
+              currency: 'usd',
+              recurring: { interval: 'month' }
+            })
+            items.push({ price: priceSubscription.id })
+          })()
+        )
       }
 
-      // Usage-based billing (Metered per second, exact rate chosen by admin)
       if (billing_rate > 0) {
-        const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${company_name}` })
-        const priceUsage = await stripe.prices.create({
-          product: productUsage.id,
-          currency: 'usd',
-          unit_amount_decimal: ((billing_rate * 100) / 60).toFixed(12),
-          recurring: { 
-            interval: 'month',
-            usage_type: 'metered'
-          }
-        })
-        items.push({ price: priceUsage.id })
+        productTasks.push(
+          (async () => {
+            const productUsage = await stripe.products.create({ name: `Usage Calls (Seconds) - ${company_name}` })
+            const priceUsage = await stripe.prices.create({
+              product: productUsage.id,
+              currency: 'usd',
+              unit_amount_decimal: ((billing_rate * 100) / 60).toFixed(12),
+              recurring: { 
+                interval: 'month',
+                usage_type: 'metered'
+              }
+            })
+            items.push({ price: priceUsage.id })
+          })()
+        )
+      }
+
+      if (productTasks.length > 0) {
+        await Promise.all(productTasks)
       }
 
       // Optional Stripe Coupon (discounts)
@@ -164,59 +177,7 @@ export async function POST(req: Request) {
       console.error('Stripe error:', stripeErr)
     }
 
-    // 3. Update Airtable record if provided (or find matching lead by email/company)
-    let targetAirtableRecordId = airtable_record_id
-    if (!targetAirtableRecordId) {
-      try {
-        const foundLead = await findAirtableLeadData(email, company_name)
-        if (foundLead?.recordId) {
-          targetAirtableRecordId = foundLead.recordId
-        }
-      } catch (err) {
-        console.warn('[Invite API] Error looking up lead in Airtable:', err)
-      }
-    }
-
-    if (targetAirtableRecordId) {
-      try {
-        const rawMonthly = typeof monthly_retainer === 'number' ? monthly_retainer : parseFloat(monthly_retainer || '0')
-        const rawRate = typeof billing_rate === 'number' ? billing_rate : parseFloat(billing_rate || '0')
-        const rawSetupFee = typeof setup_fee === 'number' ? setup_fee : parseFloat(setup_fee || '0')
-        const rawInstallments = parseInt(setup_installments) || 1
-        const numInstallments = Math.max(1, Math.min(3, rawInstallments))
-        const pricingSummary = [
-          `[Abonnement Configuré]:`,
-          `• Retainer: $${rawMonthly}/mois`,
-          `• Tarif appels: $${rawRate}/min`,
-          rawSetupFee > 0 ? `• Setup: $${rawSetupFee}${numInstallments > 1 ? ` (en ${numInstallments}x)` : ' (comptant)'}` : null,
-          discount_percent > 0 ? `• Remise: -${discount_percent}%` : null,
-          discount_amount > 0 ? `• Remise: -$${discount_amount}` : null
-        ].filter(Boolean).join('\n')
-
-        // Find or create tailored pricing plan in Airtable's Abonnement table
-        const abonnementId = await getOrCreateAirtableAbonnement({
-          monthlyRetainer: rawMonthly,
-          setupFee: rawSetupFee,
-          billingRate: rawRate,
-          companyName: company_name
-        })
-
-        const fieldsToUpdate: Record<string, any> = {
-          'Lead Status': 'Client Invited',
-          'Call Notes': pricingSummary,
-          'Operations Metrics': ['recGIbV6Jd2rc3MXf']
-        }
-        if (abonnementId) {
-          fieldsToUpdate['Abonnement'] = [abonnementId]
-        }
-
-        await updateAirtableLeadRecord(targetAirtableRecordId, fieldsToUpdate)
-      } catch (atErr) {
-        console.warn('[Invite API] Could not update Airtable lead:', atErr)
-      }
-    }
-
-    // 4. Create the client record in the database
+    // 3. Create the client record in the database
     const { data: clientData, error: clientError } = await supabaseAdmin
       .from('clients')
       .insert({
@@ -237,9 +198,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: clientError.message }, { status: 500 })
     }
 
-    // 4. Send the custom invite email via Resend
+    // 4. Concurrently update Airtable and send invite email via Resend
     const inviteUrl = inviteData.properties.action_link
-    
     const { getEmailTemplate } = require('@/lib/email-template')
 
     const contentHtml = `
@@ -266,12 +226,67 @@ export async function POST(req: Request) {
 
     const htmlEmail = getEmailTemplate('Welcome to BerinAgents', contentHtml)
 
-    const { error: resendError } = await resend.emails.send({
+    const emailPromise = resend.emails.send({
       from: 'BerinAgents <onboarding@berinagents.com>',
       to: [email],
       subject: 'Access your BerinAgents Portal',
       html: htmlEmail,
     })
+
+    const airtablePromise = (async () => {
+      let targetAirtableRecordId = airtable_record_id
+      if (!targetAirtableRecordId) {
+        try {
+          const foundLead = await findAirtableLeadData(email, company_name)
+          if (foundLead?.recordId) {
+            targetAirtableRecordId = foundLead.recordId
+          }
+        } catch (err) {
+          console.warn('[Invite API] Error looking up lead in Airtable:', err)
+        }
+      }
+
+      if (targetAirtableRecordId) {
+        try {
+          const rawMonthly = typeof monthly_retainer === 'number' ? monthly_retainer : parseFloat(monthly_retainer || '0')
+          const rawRate = typeof billing_rate === 'number' ? billing_rate : parseFloat(billing_rate || '0')
+          const rawSetupFee = typeof setup_fee === 'number' ? setup_fee : parseFloat(setup_fee || '0')
+          const rawInstallments = parseInt(setup_installments) || 1
+          const numInstallments = Math.max(1, Math.min(3, rawInstallments))
+          const pricingSummary = [
+            `[Abonnement Configuré]:`,
+            `• Retainer: $${rawMonthly}/mois`,
+            `• Tarif appels: $${rawRate}/min`,
+            rawSetupFee > 0 ? `• Setup: $${rawSetupFee}${numInstallments > 1 ? ` (en ${numInstallments}x)` : ' (comptant)'}` : null,
+            discount_percent > 0 ? `• Remise: -${discount_percent}%` : null,
+            discount_amount > 0 ? `• Remise: -$${discount_amount}` : null
+          ].filter(Boolean).join('\n')
+
+          // Find or create tailored pricing plan in Airtable's Abonnement table
+          const abonnementId = await getOrCreateAirtableAbonnement({
+            monthlyRetainer: rawMonthly,
+            setupFee: rawSetupFee,
+            billingRate: rawRate,
+            companyName: company_name
+          })
+
+          const fieldsToUpdate: Record<string, any> = {
+            'Lead Status': 'Client Invited',
+            'Call Notes': pricingSummary,
+            'Operations Metrics': ['recGIbV6Jd2rc3MXf']
+          }
+          if (abonnementId) {
+            fieldsToUpdate['Abonnement'] = [abonnementId]
+          }
+
+          await updateAirtableLeadRecord(targetAirtableRecordId, fieldsToUpdate)
+        } catch (atErr) {
+          console.warn('[Invite API] Could not update Airtable lead:', atErr)
+        }
+      }
+    })()
+
+    const [{ error: resendError }] = await Promise.all([emailPromise, airtablePromise])
 
     if (resendError) {
       console.error('Resend error:', resendError)

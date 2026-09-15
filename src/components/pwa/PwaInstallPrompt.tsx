@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { Share, PlusSquare, Smartphone, X, Sparkles, CheckCircle2 } from 'lucide-react'
 
 export default function PwaInstallPrompt() {

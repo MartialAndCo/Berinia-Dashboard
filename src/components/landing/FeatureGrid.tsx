@@ -1,5 +1,3 @@
-'use client'
-
 import { PhoneCall, CalendarCheck, MessageSquareText, PhoneForwarded, HelpCircle, UserCheck } from 'lucide-react'
 
 const features = [

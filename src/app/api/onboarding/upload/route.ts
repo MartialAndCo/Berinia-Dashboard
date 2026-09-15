@@ -5,6 +5,8 @@ import { writeFile, mkdir } from 'node:fs/promises'
 
 export const dynamic = 'force-dynamic'
 
+let isBucketChecked = false
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -32,26 +34,27 @@ export async function POST(request: NextRequest) {
 
     const cleanBase = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50)
     const uniqueFileName = `${cleanBase || 'doc'}_${Date.now()}${ext}`
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
 
     // 1. Attempt upload to Supabase Storage bucket
     const supabase = getServiceSupabase()
     const BUCKET_NAME = 'client-documents'
 
     try {
-      // Ensure bucket exists
-      const { data: bucket } = await supabase.storage.getBucket(BUCKET_NAME)
-      if (!bucket) {
-        await supabase.storage.createBucket(BUCKET_NAME, {
-          public: true,
-          fileSizeLimit: 26214400, // 25MB
-        }).catch(() => {})
+      // Ensure bucket exists once across uploads
+      if (!isBucketChecked) {
+        const { data: bucket } = await supabase.storage.getBucket(BUCKET_NAME)
+        if (!bucket) {
+          await supabase.storage.createBucket(BUCKET_NAME, {
+            public: true,
+            fileSizeLimit: 26214400, // 25MB
+          }).catch(() => {})
+        }
+        isBucketChecked = true
       }
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(BUCKET_NAME)
-        .upload(uniqueFileName, buffer, {
+        .upload(uniqueFileName, file, {
           contentType: file.type || 'application/octet-stream',
           upsert: true
         })
@@ -71,6 +74,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Fallback to local public/uploads/onboarding/
     try {
+      const buffer = Buffer.from(await file.arrayBuffer())
       const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'onboarding')
       await mkdir(uploadDir, { recursive: true })
       const filePath = path.join(uploadDir, uniqueFileName)

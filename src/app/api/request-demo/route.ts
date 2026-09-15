@@ -73,69 +73,77 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Populate Airtable
-    let airtableRecordId: string | undefined
-    try {
-      const airtableRes = await sendLeadToAirtable({
-        businessName: businessName.trim(),
-        fullName: fullName.trim(),
-        phone: e164Phone,
-        email: email.trim().toLowerCase(),
-        callId,
-        status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
-        error: callError
-      })
-      if (airtableRes?.recordId) {
-        airtableRecordId = airtableRes.recordId
-      }
-    } catch (airtableErr) {
-      console.error('Failed to populate Airtable:', airtableErr)
-    }
-
-    // 4. Log lead in admin records with airtableRecordId
-    await logDemoLead({
-      businessName: businessName.trim(),
-      fullName: fullName.trim(),
-      phone: e164Phone,
-      email: email.trim().toLowerCase(),
-      callId,
-      status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
-      error: callError,
-      airtableRecordId
-    })
-
-    // 4. Send email notification to admin via Resend if available
-    const resendApiKey = process.env.RESEND_API_KEY
-    if (resendApiKey && resendApiKey !== 're_dummy') {
+    // 3. Concurrently handle Airtable + local logging and Admin email alert
+    const airtableAndLogTask = (async () => {
+      let airtableRecordId: string | undefined
       try {
-        const resend = new Resend(resendApiKey)
-        await resend.emails.send({
-          from: 'Berin AI <contact@berinagents.com>',
-          to: 'admin@berinia.com',
-          subject: `🔥 New Live Demo Request: ${fullName} (${businessName})`,
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; padding: 24px; border: 1px solid #e6e2d6; border-radius: 6px;">
-              <h2 style="color: #1a1918; margin-top: 0;">New Inbound Demo Request</h2>
-              <p style="color: #66635e; font-size: 14px;">A prospect just submitted the live demo form on berinagents.com.</p>
-              
-              <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
-                <tr><td style="padding: 8px 0; color: #8c8880; width: 140px;">Business Name:</td><td style="font-weight: 600; color: #1a1918;">${businessName}</td></tr>
-                <tr><td style="padding: 8px 0; color: #8c8880;">Contact Name:</td><td style="font-weight: 600; color: #1a1918;">${fullName}</td></tr>
-                <tr><td style="padding: 8px 0; color: #8c8880;">Phone Number:</td><td style="font-weight: 600; color: #1a1918;"><a href="tel:${e164Phone}">${e164Phone}</a></td></tr>
-                <tr><td style="padding: 8px 0; color: #8c8880;">Email:</td><td style="font-weight: 600; color: #1a1918;"><a href="mailto:${email}">${email}</a></td></tr>
-                <tr><td style="padding: 8px 0; color: #8c8880;">AI Call Status:</td><td style="font-weight: 600; color: ${callTriggered ? '#16a34a' : '#d97706'};">${callTriggered ? 'Triggered Instantly (Call ID: ' + callId + ')' : (callError || 'Pending follow up')}</td></tr>
-              </table>
-
-              <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f0ece4; font-size: 12px; color: #8c8880;">
-                Berin AI Outbound Demo Dispatcher &middot; berinagents.com
-              </div>
-            </div>
-          `
+        const airtableRes = await sendLeadToAirtable({
+          businessName: businessName.trim(),
+          fullName: fullName.trim(),
+          phone: e164Phone,
+          email: email.trim().toLowerCase(),
+          callId,
+          status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
+          error: callError
         })
-      } catch (emailErr) {
-        console.error('Failed to send admin notification email:', emailErr)
+        if (airtableRes?.recordId) {
+          airtableRecordId = airtableRes.recordId
+        }
+      } catch (airtableErr) {
+        console.error('Failed to populate Airtable:', airtableErr)
       }
-    }
+
+      try {
+        await logDemoLead({
+          businessName: businessName.trim(),
+          fullName: fullName.trim(),
+          phone: e164Phone,
+          email: email.trim().toLowerCase(),
+          callId,
+          status: callTriggered ? 'called' : (settings.enabled ? 'call_failed' : 'disabled'),
+          error: callError,
+          airtableRecordId
+        })
+      } catch (logErr) {
+        console.error('Failed to log demo lead:', logErr)
+      }
+    })()
+
+    const adminEmailTask = (async () => {
+      const resendApiKey = process.env.RESEND_API_KEY
+      if (resendApiKey && resendApiKey !== 're_dummy') {
+        try {
+          const resend = new Resend(resendApiKey)
+          await resend.emails.send({
+            from: 'Berin AI <contact@berinagents.com>',
+            to: 'admin@berinia.com',
+            subject: `🔥 New Live Demo Request: ${fullName} (${businessName})`,
+            html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; padding: 24px; border: 1px solid #e6e2d6; border-radius: 6px;">
+                <h2 style="color: #1a1918; margin-top: 0;">New Inbound Demo Request</h2>
+                <p style="color: #66635e; font-size: 14px;">A prospect just submitted the live demo form on berinagents.com.</p>
+                
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+                  <tr><td style="padding: 8px 0; color: #8c8880; width: 140px;">Business Name:</td><td style="font-weight: 600; color: #1a1918;">${businessName}</td></tr>
+                  <tr><td style="padding: 8px 0; color: #8c8880;">Contact Name:</td><td style="font-weight: 600; color: #1a1918;">${fullName}</td></tr>
+                  <tr><td style="padding: 8px 0; color: #8c8880;">Phone Number:</td><td style="font-weight: 600; color: #1a1918;"><a href="tel:${e164Phone}">${e164Phone}</a></td></tr>
+                  <tr><td style="padding: 8px 0; color: #8c8880;">Email:</td><td style="font-weight: 600; color: #1a1918;"><a href="mailto:${email}">${email}</a></td></tr>
+                  <tr><td style="padding: 8px 0; color: #8c8880;">AI Call Status:</td><td style="font-weight: 600; color: ${callTriggered ? '#16a34a' : '#d97706'};">${callTriggered ? 'Triggered Instantly (Call ID: ' + callId + ')' : (callError || 'Pending follow up')}</td></tr>
+                </table>
+
+                <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f0ece4; font-size: 12px; color: #8c8880;">
+                  Berin AI Outbound Demo Dispatcher &middot; berinagents.com
+                </div>
+              </div>
+            `
+          })
+        } catch (emailErr) {
+          console.error('Failed to send admin notification email:', emailErr)
+        }
+      }
+    })()
+
+    await Promise.all([airtableAndLogTask, adminEmailTask])
 
     return NextResponse.json({
       success: true,

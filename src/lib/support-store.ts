@@ -38,6 +38,7 @@ export async function listSupportConversations(
     .from('support_conversations')
     .select('*')
     .order('updated_at', { ascending: false })
+    .limit(100)
 
   if (clientId) {
     query = query.eq('client_id', clientId)
@@ -49,6 +50,29 @@ export async function listSupportConversations(
   const { data, error } = await query
   if (error || !data) return []
   return data as SupportConversation[]
+}
+
+export async function getSupportConversationMeta(
+  conversationId: string,
+  clientId?: string | null
+): Promise<SupportConversation | null> {
+  const sb = getServiceSupabase()
+
+  let query = sb
+    .from('support_conversations')
+    .select('*')
+    .eq('id', conversationId)
+
+  if (clientId) {
+    query = query.eq('client_id', clientId)
+  }
+
+  const { data, error } = await query.single()
+  if (error || !data) return null
+  return {
+    ...(data as SupportConversation),
+    messages: []
+  }
 }
 
 export async function getSupportConversation(

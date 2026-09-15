@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { Settings, LayoutDashboard, LogOut, Bot, Receipt, MessageSquare, Lock } from 'lucide-react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
-import SupportChatBubble from '@/components/support/SupportChatBubble'
 import PwaRegister from '@/components/pwa/PwaRegister'
-import PwaInstallPrompt from '@/components/pwa/PwaInstallPrompt'
 import { getClientAgentSetupStateAction } from '@/app/onboarding/actions'
+
+const SupportChatBubble = dynamic(() => import('@/components/support/SupportChatBubble'), { ssr: false })
+const PwaInstallPrompt = dynamic(() => import('@/components/pwa/PwaInstallPrompt'), { ssr: false })
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -18,12 +20,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [currentClientId, setCurrentClientId] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const [hasActiveAgent, setHasActiveAgent] = useState(true)
+  const currentClientIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     checkAuth()
     fetchUnreadSupport()
-    const interval = setInterval(fetchUnreadSupport, 20000)
-    return () => clearInterval(interval)
+
+    // Recheck unread count when window regains focus
+    const handleFocus = () => fetchUnreadSupport()
+    window.addEventListener('focus', handleFocus)
+
+    // Realtime listener on support_messages & support_conversations
+    const channel = supabase
+      .channel('client_layout_support_badge')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'support_messages' },
+        () => {
+          fetchUnreadSupport()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'support_conversations' },
+        () => {
+          fetchUnreadSupport()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   useEffect(() => {
@@ -45,9 +74,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const cId = params.get('clientId') || sessionStorage.getItem('admin_selected_client_id')
-      setCurrentClientId(cId)
-      if (cId) {
-        checkAgentStatus(cId)
+      if (cId !== currentClientIdRef.current) {
+        currentClientIdRef.current = cId
+        setCurrentClientId(cId)
+        if (cId) {
+          checkAgentStatus(cId)
+        }
       }
     }
   }

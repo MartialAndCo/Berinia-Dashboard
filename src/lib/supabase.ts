@@ -1,13 +1,3 @@
-import { createBrowserClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy'
-
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
-
-// Used only in server environments for admin tasks
-export const getServiceSupabase = () => {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  return createClient(supabaseUrl, serviceKey)
-}
+// Re-exports for backward compatibility
+export { supabase } from './supabase/client'
+export { getServiceSupabase } from './supabase/server'

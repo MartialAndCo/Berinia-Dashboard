@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -65,15 +65,16 @@ export default function ClientSettingsPage() {
       return
     }
 
-    const { data } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .single()
-
     const meta = session.user.user_metadata || {}
     setFullName(meta.full_name || meta.name || '')
 
+    // Parallelize client query and team members query
+    const [clientRes, teamRes] = await Promise.all([
+      supabase.from('clients').select('*').eq('user_id', session.user.id).single(),
+      getTeamMembersAction()
+    ])
+
+    const data = clientRes.data
     if (data) {
       setClientData(data)
       setCompanyName(data.company_name)
@@ -84,11 +85,10 @@ export default function ClientSettingsPage() {
       setWeeklyDigest(prefs.weekly_digest ?? false)
       setUsageAlerts(prefs.usage_alerts ?? true)
       setMaskPhones(data.privacy_mask_phones ?? false)
+    }
 
-      const teamRes = await getTeamMembersAction()
-      if (teamRes.success) {
-        setTeamMembers(teamRes.members || [])
-      }
+    if (teamRes?.success) {
+      setTeamMembers(teamRes.members || [])
     }
     setLoading(false)
   }

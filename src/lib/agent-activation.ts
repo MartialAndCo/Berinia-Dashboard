@@ -53,6 +53,8 @@ export async function suspendClientAgent(clientId: string, reason: string = 'Pay
       const phoneRes = await retell.phoneNumber.list()
       const phoneNumbers = phoneRes.items || (Array.isArray(phoneRes) ? phoneRes : [])
 
+      const updateTasks: Promise<any>[] = []
+
       for (const agent of agents) {
         if (!agent.retell_agent_id) continue
 
@@ -74,13 +76,19 @@ export async function suspendClientAgent(clientId: string, reason: string = 'Pay
 
           if (hasAgent) {
             console.log(`[Agent Suspension] Unbinding phone ${phone.phone_number} from agent ${agent.retell_agent_id} (preserving outbound_agents)`)
-            await retell.phoneNumber.update(phone.phone_number, {
-              inbound_agents: [],
-              outbound_agents: phone.outbound_agents || [], // PRESERVE Demo Outbound agent intact!
-              nickname: `[SUSPENDED:${agent.retell_agent_id}] ${phone.nickname || phone.phone_number_pretty || ''}`.trim().slice(0, 100)
-            }).catch(e => console.error(`[Agent Suspension] Failed to unbind phone ${phone.phone_number}:`, e))
+            updateTasks.push(
+              retell.phoneNumber.update(phone.phone_number, {
+                inbound_agents: [],
+                outbound_agents: phone.outbound_agents || [], // PRESERVE Demo Outbound agent intact!
+                nickname: `[SUSPENDED:${agent.retell_agent_id}] ${phone.nickname || phone.phone_number_pretty || ''}`.trim().slice(0, 100)
+              }).catch(e => console.error(`[Agent Suspension] Failed to unbind phone ${phone.phone_number}:`, e))
+            )
           }
         }
+      }
+
+      if (updateTasks.length > 0) {
+        await Promise.all(updateTasks)
       }
     } catch (retellErr) {
       console.error('[Agent Suspension] Error updating Retell phone numbers:', retellErr)
@@ -166,6 +174,8 @@ export async function reactivateClientAgent(clientId: string) {
       const phoneRes = await retell.phoneNumber.list()
       const phoneNumbers = phoneRes.items || (Array.isArray(phoneRes) ? phoneRes : [])
 
+      const updateTasks: Promise<any>[] = []
+
       for (const agent of agents) {
         if (!agent.retell_agent_id) continue
 
@@ -185,19 +195,25 @@ export async function reactivateClientAgent(clientId: string) {
           if (isSuspendedForAgent || (!hasInboundAgent && phone.nickname && phone.nickname.includes(agent.retell_agent_id))) {
             console.log(`[Agent Reactivation] Restoring phone ${phone.phone_number} to agent ${agent.retell_agent_id} (preserving outbound_agents)`)
             const cleanedNickname = (phone.nickname || '').replace(`[SUSPENDED:${agent.retell_agent_id}]`, '').trim()
-            await retell.phoneNumber.update(phone.phone_number, {
-              inbound_agents: [
-                {
-                  agent_id: agent.retell_agent_id,
-                  agent_version: 'latest_published',
-                  weight: 1
-                }
-              ],
-              outbound_agents: phone.outbound_agents || [], // PRESERVE Demo Outbound agent intact!
-              nickname: cleanedNickname || phone.phone_number_pretty || phone.phone_number
-            }).catch(e => console.error(`[Agent Reactivation] Failed to rebind phone ${phone.phone_number}:`, e))
+            updateTasks.push(
+              retell.phoneNumber.update(phone.phone_number, {
+                inbound_agents: [
+                  {
+                    agent_id: agent.retell_agent_id,
+                    agent_version: 'latest_published',
+                    weight: 1
+                  }
+                ],
+                outbound_agents: phone.outbound_agents || [], // PRESERVE Demo Outbound agent intact!
+                nickname: cleanedNickname || phone.phone_number_pretty || phone.phone_number
+              }).catch(e => console.error(`[Agent Reactivation] Failed to rebind phone ${phone.phone_number}:`, e))
+            )
           }
         }
+      }
+
+      if (updateTasks.length > 0) {
+        await Promise.all(updateTasks)
       }
     } catch (retellErr) {
       console.error('[Agent Reactivation] Error restoring Retell phone numbers:', retellErr)

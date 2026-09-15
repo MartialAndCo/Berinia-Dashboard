@@ -321,7 +321,7 @@ export async function getClientAgentsAction(targetClientId?: string) {
     // Fetch agents and calls in parallel for fast loading
     const [agentsRes, callsRes] = await Promise.all([
       supabaseAdmin.from('agents').select('*').eq('client_id', client.id).order('created_at', { ascending: false }),
-      supabaseAdmin.from('calls').select('agent_id, duration_secs, user_sentiment').eq('client_id', client.id)
+      supabaseAdmin.from('calls').select('agent_id, duration_secs, user_sentiment').eq('client_id', client.id).order('created_at', { ascending: false }).limit(2000)
     ])
 
     if (agentsRes.error) return { success: false, error: agentsRes.error.message, agents: [] }

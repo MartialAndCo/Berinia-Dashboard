@@ -14,11 +14,20 @@ import {
   Volume2,
   Maximize,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { type FunnelConfig, videoEmbed, isNativeVideo } from "@/lib/funnel";
 import { FunnelText as Text } from "./FunnelText";
-import CalBooking from "./CalBooking";
 import CustomVideoPlayer from "./CustomVideoPlayer";
 import "./funnel.css";
+
+const CalBooking = dynamic(() => import("./CalBooking"), {
+  ssr: false,
+  loading: () => (
+    <p className="f-calendar-fallback" role="status">
+      Loading available times…
+    </p>
+  ),
+});
 
 export type FunnelStep = "sales" | "booking" | "confirmation";
 function Video({

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { parseFathomPayload, analyzeFathomMeeting, verifyFathomWebhook } from '@/lib/fathom-analyzer'
 import { updateAirtableFromFathom } from '@/lib/airtable'
 
@@ -53,30 +53,36 @@ export async function POST(req: Request) {
 
     console.log('[Fathom Webhook] Processing call for prospect:', parsed.attendeeEmail, parsed.attendeeName)
 
-    // Run AI analysis on the transcript / summary
-    const analysis = await analyzeFathomMeeting(parsed)
+    // Run AI analysis & Airtable sync in background using Next.js after() to prevent webhook timeouts
+    after(async () => {
+      try {
+        const analysis = await analyzeFathomMeeting(parsed)
 
-    console.log('[Fathom Webhook] AI Analysis Result:', {
-      callOutcome: analysis.callOutcome,
-      leadStatus: analysis.leadStatus,
-      lostReason: analysis.lostReason,
-      nurturingStatus: analysis.nurturingStatus,
-      followUpDate: analysis.followUpDate
-    })
+        console.log('[Fathom Webhook] AI Analysis Result:', {
+          callOutcome: analysis.callOutcome,
+          leadStatus: analysis.leadStatus,
+          lostReason: analysis.lostReason,
+          nurturingStatus: analysis.nurturingStatus,
+          followUpDate: analysis.followUpDate
+        })
 
-    // Update Airtable record
-    const airtableRes = await updateAirtableFromFathom({
-      attendeeEmail: parsed.attendeeEmail,
-      attendeeName: parsed.attendeeName,
-      recordingUrl: parsed.recordingUrl,
-      analysis
+        await updateAirtableFromFathom({
+          attendeeEmail: parsed.attendeeEmail,
+          attendeeName: parsed.attendeeName,
+          recordingUrl: parsed.recordingUrl,
+          analysis
+        })
+
+        console.log('[Fathom Webhook] Completed background analysis and Airtable update for:', parsed.attendeeEmail)
+      } catch (bgErr) {
+        console.error('[Fathom Webhook Background Error]', bgErr)
+      }
     })
 
     return NextResponse.json({
       success: true,
-      attendee: parsed.attendeeEmail,
-      analysis,
-      airtable: airtableRes
+      message: 'Fathom webhook received and queued for processing',
+      attendee: parsed.attendeeEmail
     })
   } catch (err: any) {
     console.error('[Fathom Webhook Exception]', err)

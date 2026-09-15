@@ -43,23 +43,38 @@ const DEFAULT_CONTENT: FunnelContentData = {
   ],
 };
 
+let cachedFunnelContent: any = null;
+let lastFunnelFetch = 0;
+const FUNNEL_CACHE_TTL = 60 * 1000;
+
 export async function GET() {
+  const now = Date.now();
+  if (cachedFunnelContent && now - lastFunnelFetch < FUNNEL_CACHE_TTL) {
+    return NextResponse.json(cachedFunnelContent);
+  }
+
   try {
     const supabase = getServiceSupabase();
     const { data, error } = await supabase.storage.from(BUCKET).download(FILE_PATH);
 
     if (error || !data) {
+      cachedFunnelContent = DEFAULT_CONTENT;
+      lastFunnelFetch = now;
       return NextResponse.json(DEFAULT_CONTENT);
     }
 
     const text = await data.text();
     const json = JSON.parse(text);
 
-    return NextResponse.json({
+    const result = {
       salesVideo: json.salesVideo || DEFAULT_CONTENT.salesVideo,
       confirmationVideo: json.confirmationVideo || DEFAULT_CONTENT.confirmationVideo,
       faqVideos: Array.isArray(json.faqVideos) && json.faqVideos.length > 0 ? json.faqVideos : DEFAULT_CONTENT.faqVideos,
-    });
+    };
+
+    cachedFunnelContent = result;
+    lastFunnelFetch = now;
+    return NextResponse.json(result);
   } catch (err) {
     console.error("Failed to load funnel content:", err);
     return NextResponse.json(DEFAULT_CONTENT);
@@ -90,6 +105,9 @@ export async function POST(req: NextRequest) {
       console.error("Error saving to supabase storage:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    cachedFunnelContent = payload;
+    lastFunnelFetch = Date.now();
 
     return NextResponse.json({ success: true, data: payload });
   } catch (err) {

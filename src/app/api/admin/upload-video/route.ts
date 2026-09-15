@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase";
 import path from "node:path";
-import { writeFile, mkdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,15 +25,13 @@ export async function POST(request: NextRequest) {
 
     const cleanBase = path.basename(name, ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
     const fileName = `${cleanBase || "video"}_${Date.now()}${ext}`;
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
 
-    // 1. Try uploading to Supabase Storage "videos" bucket
+    // 1. Try uploading to Supabase Storage "videos" bucket directly using File stream (no 250MB RAM buffer)
     try {
       const supabase = getServiceSupabase();
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("videos")
-        .upload(fileName, buffer, {
+        .upload(fileName, file, {
           contentType: file.type || "video/mp4",
           upsert: true,
         });
@@ -49,12 +50,14 @@ export async function POST(request: NextRequest) {
       console.warn("Supabase upload skipped or failed, falling back to local storage:", sbErr);
     }
 
-    // 2. Fallback to local /videos/ directory
+    // 2. Fallback to local /videos/ directory via streaming pipeline
     try {
       const videosDir = path.join(process.cwd(), "public", "videos");
       await mkdir(videosDir, { recursive: true });
       const targetPath = path.join(videosDir, fileName);
-      await writeFile(targetPath, buffer);
+
+      const nodeStream = Readable.fromWeb(file.stream() as any);
+      await pipeline(nodeStream, createWriteStream(targetPath));
 
       return NextResponse.json({
         success: true,

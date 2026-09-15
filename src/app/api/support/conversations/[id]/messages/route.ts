@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkUserAuth, isAdminUser } from '@/utils/supabase/server'
 import { getServiceSupabase } from '@/lib/supabase'
-import { addSupportMessage, getSupportConversation } from '@/lib/support-store'
+import { addSupportMessage, getSupportConversationMeta } from '@/lib/support-store'
 import { notifyAdminNewMessage, notifyClientNewReply } from '@/lib/support-notifications'
 
 export async function POST(
@@ -24,18 +24,19 @@ export async function POST(
     let senderName = 'Support'
 
     if (!isUserAdmin) {
-      const { data: client, error } = await sbAdmin
+      const { data: client } = await sbAdmin
         .from('clients')
-        .select('*')
+        .select('id, company_name')
         .eq('user_id', user.id)
         .single()
-      if (error || !client) {
-        return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })
+
+      if (!client) {
+        return NextResponse.json({ error: 'Client non trouvé' }, { status: 403 })
       }
       clientId = client.id
       const clientMeta = user.user_metadata || {}
       const clientName = body.senderName?.trim() || clientMeta.full_name?.trim() || clientMeta.name?.trim()
-      senderName = clientName || client.company_name || user.email?.split('@')[0] || 'Client'
+      senderName = clientName || client.company_name || 'Client'
     } else {
       const explicit = body.senderName?.trim()
       const adminMeta = user.user_metadata || {}
@@ -55,8 +56,8 @@ export async function POST(
       }
     }
 
-    // Get conversation to read client email/company name for notification
-    const existingConv = await getSupportConversation(id, isUserAdmin ? null : clientId)
+    // Get conversation metadata (without loading entire messages history) for notifications
+    const existingConv = await getSupportConversationMeta(id, isUserAdmin ? null : clientId)
     if (!existingConv) {
       return NextResponse.json({ error: 'Conversation non trouvée' }, { status: 404 })
     }

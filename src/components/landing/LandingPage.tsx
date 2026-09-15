@@ -8,8 +8,10 @@ import BreakEvenCalculator from './BreakEvenCalculator'
 import FeatureGrid from './FeatureGrid'
 import CostComparison from './CostComparison'
 import HowItWorks from './HowItWorks'
+import dynamic from 'next/dynamic'
 import Footer from './Footer'
-import ConsultationModal from './ConsultationModal'
+
+const ConsultationModal = dynamic(() => import('./ConsultationModal'), { ssr: false })
 
 export default function LandingPage() {
   const [isDemoOpen, setIsDemoOpen] = useState(false)
@@ -44,11 +46,13 @@ export default function LandingPage() {
       <Footer onOpenDemo={() => handleOpenDemo('schedule')} />
 
       {/* Live Demo Request Modal */}
-      <ConsultationModal
-        isOpen={isDemoOpen}
-        onClose={handleCloseDemo}
-        initialTab={demoInitialTab}
-      />
+      {isDemoOpen && (
+        <ConsultationModal
+          isOpen={isDemoOpen}
+          onClose={handleCloseDemo}
+          initialTab={demoInitialTab}
+        />
+      )}
     </div>
   )
 }
