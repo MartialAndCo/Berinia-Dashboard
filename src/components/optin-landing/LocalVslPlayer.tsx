@@ -9,9 +9,6 @@ import {
   Maximize,
   Minimize,
   RotateCcw,
-  Settings,
-  Subtitles,
-  List,
 } from "lucide-react";
 
 interface LocalVslPlayerProps {
@@ -27,37 +24,73 @@ export default function LocalVslPlayer({
 }: LocalVslPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
+  const scrubBarRef = useRef<HTMLDivElement>(null);
+  const isScrubbingRef = useRef(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [progressPercent, setProgressPercent] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showControls, setShowControls] = useState(true);
   const [isEnded, setIsEnded] = useState(false);
 
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return "0:00";
+    if (typeof seconds !== "number" || isNaN(seconds) || seconds < 0 || !isFinite(seconds)) {
+      return "0:00";
+    }
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
+
+  // Synchronize duration from the underlying HTMLVideoElement
+  const syncDuration = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const d = video.duration;
+    if (typeof d === "number" && !isNaN(d) && isFinite(d) && d > 0) {
+      setDuration(d);
+    }
+  }, []);
+
+  // Update playback state on src change or mount
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setCurrentTime(video.currentTime || 0);
+    setIsPlaying(!video.paused);
+    setIsEnded(video.ended);
+    syncDuration();
+  }, [src, syncDuration]);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
     if (video.paused || video.ended) {
+      if (video.ended) {
+        video.currentTime = 0;
+      }
       video
         .play()
         .then(() => {
           setIsPlaying(true);
           setIsEnded(false);
         })
-        .catch(() => {});
+        .catch(() => {
+          // Autoplay policy fallback: mute and play
+          video.muted = true;
+          setIsMuted(true);
+          video
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+              setIsEnded(false);
+            })
+            .catch(() => {});
+        });
     } else {
       video.pause();
       setIsPlaying(false);
@@ -71,102 +104,188 @@ export default function LocalVslPlayer({
     setIsMuted(video.muted);
   }, []);
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const bar = e.currentTarget;
-    const rect = bar.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+  const handleTimeUpdate = () => {
     const video = videoRef.current;
-    if (!video || !duration) return;
-    const newTime = ratio * duration;
-    video.currentTime = newTime;
-    setCurrentTime(newTime);
-    setProgressPercent(ratio * 100);
+    if (!video) return;
+
+    const cur = video.currentTime;
+    setCurrentTime(cur);
+
+    // Ensure duration is synchronized whenever available
+    const d = video.duration;
+    const effectiveDuration =
+      typeof d === "number" && !isNaN(d) && isFinite(d) && d > 0
+        ? d
+        : duration;
+
+    if (effectiveDuration > 0) {
+      if (duration !== effectiveDuration) {
+        setDuration(effectiveDuration);
+      }
+      if (!isScrubbingRef.current) {
+        setProgressPercent((cur / effectiveDuration) * 100);
+      }
+    }
+  };
+
+  // Seek logic based on mouse/touch clientX
+  const seekToClientX = useCallback(
+    (clientX: number) => {
+      const bar = scrubBarRef.current;
+      const video = videoRef.current;
+      if (!bar || !video) return;
+
+      const rect = bar.getBoundingClientRect();
+      if (rect.width <= 0) return;
+
+      const clickX = clientX - rect.left;
+      const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+
+      const d = video.duration;
+      const effectiveDuration =
+        typeof d === "number" && !isNaN(d) && isFinite(d) && d > 0
+          ? d
+          : duration;
+
+      if (effectiveDuration > 0) {
+        const newTime = ratio * effectiveDuration;
+        video.currentTime = newTime;
+        setCurrentTime(newTime);
+        setProgressPercent(ratio * 100);
+      }
+    },
+    [duration]
+  );
+
+  const handleScrubStart = (
+    e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>
+  ) => {
+    isScrubbingRef.current = true;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    seekToClientX(clientX);
+
+    const handleScrubMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!isScrubbingRef.current) return;
+      const moveClientX =
+        "touches" in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      seekToClientX(moveClientX);
+    };
+
+    const handleScrubEnd = () => {
+      isScrubbingRef.current = false;
+      window.removeEventListener("mousemove", handleScrubMove);
+      window.removeEventListener("mouseup", handleScrubEnd);
+      window.removeEventListener("touchmove", handleScrubMove);
+      window.removeEventListener("touchend", handleScrubEnd);
+    };
+
+    window.addEventListener("mousemove", handleScrubMove);
+    window.addEventListener("mouseup", handleScrubEnd);
+    window.addEventListener("touchmove", handleScrubMove);
+    window.addEventListener("touchend", handleScrubEnd);
   };
 
   const toggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen?.().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen?.().catch(() => {});
-      setIsFullscreen(false);
-    }
-  };
+    const container = containerRef.current;
+    const video = videoRef.current;
+    if (!container) return;
 
-  const handleMouseMove = () => {
-    setShowControls(true);
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    if (isPlaying) {
-      hideControlsTimer.current = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const doc = document as any;
+    const isFs =
+      document.fullscreenElement ||
+      doc.webkitFullscreenElement ||
+      doc.mozFullScreenElement ||
+      doc.msFullscreenElement;
+
+    if (!isFs) {
+      if (container.requestFullscreen) {
+        container.requestFullscreen().catch(() => {});
+      } else if ((container as any).webkitRequestFullscreen) {
+        (container as any).webkitRequestFullscreen();
+      } else if ((video as any)?.webkitEnterFullscreen) {
+        (video as any).webkitEnterFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      }
     }
+    /* eslint-enable @typescript-eslint/no-explicit-any */
   };
 
   useEffect(() => {
     const handleFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const doc = document as any;
+      const isFs = !!(
+        document.fullscreenElement ||
+        doc.webkitFullscreenElement ||
+        doc.mozFullScreenElement ||
+        doc.msFullscreenElement
+      );
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+      setIsFullscreen(isFs);
     };
+
     document.addEventListener("fullscreenchange", handleFsChange);
+    document.addEventListener("webkitfullscreenchange", handleFsChange);
+    document.addEventListener("mozfullscreenchange", handleFsChange);
+    document.addEventListener("MSFullscreenChange", handleFsChange);
+
     return () => {
       document.removeEventListener("fullscreenchange", handleFsChange);
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+      document.removeEventListener("webkitfullscreenchange", handleFsChange);
+      document.removeEventListener("mozfullscreenchange", handleFsChange);
+      document.removeEventListener("MSFullscreenChange", handleFsChange);
     };
   }, []);
 
   return (
     <div
       ref={containerRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => isPlaying && setShowControls(false)}
-      className="relative w-full bg-[#2a6ced] rounded-2xl md:rounded-3xl p-2 md:p-3.5 shadow-2xl shadow-blue-500/20 select-none group"
+      className={`relative w-full bg-[#2a6ced] select-none group transition-all duration-200 ${
+        isFullscreen
+          ? "fixed inset-0 z-50 flex flex-col justify-between bg-black p-4 md:p-6 rounded-none"
+          : "rounded-2xl md:rounded-3xl p-2 md:p-3.5 shadow-2xl shadow-blue-500/20"
+      }`}
     >
       {/* Video Viewport Container */}
-      <div className="relative w-full aspect-video rounded-xl md:rounded-2xl overflow-hidden bg-black">
+      <div
+        className={`relative w-full overflow-hidden bg-black flex items-center justify-center ${
+          isFullscreen
+            ? "flex-1 max-h-[calc(100vh-80px)] rounded-xl"
+            : "aspect-video rounded-xl md:rounded-2xl"
+        }`}
+      >
         <video
           ref={videoRef}
           src={src}
           poster={poster}
           playsInline
-          preload="metadata"
+          preload="auto"
           onClick={togglePlay}
-          onTimeUpdate={() => {
-            const video = videoRef.current;
-            if (!video) return;
-            setCurrentTime(video.currentTime);
-            if (video.duration) {
-              setProgressPercent((video.currentTime / video.duration) * 100);
-            }
+          onPlay={() => {
+            setIsPlaying(true);
+            setIsEnded(false);
           }}
-          onLoadedMetadata={() => {
-            const video = videoRef.current;
-            if (!video) return;
-            setDuration(video.duration);
+          onPause={() => {
+            setIsPlaying(false);
           }}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={syncDuration}
+          onDurationChange={syncDuration}
+          onLoadedData={syncDuration}
+          onCanPlay={syncDuration}
           onEnded={() => {
             setIsPlaying(false);
             setIsEnded(true);
-            setShowControls(true);
             onEnded?.();
           }}
           className="w-full h-full object-contain cursor-pointer"
         />
-
-        {/* Top-Right Audio Pill */}
-        <button
-          type="button"
-          onClick={toggleMute}
-          aria-label={isMuted ? "Unmute" : "Mute"}
-          className="absolute top-3.5 right-3.5 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-sm transition-all z-20 shadow-md"
-        >
-          {isMuted || volume === 0 ? (
-            <VolumeX className="w-5 h-5 text-red-400" />
-          ) : (
-            <Volume2 className="w-5 h-5 text-white" />
-          )}
-        </button>
 
         {/* Center Play Button Overlay */}
         {(!isPlaying || isEnded) && (
@@ -174,7 +293,7 @@ export default function LocalVslPlayer({
             type="button"
             onClick={togglePlay}
             aria-label={isEnded ? "Replay video" : "Play video"}
-            className="absolute inset-0 m-auto w-16 h-16 md:w-20 md:h-20 rounded-full bg-white text-[#2a6ced] flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-2xl z-10"
+            className="absolute inset-0 m-auto w-16 h-16 md:w-20 md:h-20 rounded-full bg-white text-[#2a6ced] flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-2xl z-10 cursor-pointer"
           >
             {isEnded ? (
               <RotateCcw className="w-8 h-8" />
@@ -185,18 +304,22 @@ export default function LocalVslPlayer({
         )}
       </div>
 
-      {/* Bottom Blue/White Controls Bar matching the screenshot */}
-      <div className="w-full pt-3 pb-1 px-2 flex flex-col gap-2 text-white">
-        {/* Scrub Bar with white track and progress */}
+      {/* Bottom Blue/White Controls Bar */}
+      <div className="w-full pt-2.5 pb-1 px-2 flex flex-col gap-1.5 text-white">
+        {/* Scrub Bar with generous hit area and smooth seeking */}
         <div
-          onClick={handleSeek}
-          className="relative w-full h-1.5 hover:h-2.5 bg-white/30 rounded-full cursor-pointer transition-all duration-150 group/scrub"
+          ref={scrubBarRef}
+          onMouseDown={handleScrubStart}
+          onTouchStart={handleScrubStart}
+          className="relative w-full py-2 cursor-pointer group/scrub"
         >
-          <div
-            className="absolute left-0 top-0 bottom-0 bg-white rounded-full transition-all duration-75 relative"
-            style={{ width: `${progressPercent}%` }}
-          >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-md" />
+          <div className="relative w-full h-1.5 group-hover/scrub:h-2 bg-white/30 rounded-full transition-all duration-150">
+            <div
+              className="absolute left-0 top-0 bottom-0 bg-white rounded-full"
+              style={{ width: `${progressPercent}%` }}
+            >
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-md scale-90 group-hover/scrub:scale-110 transition-transform" />
+            </div>
           </div>
         </div>
 
@@ -208,7 +331,7 @@ export default function LocalVslPlayer({
               type="button"
               onClick={togglePlay}
               aria-label={isPlaying ? "Pause" : "Play"}
-              className="text-white hover:text-white/80 transition-colors p-1"
+              className="text-white hover:text-white/80 transition-colors p-1 cursor-pointer"
             >
               {isPlaying ? (
                 <Pause className="w-4 h-4 fill-current" />
@@ -217,21 +340,21 @@ export default function LocalVslPlayer({
               )}
             </button>
 
-            <span className="font-mono text-white text-xs md:text-sm tracking-wide">
-              {formatTime(currentTime)} / {formatTime(duration || 0)}
+            <span className="font-mono text-white text-xs md:text-sm tracking-wide select-none">
+              {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
 
-          {/* Right: CC, Volume, Settings, Chapters, Fullscreen */}
+          {/* Right: Sound and Fullscreen only */}
           <div className="flex items-center gap-3 md:gap-4 text-white">
             <button
               type="button"
               onClick={toggleMute}
-              aria-label="Volume"
-              className="hover:text-white/80 transition-colors"
+              aria-label={isMuted ? "Activer le son" : "Couper le son"}
+              className="hover:text-white/80 transition-colors p-1 cursor-pointer"
             >
               {isMuted ? (
-                <VolumeX className="w-4 h-4" />
+                <VolumeX className="w-4 h-4 text-red-300" />
               ) : (
                 <Volume2 className="w-4 h-4" />
               )}
@@ -239,33 +362,9 @@ export default function LocalVslPlayer({
 
             <button
               type="button"
-              aria-label="Closed captions"
-              className="hover:text-white/80 transition-colors"
-            >
-              <Subtitles className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              aria-label="Settings"
-              className="hover:text-white/80 transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              aria-label="Chapters"
-              className="hover:text-white/80 transition-colors hidden sm:block"
-            >
-              <List className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
               onClick={toggleFullscreen}
-              aria-label="Toggle Fullscreen"
-              className="hover:text-white/80 transition-colors p-0.5"
+              aria-label={isFullscreen ? "Quitter le plein écran" : "Plein écran"}
+              className="hover:text-white/80 transition-colors p-1 cursor-pointer"
             >
               {isFullscreen ? (
                 <Minimize className="w-4 h-4" />

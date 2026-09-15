@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Play,
   Pause,
@@ -122,10 +122,26 @@ function ConfirmationVideoPlayer({
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
+  const syncDuration = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const d = v.duration;
+    if (typeof d === "number" && !isNaN(d) && isFinite(d) && d > 0) {
+      setDuration(d);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncDuration();
+  }, [src, syncDuration]);
+
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused || v.ended) {
+      if (v.ended) {
+        v.currentTime = 0;
+      }
       v.play()
         .then(() => {
           setIsPlaying(true);
@@ -150,8 +166,10 @@ function ConfirmationVideoPlayer({
     const rect = bar.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const v = videoRef.current;
-    if (!v || !duration) return;
-    v.currentTime = ratio * duration;
+    if (!v) return;
+    const effectiveDuration = (v.duration && isFinite(v.duration) && v.duration > 0) ? v.duration : duration;
+    if (!effectiveDuration) return;
+    v.currentTime = ratio * effectiveDuration;
     setCurrentTime(v.currentTime);
   };
 
@@ -179,18 +197,28 @@ function ConfirmationVideoPlayer({
           src={src}
           poster={poster}
           playsInline
-          preload="metadata"
+          preload="auto"
           onClick={togglePlay}
+          onPlay={() => {
+            setIsPlaying(true);
+            setIsEnded(false);
+          }}
+          onPause={() => {
+            setIsPlaying(false);
+          }}
           onTimeUpdate={() => {
-            if (videoRef.current) {
-              setCurrentTime(videoRef.current.currentTime);
+            const v = videoRef.current;
+            if (v) {
+              setCurrentTime(v.currentTime);
+              if (v.duration && isFinite(v.duration) && v.duration > 0 && duration !== v.duration) {
+                setDuration(v.duration);
+              }
             }
           }}
-          onLoadedMetadata={() => {
-            if (videoRef.current) {
-              setDuration(videoRef.current.duration);
-            }
-          }}
+          onLoadedMetadata={syncDuration}
+          onDurationChange={syncDuration}
+          onLoadedData={syncDuration}
+          onCanPlay={syncDuration}
           onEnded={() => {
             setIsPlaying(false);
             setIsEnded(true);
@@ -445,7 +473,7 @@ export default function OptInConfirmationPage({
               {/* Secondary Alternatives & Reassurance */}
               <div className="w-full flex flex-col items-center gap-2 pt-2">
                 <div className="flex items-center gap-3 flex-wrap justify-center text-xs sm:text-sm font-medium text-gray-500">
-                  <span>Don't use Google Calendar?</span>
+                  <span>Don&apos;t use Google Calendar?</span>
                   <a
                     href="https://outlook.live.com/calendar"
                     target="_blank"
@@ -483,7 +511,7 @@ export default function OptInConfirmationPage({
           {/* Eyebrow & Title */}
           <div className="text-center mb-12">
             <p className="text-[#2563eb] font-extrabold text-xs sm:text-sm tracking-widest uppercase mb-2">
-              FAQ's
+              FAQs
             </p>
             <h2 className="text-gray-900 text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">
               Frequently Asked Questions About Our Free Trial
