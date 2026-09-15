@@ -360,3 +360,23 @@ export async function toggleClientAgentStatusAction(clientId: string, targetStat
   }
 }
 
+export async function getClientOnboardingDataAction(userId?: string | null) {
+  try { await checkAdminAuth(); } catch { return { success: false, error: 'Unauthorized' }; }
+  if (!userId) return { success: false }
+
+  try {
+    const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId)
+    const onboardingData = user?.user?.user_metadata?.onboarding_data || null
+    const onboardingCompleted = Boolean(user?.user?.user_metadata?.onboarding_completed)
+    const airtableFormId = user?.user?.user_metadata?.airtable_form_id || null
+
+    return {
+      success: true,
+      onboardingData,
+      onboardingCompleted,
+      airtableFormId
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}

@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Settings, LayoutDashboard, LogOut, Bot, Receipt, MessageSquare } from 'lucide-react'
+import { Settings, LayoutDashboard, LogOut, Bot, Receipt, MessageSquare, Lock } from 'lucide-react'
 import Link from 'next/link'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 import SupportChatBubble from '@/components/support/SupportChatBubble'
 import PwaRegister from '@/components/pwa/PwaRegister'
 import PwaInstallPrompt from '@/components/pwa/PwaInstallPrompt'
+import { getClientAgentSetupStateAction } from '@/app/onboarding/actions'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -16,6 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentClientId, setCurrentClientId] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [hasActiveAgent, setHasActiveAgent] = useState(true)
 
   useEffect(() => {
     checkAuth()
@@ -44,7 +46,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const params = new URLSearchParams(window.location.search)
       const cId = params.get('clientId') || sessionStorage.getItem('admin_selected_client_id')
       setCurrentClientId(cId)
+      if (cId) {
+        checkAgentStatus(cId)
+      }
     }
+  }
+
+  const checkAgentStatus = async (cId?: string | null) => {
+    try {
+      const stateRes = await getClientAgentSetupStateAction(cId || undefined)
+      if (stateRes.success) {
+        setHasActiveAgent(stateRes.hasActiveAgent)
+      }
+    } catch {}
   }
 
   const checkAuth = async () => {
@@ -58,6 +72,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       user.app_metadata?.role === 'admin' || 
       user.user_metadata?.role === 'admin'
     setIsAdmin(isUserAdmin)
+
+    if (!isUserAdmin) {
+      checkAgentStatus()
+    }
   }
 
   const handleLogout = async () => {
@@ -73,8 +91,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const navLinks = [
-    { href: '/dashboard', label: 'Overview', shortLabel: 'Overview', icon: LayoutDashboard },
-    { href: '/dashboard/agents', label: 'Voice Agents', shortLabel: 'Agents', icon: Bot },
+    { 
+      href: '/dashboard', 
+      label: 'Overview', 
+      shortLabel: 'Overview', 
+      icon: LayoutDashboard,
+      isLocked: !isAdmin && !hasActiveAgent,
+      tag: (!isAdmin && !hasActiveAgent) ? 'Setup' : undefined
+    },
+    { 
+      href: '/dashboard/agents', 
+      label: 'Voice Agents', 
+      shortLabel: 'Agents', 
+      icon: Bot,
+      isLocked: !isAdmin && !hasActiveAgent,
+      tag: (!isAdmin && !hasActiveAgent) ? 'Setup' : undefined
+    },
     { href: '/dashboard/billing', label: 'Billing & Invoices', shortLabel: 'Billing', icon: Receipt },
     { href: '/dashboard/support', label: 'Support', shortLabel: 'Support', icon: MessageSquare, badge: unreadCount },
     ...(!isAdmin ? [{ href: '/dashboard/settings', label: 'Settings', shortLabel: 'Settings', icon: Settings }] : []),
@@ -136,13 +168,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <div className="flex items-center gap-3">
                   <Icon className={`h-4 w-4 ${isActive ? 'text-[#9e4733]' : 'text-[#73706b]'}`} />
-                  {item.label}
+                  <span>{item.label}</span>
                 </div>
-                {item.badge && item.badge > 0 ? (
-                  <span className="w-4 h-4 rounded-full bg-[#9e4733] text-white text-[9px] font-bold flex items-center justify-center">
-                    {item.badge}
-                  </span>
-                ) : null}
+                <div className="flex items-center gap-1.5">
+                  {item.tag && (
+                    <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 border border-amber-300/70 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> {item.tag}
+                    </span>
+                  )}
+                  {item.badge && item.badge > 0 ? (
+                    <span className="w-4 h-4 rounded-full bg-[#9e4733] text-white text-[9px] font-bold flex items-center justify-center">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </div>
               </Link>
             )
           })}
@@ -190,6 +229,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'bg-[#1a1918] text-white shadow-xs' : 'text-[#73706b]'}`}>
                     <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-[#73706b]'}`} />
                   </div>
+                  {item.tag && (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full flex items-center justify-center text-white ring-1 ring-white" title="Setup in progress">
+                      <Lock className="w-2 h-2" />
+                    </span>
+                  )}
                   {item.badge && item.badge > 0 ? (
                     <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#9e4733] text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                       {item.badge}

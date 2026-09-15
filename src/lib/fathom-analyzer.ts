@@ -251,7 +251,7 @@ Rules:
 }
 
 async function classifyWithGemini(context: string, apiKey: string): Promise<FathomAnalysisResult | null> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`
   const prompt = `Analyze this B2B sales call transcript and return ONLY a JSON object with this exact schema:
 {
   "callOutcome": "Closed Won (One-Call)" | "Proposal / Contract Sent" | "Second Call Scheduled" | "Under Consideration (Hot)" | "Nurturing (Cold)" | "Closed Lost" | "Disqualified",
@@ -281,6 +281,83 @@ ${context}`
 
   const parsed = JSON.parse(text)
   return validateAndSanitizeAnalysis(parsed)
+}
+
+export interface ExtractedOnboardingData {
+  phoneProvider?: string | null
+  requiredLanguages?: string[] | null
+  callTypes?: ('Inbound' | 'Outbound')[] | null
+  preferredVoice?: 'Female' | 'Male' | null
+  businessOpeningHours?: string | null
+  businessAddress?: string | null
+  transferPhone?: string | null
+  mission?: string | null
+}
+
+/**
+ * Uses Gemini 3.6 Flash to extract onboarding parameters from a Fathom strategy call transcript or notes.
+ */
+export async function extractOnboardingWithGemini(transcriptOrNotes: string): Promise<ExtractedOnboardingData | null> {
+  if (!transcriptOrNotes || transcriptOrNotes.trim().length < 20) return null
+
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+  if (!geminiKey) {
+    console.warn('[Fathom Analyzer] No GEMINI_API_KEY available for onboarding extraction.')
+    return null
+  }
+
+  const prompt = `You are an elite Sales AI Assistant extracting onboarding configuration for a Voice AI agent for a US business from a sales call transcript or call notes.
+Extract any of the following parameters IF they were explicitly mentioned or clearly implied:
+- phoneProvider: US phone provider (e.g. "Verizon", "AT&T", "T-Mobile", "RingCentral", "Vonage", "Twilio", "Comcast Business", "Spectrum", "Google Voice", "Grasshopper", "8x8", "Nextiva", "Ooma", "Other")
+- requiredLanguages: Array of languages mentioned (allowed values: "English", "Spanish", "French", "German", "Italian", "Other"). Usually at least ["English"] unless specified otherwise.
+- callTypes: Array of call directions needed (allowed values: "Inbound", "Outbound"). For example: customer reception/appointment booking is "Inbound", follow-ups/lead calls is "Outbound".
+- preferredVoice: "Female" or "Male" if voice gender preference was discussed.
+- businessOpeningHours: Operating hours if mentioned (e.g. "Monday - Friday, 9:00 AM - 5:00 PM" or "24/7").
+- businessAddress: Full business location/address if mentioned.
+- transferPhone: Emergency or live agent transfer phone number if mentioned.
+- mission: Brief 1-sentence description of the voice agent's core purpose.
+
+Return ONLY a JSON object with this exact schema:
+{
+  "phoneProvider": string | null,
+  "requiredLanguages": string[],
+  "callTypes": string[],
+  "preferredVoice": "Female" | "Male" | null,
+  "businessOpeningHours": string | null,
+  "businessAddress": string | null,
+  "transferPhone": string | null,
+  "mission": string | null
+}
+
+Call Transcript or Notes:
+${transcriptOrNotes.slice(0, 15000)}`
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' }
+      })
+    })
+
+    if (!res.ok) {
+      console.warn('[extractOnboardingWithGemini] Request failed:', res.status, await res.text().catch(() => ''))
+      return null
+    }
+
+    const data = await res.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!text) return null
+
+    const parsed = JSON.parse(text) as ExtractedOnboardingData
+    return parsed
+  } catch (err) {
+    console.error('[extractOnboardingWithGemini] Exception:', err)
+    return null
+  }
 }
 
 /**

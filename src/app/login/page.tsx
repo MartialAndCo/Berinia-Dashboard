@@ -62,12 +62,17 @@ export default function LoginPage() {
       // Check if user is a regular client by checking the clients table
       const { data: clientData } = await supabase
         .from('clients')
-        .select('id')
+        .select('id, status')
         .eq('user_id', data.session.user.id)
         .maybeSingle()
       
       if (clientData) {
-        window.location.href = '/dashboard'
+        const isInitialValidated = Boolean(u.user_metadata?.initial_validation_completed || u.user_metadata?.onboarding_completed)
+        if (!isInitialValidated && clientData.status !== 'Active') {
+          window.location.href = '/onboarding'
+        } else {
+          window.location.href = '/dashboard'
+        }
       } else {
         window.location.href = '/admin'
       }

@@ -10,8 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2, ShieldAlert, KeyRound, Save, RefreshCw, Eye } from 'lucide-react'
-import { updateClientConfigAction, forceUpdateClientEmailAction, recalculateClientCallsCostAction, deleteClientAction, toggleClientAgentStatusAction } from './actions'
+import { ArrowLeft, Trash2, ShieldAlert, KeyRound, Save, RefreshCw, Eye, ExternalLink, FileText, CheckCircle2, Mic, Globe } from 'lucide-react'
+import { updateClientConfigAction, forceUpdateClientEmailAction, recalculateClientCallsCostAction, deleteClientAction, toggleClientAgentStatusAction, getClientOnboardingDataAction } from './actions'
 import { addAgentAction, deleteAgentAction, getRetellAgentsAction, updateAgentWebhookAction, syncRetellAgentWebhookAction } from '../../actions'
 import { DeleteClientModal } from '@/components/DeleteClientModal'
 import PageLoading from '@/components/PageLoading'
@@ -38,6 +38,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   const [backfillHistory, setBackfillHistory] = useState(false)
   const [agentWebhooks, setAgentWebhooks] = useState<Record<string, string>>({})
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [onboardingInfo, setOnboardingInfo] = useState<any>(null)
 
   useEffect(() => {
     fetchData()
@@ -55,6 +56,17 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       setBillingRate(clientData.billing_rate_per_min)
       setRetainer(clientData.monthly_retainer)
       setEmail(clientData.email || '')
+
+      if (clientData.user_id) {
+        const onbRes = await getClientOnboardingDataAction(clientData.user_id)
+        if (onbRes.success && onbRes.onboardingData) {
+          setOnboardingInfo({
+            data: onbRes.onboardingData,
+            completed: onbRes.onboardingCompleted,
+            airtableFormId: onbRes.airtableFormId
+          })
+        }
+      }
     }
     if (agentsData) {
       setAgents(agentsData)
@@ -460,6 +472,137 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             </div>
           </CardContent>
         </Card>
+
+        {/* Onboarding & Voice AI Configuration Card */}
+        {onboardingInfo?.data && (
+          <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden col-span-full">
+            <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
+                    <span>•</span> ONBOARDING SPECIFICATIONS
+                  </div>
+                  <CardTitle className="font-serif text-xl font-bold text-[#1a1918]">
+                    Client Onboarding &amp; Voice Persona
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#73706b]">
+                    Parameters collected during client onboarding and synchronized with Airtable Forms
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-sm uppercase tracking-wider">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Onboarding Completed
+                  </span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="p-3 bg-[#faf8f5] border border-[#e6e2d6] rounded-sm space-y-1">
+                  <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block">Phone &amp; Carrier</span>
+                  <p className="font-semibold text-[#1a1918]">{onboardingInfo.data.businessPhoneNumber || 'Not set'}</p>
+                  <p className="text-[11px] text-[#73706b]">Carrier: {onboardingInfo.data.phoneProvider || 'Unselected'}</p>
+                </div>
+
+                <div className="p-3 bg-[#faf8f5] border border-[#e6e2d6] rounded-sm space-y-1">
+                  <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block">Voice Style &amp; Languages</span>
+                  <p className="font-semibold text-[#1a1918]">{onboardingInfo.data.preferredVoice || 'Female'} Voice</p>
+                  <p className="text-[11px] text-[#73706b]">Languages: {Array.isArray(onboardingInfo.data.requiredLanguages) ? onboardingInfo.data.requiredLanguages.join(', ') : 'English'}</p>
+                </div>
+
+                <div className="p-3 bg-[#faf8f5] border border-[#e6e2d6] rounded-sm space-y-1">
+                  <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block">Call Flow &amp; Hours</span>
+                  <p className="font-semibold text-[#1a1918]">{Array.isArray(onboardingInfo.data.callTypes) ? onboardingInfo.data.callTypes.join(', ') : 'Inbound'}</p>
+                  <p className="text-[11px] text-[#73706b] truncate">{onboardingInfo.data.openingHours || 'Hours not set'}</p>
+                </div>
+              </div>
+
+              {onboardingInfo.data.businessAddress && (
+                <div className="text-xs">
+                  <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block mb-0.5">Physical Address</span>
+                  <p className="font-medium text-[#1a1918]">{onboardingInfo.data.businessAddress}</p>
+                </div>
+              )}
+
+              {onboardingInfo.data.mission && (
+                <div className="text-xs">
+                  <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block mb-0.5">Primary Agent Mission</span>
+                  <p className="font-medium text-[#1a1918]">{onboardingInfo.data.mission}</p>
+                </div>
+              )}
+
+              {(onboardingInfo.data.transferPhone || onboardingInfo.data.calendarUrl || onboardingInfo.data.websiteUrl) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs pt-2 border-t border-[#e6e2d6]">
+                  {onboardingInfo.data.transferPhone && (
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block mb-0.5">Emergency Fallback</span>
+                      <p className="font-mono font-medium text-[#1a1918]">{onboardingInfo.data.transferPhone}</p>
+                    </div>
+                  )}
+                  {onboardingInfo.data.calendarUrl && (
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block mb-0.5">Booking Calendar</span>
+                      <a href={onboardingInfo.data.calendarUrl} target="_blank" rel="noopener noreferrer" className="text-[#9e4733] hover:underline flex items-center gap-1 font-medium truncate">
+                        {onboardingInfo.data.calendarUrl} <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>
+                    </div>
+                  )}
+                  {onboardingInfo.data.websiteUrl && (
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block mb-0.5">Website</span>
+                      <a href={onboardingInfo.data.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-[#9e4733] hover:underline flex items-center gap-1 font-medium truncate">
+                        {onboardingInfo.data.websiteUrl} <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {onboardingInfo.data.topFaqs && (
+                <div className="text-xs pt-2 border-t border-[#e6e2d6]">
+                  <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block mb-1">Top Customer FAQs</span>
+                  <div className="p-3 bg-[#faf8f5] border border-[#e6e2d6] rounded-sm whitespace-pre-line text-[#1a1918]">
+                    {onboardingInfo.data.topFaqs}
+                  </div>
+                </div>
+              )}
+
+              {onboardingInfo.data.notes && (
+                <div className="text-xs pt-2 border-t border-[#e6e2d6]">
+                  <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block mb-1">Special Instructions &amp; Guardrails</span>
+                  <div className="p-3 bg-[#faf8f5] border border-[#e6e2d6] rounded-sm whitespace-pre-line text-[#1a1918]">
+                    {onboardingInfo.data.notes}
+                  </div>
+                </div>
+              )}
+
+              {Array.isArray(onboardingInfo.data.uploadedDocuments) && onboardingInfo.data.uploadedDocuments.length > 0 && (
+                <div className="text-xs pt-2 border-t border-[#e6e2d6]">
+                  <span className="text-[10px] uppercase font-semibold text-[#73706b] tracking-wider block mb-2">
+                    Attached Knowledge Documents ({onboardingInfo.data.uploadedDocuments.length})
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {onboardingInfo.data.uploadedDocuments.map((doc: any, i: number) => (
+                      <a 
+                        key={i} 
+                        href={doc.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-2.5 bg-[#faf8f5] border border-[#e6e2d6] hover:border-[#1a1918] rounded-sm transition-colors text-xs"
+                      >
+                        <span className="flex items-center gap-2 truncate font-medium text-[#1a1918]">
+                          <FileText className="w-4 h-4 text-[#9e4733] shrink-0" />
+                          <span className="truncate">{doc.name}</span>
+                        </span>
+                        <ExternalLink className="w-3.5 h-3.5 text-[#73706b] shrink-0 ml-2" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
       </div>
 

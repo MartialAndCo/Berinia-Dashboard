@@ -140,8 +140,8 @@ export default function UpdatePasswordPage() {
         }
       }
 
-      toast.success("Password set successfully!")
-      window.location.href = '/dashboard'
+      toast.success("Password set successfully! Let's set up your agent.")
+      window.location.href = '/onboarding'
     } catch (err: any) {
       console.error('Update password error:', err)
       setError(err?.message || 'An unexpected error occurred.')

@@ -1436,8 +1436,216 @@ export async function updateAirtableFromFathom(params: UpdateAirtableFromFathomP
   }
 }
 
+export interface ClientOnboardingFormData {
+  businessName: string
+  businessPhoneNumber?: string
+  phoneProvider?: string
+  businessAddress?: string
+  openingHours?: string
+  preferredVoice?: 'Female' | 'Male' | string
+  requiredLanguages?: string[]
+  callTypes?: string[]
+  mission?: string
+  transferPhone?: string
+  calendarUrl?: string
+  topFaqs?: string
+  websiteUrl?: string
+  notes?: string
+  uploadedDocuments?: { name: string; url: string }[]
+  email?: string
+}
 
+/**
+ * Searches Airtable Leads table for a lead matching email or company name.
+ * Returns the record if found, along with any Call Notes for AI transcript pre-filling.
+ */
+export async function findAirtableLeadData(email?: string | null, companyName?: string | null): Promise<{ recordId?: string; fields?: any } | null> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+  const tableName = settings?.airtable_table_name || process.env.AIRTABLE_TABLE_NAME || 'Leads'
 
+  if (!apiKey || !baseId) return null
 
+  const cleanEmail = email?.trim().toLowerCase()
+  const cleanComp = companyName?.trim().toLowerCase()
+
+  try {
+    const searchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`
+    const res = await fetch(searchUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store'
+    })
+
+    if (!res.ok) return null
+    const data = await res.json()
+    const records = data.records || []
+
+    let matched = records.find((r: any) => {
+      const rEmail = (r.fields?.['Email'] || '').trim().toLowerCase()
+      return cleanEmail && rEmail && rEmail === cleanEmail
+    })
+
+    if (!matched && cleanComp) {
+      matched = records.find((r: any) => {
+        const rName = (r.fields?.['Business Name'] || r.fields?.['Full Name'] || '').trim().toLowerCase()
+        return rName && (rName === cleanComp || rName.includes(cleanComp) || cleanComp.includes(rName))
+      })
+    }
+
+    if (matched) {
+      return { recordId: matched.id, fields: matched.fields }
+    }
+  } catch (err) {
+    console.error('[findAirtableLeadData Error]', err)
+  }
+  return null
+}
+
+const FORMS_TABLE_ID = 'tbl0OP6EMTgeFfSag' // Forms table in applpKlUsbSHqFgFw
+
+/**
+ * Inserts the client onboarding answers directly into the Airtable Forms table (tbl0OP6EMTgeFfSag)
+ * and links the new form record to the Lead in Leads (tblqI1MQGqr0sE6rV).
+ */
+export async function submitClientOnboardingToAirtable(data: ClientOnboardingFormData, existingRecordId?: string | null): Promise<{ success: boolean; formRecordId?: string; error?: string }> {
+  const settings = await getDemoSettings().catch(() => null)
+  const apiKey = settings?.airtable_api_key || process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN
+  const baseId = settings?.airtable_base_id || process.env.AIRTABLE_BASE_ID
+
+  if (!apiKey || !baseId) {
+    return { success: false, error: 'Airtable credentials not configured' }
+  }
+
+  try {
+    // 1. Locate matching lead in Leads table to link
+    let leadRecordId: string | null = null
+    const matchedLead = await findAirtableLeadData(data.email, data.businessName)
+    if (matchedLead?.recordId) {
+      leadRecordId = matchedLead.recordId
+    }
+
+    // 2. Build structured Additional Notes with all intelligent agent specs
+    const noteSections: string[] = []
+
+    if (data.mission) {
+      noteSections.push(`• Primary Agent Mission: ${data.mission}`)
+    }
+    if (data.transferPhone) {
+      noteSections.push(`• Emergency / Human Fallback Number: ${data.transferPhone}`)
+    }
+    if (data.calendarUrl) {
+      noteSections.push(`• Booking Calendar URL: ${data.calendarUrl}`)
+    }
+    if (data.websiteUrl) {
+      noteSections.push(`• Business Website: ${data.websiteUrl}`)
+    }
+    if (data.topFaqs && data.topFaqs.trim()) {
+      noteSections.push(`\n--- TOP CUSTOMER FAQS ---\n${data.topFaqs.trim()}`)
+    }
+    if (data.notes && data.notes.trim()) {
+      noteSections.push(`\n--- ADDITIONAL INSTRUCTIONS / GUARDRAILS ---\n${data.notes.trim()}`)
+    }
+    if (data.uploadedDocuments && data.uploadedDocuments.length > 0) {
+      noteSections.push(`\n--- ATTACHED DOCUMENTS & KNOWLEDGE ---\n${data.uploadedDocuments.map(d => `- ${d.name}: ${d.url}`).join('\n')}`)
+    }
+
+    const additionalNotesText = noteSections.join('\n')
+
+    // 3. Assemble fields according to Forms table schema
+    const fields: Record<string, any> = {
+      'Question': `Onboarding - ${data.businessName}`,
+      'Business Name': data.businessName,
+      'Business Phone Number': data.businessPhoneNumber || '',
+      'Phone Provider': data.phoneProvider || '',
+      'Business Full Address': data.businessAddress || '',
+      'Business Opening Hours': data.openingHours || '',
+      'Preferred Voice': data.preferredVoice === 'Male' ? 'Male' : 'Female',
+      'Required Languages': Array.isArray(data.requiredLanguages) && data.requiredLanguages.length > 0 
+        ? data.requiredLanguages 
+        : ['English'],
+      'Call Types': Array.isArray(data.callTypes) && data.callTypes.length > 0 
+        ? data.callTypes 
+        : ['Inbound'],
+      'Additional Notes': additionalNotesText || 'Standard Onboarding Completed via Client Portal'
+    }
+
+    if (leadRecordId) {
+      fields['Client'] = [leadRecordId]
+    }
+
+    // 4. If an existing record ID is provided, PATCH it to avoid duplicates during continuous auto-saving
+    if (existingRecordId) {
+      const patchUrl = `https://api.airtable.com/v0/${baseId}/${FORMS_TABLE_ID}/${existingRecordId}`
+      const patchRes = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields,
+          typecast: true
+        })
+      })
+
+      if (patchRes.ok) {
+        console.log(`[Airtable] Successfully updated existing Form record ${existingRecordId} for ${data.businessName}`)
+        return { success: true, formRecordId: existingRecordId }
+      } else {
+        const patchErrText = await patchRes.text().catch(() => '')
+        console.warn(`[Airtable] Patch on ${existingRecordId} failed (${patchRes.status} ${patchErrText}), falling back to creating new record`)
+      }
+    }
+
+    // Otherwise create record in Forms table
+    const postUrl = `https://api.airtable.com/v0/${baseId}/${FORMS_TABLE_ID}`
+    const postRes = await fetch(postUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        records: [{ fields }],
+        typecast: true
+      })
+    })
+
+    if (!postRes.ok) {
+      const errText = await postRes.text().catch(() => '')
+      console.error('[submitClientOnboardingToAirtable Error]', postRes.status, errText)
+      return { success: false, error: `Airtable Forms insertion failed: ${errText}` }
+    }
+
+    const postJson = await postRes.json()
+    const formRecordId = postJson?.records?.[0]?.id
+
+    // 5. Update lead record status in Leads table if matched
+    if (leadRecordId) {
+      const leadPatchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(settings?.airtable_table_name || 'Leads')}/${leadRecordId}`
+      await fetch(leadPatchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields: {
+            'Lead Status': 'Closed Won',
+            'Active Subscription': true
+          },
+          typecast: true
+        })
+      }).catch(e => console.warn('[Airtable Lead Status Update Warning]', e))
+    }
+
+    console.log(`[Airtable] Successfully created Form submission record ${formRecordId} for ${data.businessName}`)
+    return { success: true, formRecordId }
+  } catch (err: any) {
+    console.error('[submitClientOnboardingToAirtable Exception]', err)
+    return { success: false, error: err?.message }
+  }
+}
 
 

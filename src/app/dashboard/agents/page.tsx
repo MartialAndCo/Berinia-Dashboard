@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Bot, Phone, Activity, Clock, SmilePlus, Sparkles, CheckCircle2 } from 'lucide-react'
 import PageLoading from '@/components/PageLoading'
+import AgentSetupHub from '@/components/dashboard/AgentSetupHub'
 
 // Module-level cache for instant 0ms tab switching
 let cachedAgents: any[] | null = null
@@ -44,6 +45,30 @@ function AgentsContent() {
 
   if (loading) {
     return <PageLoading message="Loading Voice Agents..." />
+  }
+
+  // If no agents are assigned yet, show the progressive Agent Setup Hub
+  if (agents.length === 0) {
+    return (
+      <div className="p-3 sm:p-8 space-y-6 sm:space-y-8 max-w-6xl mx-auto pb-36 sm:pb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#9e4733]"></span> VOICE FLEET
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#1a1918]">Voice AI Agents</h1>
+            <p className="text-xs sm:text-sm text-[#73706b]">
+              Configure your conversational agent specifications {clientName ? `for ${clientName}` : ''}
+            </p>
+          </div>
+        </div>
+
+        <AgentSetupHub clientId={queryClientId || undefined} onComplete={fetchAgents} />
+        
+        {/* Safe mobile spacing for lowbar clearance */}
+        <div className="h-12 md:hidden" />
+      </div>
+    )
   }
 
   return (

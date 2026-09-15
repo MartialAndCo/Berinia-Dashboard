@@ -14,13 +14,15 @@ import {
   ArrowUpDown, ChevronDown, ChevronRight, Search, Phone, 
   SmilePlus, Meh, Frown, CreditCard, X, ShieldCheck, Calendar, 
   Download, Copy, Tag, MessageSquare, Bot, User, Check, 
-  ChevronLeft, SlidersHorizontal, RefreshCw, AlertCircle 
+  ChevronLeft, SlidersHorizontal, RefreshCw, AlertCircle, Sparkles 
 } from 'lucide-react'
 import { getSubscriptionStatusAction, updateCallMetadataAction } from './actions'
 import { getClientDashboardAction, getClientsListAction } from '@/app/admin/actions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { toast } from 'sonner'
 import PageLoading from '@/components/PageLoading'
+import AgentSetupHub from '@/components/dashboard/AgentSetupHub'
+
 
 type SortKey = 'created_at' | 'duration_secs' | 'cost'
 type SortDir = 'asc' | 'desc'
@@ -46,6 +48,7 @@ function ClientDashboardContent() {
   const [clientInfo, setClientInfo] = useState<any>(() => cachedClientInfo || null)
   const [loading, setLoading] = useState(() => !cachedCalls || !cachedClientInfo)
   const [isAdminView, setIsAdminView] = useState(false)
+  const [hasActiveAgent, setHasActiveAgent] = useState(true)
   const [expandedCall, setExpandedCall] = useState<string | null>(null)
   
   // Sorting & Filtering
@@ -200,12 +203,17 @@ function ClientDashboardContent() {
       
       const isDemo = client.status === 'Demo' || client.email === 'account@test.com'
 
-      // Fetch calls and payment status concurrently in parallel
+      // Fetch calls, payment status, and agents concurrently in parallel
       const callsPromise = supabase
         .from('calls')
         .select(`*, agents(agent_name)`)
         .eq('client_id', client.id)
         .order('created_at', { ascending: false })
+
+      const agentsPromise = supabase
+        .from('agents')
+        .select('id')
+        .eq('client_id', client.id)
 
       const paymentPromise = (async () => {
         if (isDemo) {
@@ -230,8 +238,11 @@ function ClientDashboardContent() {
         }
       })()
 
-      const [{ data: callsData }, pStatusResult] = await Promise.all([callsPromise, paymentPromise])
+      const [{ data: callsData }, pStatusResult, { data: agentsData }] = await Promise.all([callsPromise, paymentPromise, agentsPromise])
       
+      const activePresent = Boolean(agentsData && agentsData.length > 0)
+      setHasActiveAgent(activePresent)
+
       if (pStatusResult) {
         cachedPaymentStatus = pStatusResult
         setPaymentStatus(pStatusResult as any)
@@ -653,6 +664,32 @@ function ClientDashboardContent() {
     return <PageLoading message="Loading Voice Agent Calls..." />
   }
 
+  // If regular client does not have an active agent yet, show the progressive Agent Setup Hub
+  if (!isAdminView && !hasActiveAgent) {
+    return (
+      <div className="p-3 sm:p-8 space-y-6 sm:space-y-8 pb-36 sm:pb-8 max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#9e4733]"></span> OVERVIEW & TELEPHONY
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#1a1918]">
+              Overview &amp; Telephony
+            </h1>
+            <p className="text-xs sm:text-sm text-[#73706b]">
+              Your dedicated voice line is being prepared. Customize your agent specifications below.
+            </p>
+          </div>
+        </div>
+
+        <AgentSetupHub clientId={clientInfo?.id} onComplete={fetchData} />
+
+        {/* Safe mobile spacing */}
+        <div className="h-12 md:hidden" />
+      </div>
+    )
+  }
+
   const isFiltersActive = selectedAgent !== 'all' || selectedSentiment !== 'all' || minDurationSecs > 0 || searchQuery !== '' || timeRange !== 'all'
 
   return (
@@ -711,22 +748,12 @@ function ClientDashboardContent() {
               </div>
 
               <div className="space-y-2.5 pt-1">
-                {paymentStatus.payUrl ? (
-                  <a href={paymentStatus.payUrl} className="block w-full">
-                    <Button className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-12 text-xs font-semibold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-none">
-                      <CreditCard className="h-4 w-4" />
-                      Add card now <span className="text-[#9e4733] text-[16px] leading-none">•</span>
-                    </Button>
-                  </a>
-                ) : (
-                  <Button 
-                    onClick={handleBillingPortal} 
-                    className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-12 text-xs font-semibold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-none"
-                  >
+                <Link href="/onboarding" className="block w-full">
+                  <Button className="w-full bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm h-12 text-xs font-semibold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-none">
                     <CreditCard className="h-4 w-4" />
-                    Add card now <span className="text-[#9e4733] text-[16px] leading-none">•</span>
+                    Complete Setup &amp; Add Card <span className="text-[#9e4733] text-[16px] leading-none">•</span>
                   </Button>
-                )}
+                </Link>
 
                 <button 
                   onClick={() => setShowPaymentModal(false)}
@@ -742,6 +769,28 @@ function ClientDashboardContent() {
 
       <div className="max-w-6xl mx-auto space-y-8">
         
+        {/* Onboarding Pending Banner */}
+        {clientInfo?.status === 'Pending' && (
+          <div className="bg-[#faf8f5] border border-[#e6e2d6] rounded-sm p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#9e4733]/10 text-[#9e4733] flex items-center justify-center shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-[#1a1918]">Complete Your Voice AI Agent Onboarding</h4>
+                <p className="text-xs text-[#73706b] mt-0.5 max-w-2xl">
+                  Your voice agent profile is still pending. Finalize your phone carrier, voice style, and payment details to launch your live phone answering.
+                </p>
+              </div>
+            </div>
+            <Link href="/onboarding" className="shrink-0">
+              <Button size="sm" className="bg-[#1a1918] hover:bg-[#2d2d2d] text-white text-xs font-semibold uppercase tracking-wider h-9 px-4 rounded-sm shadow-none">
+                Complete Onboarding &rarr;
+              </Button>
+            </Link>
+          </div>
+        )}
+
         {/* Unpaid / Suspended Notice Banner */}
         {(clientInfo?.status === 'Past_Due' || clientInfo?.status === 'Suspended') && (
           <div className="bg-[#fdf2f0] border border-[#fad4cf] rounded-sm p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
