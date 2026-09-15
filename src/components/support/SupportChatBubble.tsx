@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, X, Send, CheckCircle, Clock, Volume2, VolumeX, ExternalLink, Plus } from 'lucide-react'
 import { playSupportChime } from '@/lib/chime'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 interface Message {
   id: string
@@ -34,9 +35,19 @@ export default function SupportChatBubble() {
   const [loading, setLoading] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [clientUserName, setClientUserName] = useState('')
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMsgCountRef = useRef<number>(0)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const meta = user.user_metadata || {}
+        setClientUserName(meta.full_name || meta.name || '')
+      }
+    })
+  }, [])
 
   // Fetch conversations
   const fetchConversations = async () => {
@@ -128,7 +139,8 @@ export default function SupportChatBubble() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             subject: newSubject.trim() || 'General Inquiry',
-            message: text
+            message: text,
+            senderName: clientUserName || undefined
           })
         })
         const data = await res.json()
@@ -148,7 +160,7 @@ export default function SupportChatBubble() {
         id: 'temp-' + Date.now(),
         conversation_id: activeConv.id,
         sender: 'client',
-        sender_name: 'You',
+        sender_name: clientUserName || 'You',
         content: text,
         created_at: new Date().toISOString()
       }
@@ -160,7 +172,7 @@ export default function SupportChatBubble() {
         const res = await fetch(`/api/support/conversations/${activeConv.id}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: text })
+          body: JSON.stringify({ content: text, senderName: clientUserName || undefined })
         })
         const data = await res.json()
         if (data.success && data.message) {
@@ -347,7 +359,7 @@ export default function SupportChatBubble() {
                     className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                   >
                     <div className="text-[9px] text-stone-400 mb-1 px-1">
-                      {isMe ? 'You' : 'BerinAgents Team'} •{' '}
+                      {isMe ? 'You' : (msg.sender_name || 'BerinAgents Support')} •{' '}
                       {new Date(msg.created_at).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit'

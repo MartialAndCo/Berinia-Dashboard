@@ -8,13 +8,15 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded, PhoneOutgoing, Database } from 'lucide-react'
+import { KeyRound, Mail, Bot, PhoneCall, Calendar, PlayCircle, Loader2, CheckCircle2, AlertCircle, RefreshCw, PhoneForwarded, PhoneOutgoing, Database, User } from 'lucide-react'
 import { fetchDemoConfigAction, saveDemoConfigAction, testDemoCallAction, RetellAgentOption } from './actions'
 import { DemoSettings, DemoLead } from '@/lib/demo-settings'
 import PageLoading from '@/components/PageLoading'
 
 export default function AdminSettingsPage() {
   const [email, setEmail] = useState('')
+  const [adminName, setAdminName] = useState('')
+  const [savingProfile, setSavingProfile] = useState(false)
   const [loading, setLoading] = useState(true)
   
   // Demo Settings State
@@ -48,6 +50,9 @@ export default function AdminSettingsPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
       setEmail(session.user.email || '')
+      const meta = session.user.user_metadata || {}
+      const existingName = meta.full_name || meta.name || (session.user.email?.toLowerCase().includes('yann') ? 'Yann' : '')
+      setAdminName(existingName)
     }
   }
 
@@ -93,6 +98,29 @@ export default function AdminSettingsPage() {
       loadDemoConfig()
     } else {
       toast.error(res.error || "Failed to trigger test call.", { id: toastId })
+    }
+  }
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!adminName.trim()) {
+      return toast.error("Please enter your display name.")
+    }
+    setSavingProfile(true)
+    const toastId = toast.loading("Updating admin profile...")
+
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        full_name: adminName.trim(),
+        name: adminName.trim()
+      }
+    })
+
+    setSavingProfile(false)
+    if (error) {
+      toast.error(error.message, { id: toastId })
+    } else {
+      toast.success(`Profile name saved: "${adminName.trim()}" will now be displayed in client support replies.`, { id: toastId })
     }
   }
 
@@ -473,79 +501,132 @@ export default function AdminSettingsPage() {
           </CardContent>
         </Card>
 
-        {/* 4. ACCOUNT CREDENTIALS (ORIGINAL) */}
+        {/* 4. ADMIN IDENTITY & CREDENTIALS */}
         <div>
           <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-1">
-            <span>•</span> CREDENTIALS & SECURITY
+            <span>•</span> ADMIN IDENTITY & SECURITY
           </div>
-          <h2 className="font-serif text-2xl font-bold tracking-tight text-[#1a1918] mb-6">Account Credentials</h2>
+          <h2 className="font-serif text-2xl font-bold tracking-tight text-[#1a1918] mb-6">Profile & Account Security</h2>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            <form onSubmit={handleUpdateEmail}>
-              <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full flex flex-col justify-between overflow-hidden">
-                <div>
-                  <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
-                    <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
-                      <span>•</span> CREDENTIALS
-                    </div>
-                    <CardTitle className="font-serif text-xl font-bold text-[#1a1918] flex items-center gap-2">
-                      <Mail className="w-5 h-5 text-[#9e4733]"/> Change Email
-                    </CardTitle>
-                    <CardDescription className="text-xs text-[#73706b]">
-                      A confirmation link will be sent to your new email address.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-6">
+          <div className="space-y-6">
+            {/* Identity Card */}
+            <form onSubmit={handleUpdateProfile}>
+              <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+                <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
+                  <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
+                    <span>•</span> SUPPORT & SYSTEM IDENTITY
+                  </div>
+                  <CardTitle className="font-serif text-xl font-bold text-[#1a1918] flex items-center gap-2">
+                    <User className="w-5 h-5 text-[#9e4733]"/> Support Responder Name
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#73706b]">
+                    The personal name your clients will see when you reply to support tickets (replaces the impersonal bot label).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="grid md:grid-cols-2 gap-6 items-center">
                     <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Current Email</Label>
-                      <Input value={email} disabled className="bg-[#faf9f7] border-[#e2dfd8] text-[#73706b] rounded-sm h-10 text-sm font-mono" />
+                      <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">
+                        Admin / Staff Full Name *
+                      </Label>
+                      <Input 
+                        value={adminName} 
+                        onChange={e => setAdminName(e.target.value)} 
+                        placeholder="Yann" 
+                        required 
+                        className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" 
+                      />
+                      <p className="text-[10px] text-[#8c8880]">
+                        When you answer client questions, the client will see &quot;<strong>{adminName || 'Your Name'}</strong>&quot; instead of an impersonal agent label.
+                      </p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">New Email</Label>
-                      <Input name="newEmail" type="email" required placeholder="new@admin.com" className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" />
+
+                    <div className="p-4 bg-[#faf9f7] border border-[#e2dfd8] rounded-sm text-xs space-y-1">
+                      <div className="font-semibold text-[#1a1918] flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Humanized Support Experience
+                      </div>
+                      <p className="text-[#73706b] text-[11px]">
+                        Tickets taken by you or any developer/support staff will clearly identify the person handling the case.
+                      </p>
                     </div>
-                  </CardContent>
-                </div>
-                <CardFooter className="pt-4 border-t border-[#f0ece4] bg-[#faf9f7]/30">
-                  <Button type="submit" className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 w-full">
-                    Send Confirmation Request <span className="ml-1 text-[#9e4733] text-[16px] leading-none">•</span>
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-4 border-t border-[#f0ece4] bg-[#faf9f7]/30 flex justify-end">
+                  <Button type="submit" disabled={savingProfile} className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-6 cursor-pointer">
+                    {savingProfile ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+                    Save Support Name <span className="ml-1 text-[#9e4733] text-[16px] leading-none">•</span>
                   </Button>
                 </CardFooter>
               </Card>
             </form>
 
-            <form onSubmit={handleUpdatePassword}>
-              <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full flex flex-col justify-between overflow-hidden">
-                <div>
-                  <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
-                    <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
-                      <span>•</span> AUTHENTICATION
-                    </div>
-                    <CardTitle className="font-serif text-xl font-bold text-[#1a1918] flex items-center gap-2">
-                      <KeyRound className="w-5 h-5 text-[#9e4733]"/> Change Password
-                    </CardTitle>
-                    <CardDescription className="text-xs text-[#73706b]">
-                      Choose a new secure password for your administrator access.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-6">
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">New Password</Label>
-                      <Input name="password" type="password" required className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Confirm Password</Label>
-                      <Input name="confirm" type="password" required className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" />
-                    </div>
-                  </CardContent>
-                </div>
-                <CardFooter className="pt-4 border-t border-[#f0ece4] bg-[#faf9f7]/30">
-                  <Button type="submit" className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 w-full">
-                    Update Password <span className="ml-1 text-[#9e4733] text-[16px] leading-none">•</span>
-                  </Button>
-                </CardFooter>
-              </Card>
-            </form>
+            <div className="grid md:grid-cols-2 gap-8">
+              <form onSubmit={handleUpdateEmail}>
+                <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full flex flex-col justify-between overflow-hidden">
+                  <div>
+                    <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
+                      <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
+                        <span>•</span> CREDENTIALS
+                      </div>
+                      <CardTitle className="font-serif text-xl font-bold text-[#1a1918] flex items-center gap-2">
+                        <Mail className="w-5 h-5 text-[#9e4733]"/> Change Email
+                      </CardTitle>
+                      <CardDescription className="text-xs text-[#73706b]">
+                        A confirmation link will be sent to your new email address.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-6">
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Current Email</Label>
+                        <Input value={email} disabled className="bg-[#faf9f7] border-[#e2dfd8] text-[#73706b] rounded-sm h-10 text-sm font-mono" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">New Email</Label>
+                        <Input name="newEmail" type="email" required placeholder="new@admin.com" className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" />
+                      </div>
+                    </CardContent>
+                  </div>
+                  <CardFooter className="pt-4 border-t border-[#f0ece4] bg-[#faf9f7]/30">
+                    <Button type="submit" className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 w-full">
+                      Send Confirmation Request <span className="ml-1 text-[#9e4733] text-[16px] leading-none">•</span>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </form>
+
+              <form onSubmit={handleUpdatePassword}>
+                <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] h-full flex flex-col justify-between overflow-hidden">
+                  <div>
+                    <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
+                      <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
+                        <span>•</span> AUTHENTICATION
+                      </div>
+                      <CardTitle className="font-serif text-xl font-bold text-[#1a1918] flex items-center gap-2">
+                        <KeyRound className="w-5 h-5 text-[#9e4733]"/> Change Password
+                      </CardTitle>
+                      <CardDescription className="text-xs text-[#73706b]">
+                        Choose a new secure password for your administrator access.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-6">
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">New Password</Label>
+                        <Input name="password" type="password" required className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Confirm Password</Label>
+                        <Input name="confirm" type="password" required className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" />
+                      </div>
+                    </CardContent>
+                  </div>
+                  <CardFooter className="pt-4 border-t border-[#f0ece4] bg-[#faf9f7]/30">
+                    <Button type="submit" className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 w-full">
+                      Update Password <span className="ml-1 text-[#9e4733] text-[16px] leading-none">•</span>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </form>
+            </div>
           </div>
         </div>
       </div>

@@ -17,6 +17,7 @@ import {
 import { playSupportChime } from '@/lib/chime'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 interface Message {
   id: string
@@ -54,10 +55,22 @@ export default function AdminSupportPage() {
   const [sending, setSending] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [notifPermission, setNotifPermission] = useState<string>('default')
+  const [adminName, setAdminName] = useState('Yann')
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevConvsRef = useRef<Conversation[]>([])
   const prevMsgCountRef = useRef<number>(0)
+
+  // Load current admin user name
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const meta = user.user_metadata || {}
+        const name = meta.full_name || meta.name || (user.email?.toLowerCase().includes('yann') ? 'Yann' : 'Admin')
+        setAdminName(name)
+      }
+    })
+  }, [])
 
   // Notification permission
   useEffect(() => {
@@ -174,11 +187,12 @@ export default function AdminSupportPage() {
     setReplyText('')
     setSending(true)
 
+    const currentName = adminName || 'Yann'
     const tempMsg: Message = {
       id: 'temp-' + Date.now(),
       conversation_id: selectedId,
       sender: 'admin',
-      sender_name: 'You (Admin)',
+      sender_name: currentName,
       content: text,
       created_at: new Date().toISOString()
     }
@@ -206,7 +220,7 @@ export default function AdminSupportPage() {
       const res = await fetch(`/api/support/conversations/${selectedId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text })
+        body: JSON.stringify({ content: text, senderName: currentName })
       })
       const data = await res.json()
       if (data.success && data.message) {
@@ -514,7 +528,9 @@ export default function AdminSupportPage() {
                       >
                         <div className="text-[10px] text-stone-400 mb-1 px-1 flex items-center gap-1.5">
                           <span className="font-semibold text-stone-600">
-                            {isAdmin ? 'You (Admin)' : selectedConv.company_name}
+                            {isAdmin
+                              ? (m.sender_name || adminName || 'Admin') + ' (Staff)'
+                              : (m.sender_name || selectedConv.company_name)}
                           </span>
                           <span>•</span>
                           <span>

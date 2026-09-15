@@ -21,7 +21,7 @@ export async function POST(
     }
 
     let clientId: string | null = null
-    let senderName = 'BerinAgents Support'
+    let senderName = 'Support'
 
     if (!isUserAdmin) {
       const { data: client, error } = await sbAdmin
@@ -33,7 +33,26 @@ export async function POST(
         return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })
       }
       clientId = client.id
-      senderName = client.company_name || user.email || 'Client'
+      const clientMeta = user.user_metadata || {}
+      const clientName = body.senderName?.trim() || clientMeta.full_name?.trim() || clientMeta.name?.trim()
+      senderName = clientName || client.company_name || user.email?.split('@')[0] || 'Client'
+    } else {
+      const explicit = body.senderName?.trim()
+      const adminMeta = user.user_metadata || {}
+      const metaName = adminMeta.full_name?.trim() || adminMeta.name?.trim() || adminMeta.first_name?.trim()
+
+      if (explicit) {
+        senderName = explicit
+      } else if (metaName) {
+        senderName = metaName
+      } else if (user.email?.toLowerCase().includes('yann')) {
+        senderName = 'Yann'
+      } else if (user.email) {
+        const prefix = user.email.split('@')[0]
+        senderName = prefix.charAt(0).toUpperCase() + prefix.slice(1)
+      } else {
+        senderName = 'Yann'
+      }
     }
 
     // Get conversation to read client email/company name for notification
@@ -56,7 +75,8 @@ export async function POST(
         conversationId: id,
         clientEmail: existingConv.client_email,
         companyName: existingConv.company_name,
-        replyText: content.trim()
+        replyText: content.trim(),
+        senderName
       }).catch(() => {})
     } else {
       notifyAdminNewMessage({

@@ -55,11 +55,13 @@ export async function notifyClientNewReply(params: {
   clientEmail: string
   companyName: string
   replyText: string
+  senderName?: string
 }) {
   if (!resend || !params.clientEmail) return
 
   try {
     const portalUrl = `${SITE_URL}/dashboard/support?id=${params.conversationId}`
+    const sender = params.senderName || 'Your account manager'
 
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e6e2d6; border-radius: 12px; overflow: hidden;">
@@ -68,7 +70,7 @@ export async function notifyClientNewReply(params: {
         </div>
         <div style="padding: 24px; color: #1a1918;">
           <p style="font-size: 14px; margin-top: 0;">Hello,</p>
-          <p style="font-size: 14px; color: #52504c;">Our dedicated engineering team has replied to your request:</p>
+          <p style="font-size: 14px; color: #52504c;"><strong>${sender}</strong> has replied to your request:</p>
           <div style="background-color: #f6f4f0; border-left: 3px solid #1a1918; padding: 14px 16px; margin: 20px 0; font-size: 14px; line-height: 1.5; color: #1a1918; border-radius: 4px; white-space: pre-wrap;">
             ${params.replyText}
           </div>
@@ -84,7 +86,7 @@ export async function notifyClientNewReply(params: {
     await resend.emails.send({
       from: 'BerinAgents Support <support@berinagents.com>',
       to: [params.clientEmail],
-      subject: `[BerinAgents Support] New reply from your account manager`,
+      subject: `[BerinAgents Support] New reply from ${sender}`,
       html: htmlContent
     })
   } catch (err) {

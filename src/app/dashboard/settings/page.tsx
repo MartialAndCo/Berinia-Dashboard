@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Building2, KeyRound, Mail, ReceiptText, Bell, Shield, Users, UserPlus } from 'lucide-react'
+import { Building2, KeyRound, Mail, ReceiptText, Bell, Shield, Users, UserPlus, User } from 'lucide-react'
 import { 
   updateClientCompanyAction, 
   updateNotificationPreferencesAction, 
@@ -20,6 +20,7 @@ import PageLoading from '@/components/PageLoading'
 export default function ClientSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [savingCompany, setSavingCompany] = useState(false)
+  const [savingUser, setSavingUser] = useState(false)
   const [savingPrefs, setSavingPrefs] = useState(false)
   const [invitingMember, setInvitingMember] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -27,6 +28,7 @@ export default function ClientSettingsPage() {
   
   const [clientData, setClientData] = useState<any>(null)
   const [companyName, setCompanyName] = useState('')
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
 
   // Notifications & Privacy state
@@ -69,6 +71,9 @@ export default function ClientSettingsPage() {
       .eq('user_id', session.user.id)
       .single()
 
+    const meta = session.user.user_metadata || {}
+    setFullName(meta.full_name || meta.name || '')
+
     if (data) {
       setClientData(data)
       setCompanyName(data.company_name)
@@ -86,6 +91,27 @@ export default function ClientSettingsPage() {
       }
     }
     setLoading(false)
+  }
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!fullName.trim()) return toast.error("Please enter your name.")
+    setSavingUser(true)
+    const toastId = toast.loading("Saving your profile name...")
+
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        full_name: fullName.trim(),
+        name: fullName.trim()
+      }
+    })
+
+    setSavingUser(false)
+    if (error) {
+      toast.error(error.message, { id: toastId })
+    } else {
+      toast.success("Profile name updated successfully.", { id: toastId })
+    }
   }
 
   const handleSaveCompany = async (e: React.FormEvent) => {
@@ -247,6 +273,32 @@ export default function ClientSettingsPage() {
           
           {/* Column 1: Organization & Notifications */}
           <div className="space-y-8">
+            {/* Personal User Profile */}
+            <form onSubmit={handleSaveUser}>
+              <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">
+                <CardHeader className="border-b border-[#e6e2d6] py-4 px-6 bg-[#faf8f5]">
+                  <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#9e4733] uppercase mb-0.5">
+                    <span>•</span> PERSONAL PROFILE
+                  </div>
+                  <CardTitle className="font-serif text-xl font-bold text-[#1a1918] flex items-center gap-2">
+                    <User className="w-5 h-5 text-[#9e4733]"/> Your Name
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#73706b]">Set your display name used in support conversations and communications.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-semibold tracking-wider text-[#66635e] uppercase">Full Name</Label>
+                    <Input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="e.g. Alex Dupont" required className="border-[#e2dfd8] bg-[#faf9f7]/50 rounded-sm h-10 text-sm" />
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-4 border-t border-[#f0ece4] bg-[#faf9f7]/30">
+                  <Button type="submit" disabled={savingUser} className="bg-[#1a1918] hover:bg-[#2d2d2d] text-[#f6f4f0] rounded-sm text-xs font-semibold tracking-wider uppercase h-10 px-5 w-full cursor-pointer">
+                    {savingUser ? 'Saving...' : 'Save Name'} <span className="ml-1 text-[#9e4733] text-[16px] leading-none">•</span>
+                  </Button>
+                </CardFooter>
+              </Card>
+            </form>
+
             {/* Organization Profile */}
             <form onSubmit={handleSaveCompany}>
               <Card className="border border-[#e6e2d6] bg-[#ffffff] rounded-sm shadow-[0_4px_24px_rgba(0,0,0,0.02)] overflow-hidden">

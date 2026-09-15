@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       clientEmail: clientRecord.email || user.email || '',
       subject: (subject && subject.trim()) ? subject.trim() : 'Assistance BerinAgents',
       initialMessage: message.trim(),
-      senderName: senderName || clientRecord.company_name || 'Client'
+      senderName: senderName || user.user_metadata?.full_name || user.user_metadata?.name || clientRecord.company_name || 'Client'
     })
 
     // Send immediate email alert to Admin

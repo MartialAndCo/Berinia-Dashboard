@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Plus, CheckCircle, Clock, Send, ShieldCheck, Search, ArrowLeft } from 'lucide-react'
 import { playSupportChime } from '@/lib/chime'
+import { supabase } from '@/lib/supabase'
 
 interface Message {
   id: string
@@ -37,6 +38,16 @@ export default function ClientSupportPage() {
   const [loading, setLoading] = useState(() => !cachedConversations)
   const [newMessageText, setNewMessageText] = useState('')
   const [sending, setSending] = useState(false)
+  const [clientUserName, setClientUserName] = useState('')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const meta = user.user_metadata || {}
+        setClientUserName(meta.full_name || meta.name || '')
+      }
+    })
+  }, [])
 
   // New ticket modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -151,7 +162,7 @@ export default function ClientSupportPage() {
       const res = await fetch(`/api/support/conversations/${selectedId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text })
+        body: JSON.stringify({ content: text, senderName: clientUserName || undefined })
       })
       const data = await res.json()
       if (data.success && data.message) {
@@ -406,7 +417,7 @@ export default function ClientSupportPage() {
                       >
                         <div className="text-[10px] text-stone-400 mb-1 px-1 flex items-center gap-1.5">
                           <span className="font-semibold text-stone-600">
-                            {isMe ? 'You' : 'BerinAgents Support'}
+                            {isMe ? 'You' : (m.sender_name || 'BerinAgents Support')}
                           </span>
                           <span>•</span>
                           <span>
