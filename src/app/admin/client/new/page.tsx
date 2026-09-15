@@ -224,9 +224,7 @@ export default function NewClientPage() {
                       : null
                     return (
                       <option key={lead.recordId} value={lead.recordId}>
-                        {lead.companyName} {lead.fullName ? `(${lead.fullName})` : ''} — {lead.email || 'Pas d\'email'}
-                        {displayDate ? ` • RDV: ${displayDate}` : ''}
-                        {lead.isRegistered ? ' [Déjà client]' : ''}
+                        {displayDate ? `[RDV ${displayDate}] • ` : ''}{lead.companyName}{lead.fullName ? ` (${lead.fullName})` : ''} — {lead.email || 'Pas d\'email'}{lead.isRegistered ? ' [Déjà inscrit]' : ''}
                       </option>
                     )
                   })}

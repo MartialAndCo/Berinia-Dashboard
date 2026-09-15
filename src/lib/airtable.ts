@@ -1795,22 +1795,18 @@ export async function getAirtableBookedLeads(): Promise<{ success: boolean; lead
     for (const r of records) {
       const fields = r.fields || {}
       const status = (fields['Lead Status'] || '').trim()
-      const statusLower = status.toLowerCase()
-      const showUpStatus = (fields['Show-up Status'] || '').toLowerCase()
+      const showUpStatus = (fields['Show-up Status'] || '').trim()
       const meetingDate = fields['Meeting Date'] || fields['Date RDV'] || null
 
-      const isBooked =
-        statusLower.includes('meeting') ||
-        statusLower.includes('scheduled') ||
-        statusLower.includes('booked') ||
-        statusLower.includes('rdv') ||
-        showUpStatus.includes('scheduled') ||
-        showUpStatus.includes('confirmed') ||
-        showUpStatus.includes('attended') ||
-        Boolean(meetingDate && !statusLower.includes('lost') && !statusLower.includes('not interested'))
+      // Strictly include ONLY leads with "Meeting Booked" / "Meeting Scheduled" / "RDV Programmé"
+      const isMeetingBooked =
+        status === 'Meeting Scheduled' ||
+        status === 'Meeting Booked' ||
+        status === 'RDV Programmé' ||
+        status === 'Call Scheduled'
 
-      // Filter out explicitly lost/disqualified
-      if (isBooked && !statusLower.includes('lost') && !statusLower.includes('not interested') && !statusLower.includes('disqualified')) {
+      // Exclude cancelled meetings or already closed leads
+      if (isMeetingBooked && showUpStatus !== 'Cancelled' && status !== 'Closed Won' && status !== 'Client Invited' && status !== 'Closed Lost') {
         const companyName = (fields['Business Name'] || fields['Company'] || fields['Entreprise'] || fields['Full Name'] || 'Unknown Company').trim()
         const fullName = (fields['Full Name'] || fields['Nom'] || '').trim()
         const email = (fields['Email'] || fields['email'] || '').trim()
@@ -1847,10 +1843,10 @@ export async function getAirtableBookedLeads(): Promise<{ success: boolean; lead
       }
     }
 
-    // Sort by meeting date descending, or alphabetically
+    // Sort chronologically (closest upcoming meeting first, then by company name)
     bookedLeads.sort((a, b) => {
       if (a.meetingDate && b.meetingDate) {
-        return new Date(b.meetingDate).getTime() - new Date(a.meetingDate).getTime()
+        return new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime()
       }
       if (a.meetingDate) return -1
       if (b.meetingDate) return 1
