@@ -271,27 +271,161 @@ export async function POST(req: Request) {
       }).catch(err => console.error('[Stripe Webhook] Airtable markAirtableSubscriptionEnded error:', err))
     }
 
-    // 3. Checkout Session Completed
+    // 3. Invoice Created (Auto-attach remaining setup fee installments for 2x or 3x payments)
+    if (event.type === 'invoice.created') {
+      const invoice = event.data.object
+      if (invoice.subscription && invoice.billing_reason === 'subscription_cycle') {
+        try {
+          const subscription = await stripe.subscriptions.retrieve(invoice.subscription)
+          const remaining = parseInt(subscription.metadata?.remaining_installments || '0')
+          const installmentAmount = parseFloat(subscription.metadata?.installment_amount || '0')
+          const totalInstallments = parseInt(subscription.metadata?.setup_installments || '1')
+
+          if (remaining > 0 && installmentAmount > 0) {
+            const currentInstallmentNum = totalInstallments - remaining + 1
+            await stripe.invoiceItems.create({
+              customer: subscription.customer,
+              invoice: invoice.id,
+              amount: Math.round(installmentAmount * 100),
+              currency: 'usd',
+              description: `Frais de Setup (Échéance ${currentInstallmentNum} sur ${totalInstallments}) - ${subscription.metadata?.company_name || 'Client'}`
+            })
+
+            await stripe.subscriptions.update(subscription.id, {
+              metadata: {
+                ...subscription.metadata,
+                remaining_installments: String(remaining - 1)
+              }
+            })
+            console.log(`[Stripe Webhook] Attached setup installment ${currentInstallmentNum}/${totalInstallments} to invoice ${invoice.id}`)
+          }
+        } catch (err) {
+          console.error('[Stripe Webhook] Error attaching recurring setup installment:', err)
+        }
+      }
+    }
+
+    // 4. Checkout Session Completed
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object
-      const email = session.customer_details?.email || session.customer_email
+      const email = (session.customer_details?.email || session.customer_email || session.metadata?.email || '').trim().toLowerCase()
       const customerId = session.customer
       const subscriptionId = session.subscription
+      const isLiveClosing = session.metadata?.is_live_closing === 'true'
 
       if (customerId || subscriptionId || email) {
-        const { data: client } = await supabaseAdmin
-          .from('clients')
-          .select('*')
-          .or(`stripe_customer_id.eq.${customerId},stripe_subscription_id.eq.${subscriptionId}${email ? `,email.eq.${email}` : ''}`)
-          .limit(1)
-          .maybeSingle()
+        // Find matching client by customerId, subscriptionId, metadata client_id, or email
+        let clientQuery = supabaseAdmin.from('clients').select('*')
+        if (session.metadata?.client_id) {
+          clientQuery = clientQuery.eq('id', session.metadata.client_id)
+        } else {
+          clientQuery = clientQuery.or(`stripe_customer_id.eq.${customerId},stripe_subscription_id.eq.${subscriptionId}${email ? `,email.ilike.${email}` : ''}`)
+        }
+
+        const { data: client } = await clientQuery.limit(1).maybeSingle()
 
         if (client) {
+          // Always activate client status upon checkout completion
+          await supabaseAdmin
+            .from('clients')
+            .update({
+              status: 'Active',
+              stripe_customer_id: customerId || client.stripe_customer_id,
+              stripe_subscription_id: subscriptionId || client.stripe_subscription_id
+            })
+            .eq('id', client.id)
+
           await reactivateClientAgent(client.id)
+
+          // If this was a live closing, generate invite link and send welcome email NOW (after payment)
+          if (isLiveClosing || client.status === 'Pending Payment' || client.status === 'Pending') {
+            try {
+              const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.berinagents.com'
+              let inviteUrl: string | null = null
+
+              const { data: inviteData, error: inviteErr } = await supabaseAdmin.auth.admin.generateLink({
+                type: 'invite',
+                email: client.email,
+                options: { redirectTo: `${origin}/update-password` }
+              })
+
+              if (!inviteErr && inviteData?.properties?.action_link) {
+                inviteUrl = inviteData.properties.action_link
+              } else {
+                // If user was already registered in auth, generate recovery link
+                const { data: recData } = await supabaseAdmin.auth.admin.generateLink({
+                  type: 'recovery',
+                  email: client.email,
+                  options: { redirectTo: `${origin}/update-password` }
+                })
+                inviteUrl = recData?.properties?.action_link || null
+              }
+
+              if (inviteUrl) {
+                const companyName = client.company_name || 'Client'
+                const contentHtml = `
+                  <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
+                    <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
+                  </div>
+                  <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #1a1918; margin: 0 0 24px 0; letter-spacing: -0.5px;">Bienvenue sur BerinAgents</h1>
+                  <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
+                  
+                  <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #1a1918;">Bonjour ${companyName},</p>
+                  <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Votre paiement a été validé avec succès et votre abonnement plateforme est maintenant actif.</p>
+                  <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Pour finaliser la création de votre compte, définissez votre mot de passe pour accéder immédiatement à votre portail client :</p>
+                  
+                  <div>
+                    <a href="${inviteUrl}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
+                      <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Définir mon mot de passe
+                    </a>
+                  </div>
+                  
+                  <p style="color: #737373; font-size: 13px; margin-top: 32px; line-height: 1.5;">
+                    Si le bouton ci-dessus ne fonctionne pas, copiez ce lien dans votre navigateur : <br/>
+                    <a href="${inviteUrl}" style="color: #1a1918; text-decoration: underline; word-break: break-all;">${inviteUrl}</a>
+                  </p>
+                `
+                const htmlEmail = getEmailTemplate('Bienvenue sur BerinAgents - Accès à votre espace', contentHtml)
+                await resend.emails.send({
+                  from: 'BerinAgents <onboarding@berinagents.com>',
+                  to: [client.email],
+                  subject: 'Bienvenue sur BerinAgents : Définissez votre mot de passe',
+                  html: htmlEmail
+                })
+              }
+            } catch (mailErr) {
+              console.error('[Stripe Webhook] Error sending onboarding email:', mailErr)
+            }
+          }
+
+          // Assign Retell agent if provided in metadata
+          if (session.metadata?.retell_agent_id) {
+            try {
+              const { data: existingAgent } = await supabaseAdmin
+                .from('agents')
+                .select('id')
+                .eq('retell_agent_id', session.metadata.retell_agent_id)
+                .maybeSingle()
+
+              if (!existingAgent) {
+                await supabaseAdmin.from('agents').insert({
+                  client_id: client.id,
+                  agent_name: `Voice Agent - ${client.company_name}`,
+                  retell_agent_id: session.metadata.retell_agent_id,
+                  forward_webhook_url: session.metadata.forward_webhook_url || null
+                })
+              }
+            } catch (agentErr) {
+              console.error('[Stripe Webhook] Error assigning Retell agent:', agentErr)
+            }
+          }
+
+          // Mark Airtable subscription active & Closed Won
           await markAirtableSubscriptionActive({
             email: client.email || email,
             companyName: client.company_name
           }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
+
         } else if (email) {
           await markAirtableSubscriptionActive({ email }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
         }

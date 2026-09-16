@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Plus, Users, DollarSign, TrendingUp, Trash2, Eye } from 'lucide-react'
+import { Plus, Users, DollarSign, TrendingUp, Trash2, Eye, Video } from 'lucide-react'
 import { deleteClientAction } from './actions'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -199,7 +199,13 @@ export default function AdminDashboard() {
             <h1 className="font-serif text-3xl font-bold tracking-tight text-[#1a1918]">Overview</h1>
             <p className="text-sm text-[#73706b]">Agency command center & performance metrics</p>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-3">
+            <Link href="/admin/closing">
+              <Button variant="outline" className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-xs font-semibold tracking-wider uppercase transition-all bg-white hover:bg-[#faf8f5] text-[#1a1918] border-[#e2dfd8] shadow-xs h-11 px-5 py-2">
+                <Video className="h-4 w-4 text-[#9e4733]" />
+                Closing Visio (Lien)
+              </Button>
+            </Link>
             <Link href="/admin/client/new">
               <Button className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-xs font-semibold tracking-wider uppercase transition-all bg-[#1a1918] text-[#f6f4f0] shadow-sm hover:bg-[#2d2d2d] h-11 px-5 py-2">
                 <Plus className="h-4 w-4" />

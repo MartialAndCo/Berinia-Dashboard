@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { LayoutDashboard, Receipt, LogOut, Settings, PhoneOutgoing, Film, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, Receipt, LogOut, Settings, PhoneOutgoing, Film, MessageSquare, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import SwitchAccountDropdown from '@/components/SwitchAccountDropdown'
 import PwaRegister from '@/components/pwa/PwaRegister'
@@ -77,6 +77,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navItems = [
     { href: '/admin', label: 'Overview', shortLabel: 'Overview', icon: LayoutDashboard },
+    { href: '/admin/closing', label: 'Closing Visio (Lien)', shortLabel: 'Closing', icon: Video },
     { href: '/admin/support', label: 'Support Tickets', shortLabel: 'Support', icon: MessageSquare, badge: pendingCount },
     { href: '/admin/billing', label: 'Billing (Stripe)', shortLabel: 'Billing', icon: Receipt },
     { href: '/admin/demo-calls', label: 'Demo Calls', shortLabel: 'Calls', icon: PhoneOutgoing },
