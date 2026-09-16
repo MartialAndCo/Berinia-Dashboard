@@ -10,22 +10,46 @@ import {
   Minimize,
   RotateCcw,
 } from "lucide-react";
+import {
+  sendVslTelemetry,
+  type VslVariant,
+  type VslEvent,
+} from "@/lib/vsl-analytics";
 
 interface LocalVslPlayerProps {
   src?: string;
   poster?: string;
   onEnded?: () => void;
+  sessionId?: string;
+  visitorId?: string;
+  variant?: VslVariant;
 }
 
 export default function LocalVslPlayer({
   src = "/videos/New_Video_1789071155558.mp4",
   poster,
   onEnded,
+  sessionId,
+  visitorId,
+  variant = "A",
 }: LocalVslPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const scrubBarRef = useRef<HTMLDivElement>(null);
   const isScrubbingRef = useRef(false);
+
+  // Telemetry refs for checkpoints & heartbeat
+  const maxWatchedRef = useRef(0);
+  const hasPlayedRef = useRef(false);
+  const hook3sRef = useRef(false);
+  const hook10sRef = useRef(false);
+  const hook30sRef = useRef(false);
+  const hook45sRef = useRef(false);
+  const reached25Ref = useRef(false);
+  const reached50Ref = useRef(false);
+  const reached75Ref = useRef(false);
+  const reachedMidpointRef = useRef(false);
+  const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -34,6 +58,73 @@ export default function LocalVslPlayer({
   const [progressPercent, setProgressPercent] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isEnded, setIsEnded] = useState(false);
+
+  // Central telemetry dispatcher
+  const dispatchTelemetry = useCallback(
+    (event: VslEvent, useBeacon = false) => {
+      if (!sessionId || !visitorId) return;
+      const video = videoRef.current;
+      const cur = video?.currentTime || 0;
+      const dur = video?.duration || duration || 0;
+      const maxSec = Math.max(maxWatchedRef.current, cur);
+      maxWatchedRef.current = maxSec;
+      const maxPct =
+        dur > 0 ? Math.min(100, Math.round((maxSec / dur) * 100)) : 0;
+
+      sendVslTelemetry(
+        {
+          sessionId,
+          visitorId,
+          variant: variant || "A",
+          event,
+          currentTime: Number(cur.toFixed(1)),
+          duration: Math.round(dur),
+          maxSecondsWatched: Math.round(maxSec),
+          maxPercentWatched: maxPct,
+          hasPlayed: hasPlayedRef.current,
+          hook3s: hook3sRef.current,
+          hook10s: hook10sRef.current,
+          hook30s: hook30sRef.current,
+          hook45s: hook45sRef.current,
+          reached25: reached25Ref.current,
+          reached50: reached50Ref.current,
+          reached75: reached75Ref.current,
+          reachedMidpoint: reachedMidpointRef.current,
+          completed: event === "ended",
+          pagePath: "/opt-in",
+          videoSrc: src,
+        },
+        useBeacon
+      );
+    },
+    [sessionId, visitorId, variant, duration, src]
+  );
+
+  // Visibility and unload beacon listener
+  useEffect(() => {
+    const handleVisibilityOrUnload = () => {
+      if (hasPlayedRef.current) {
+        dispatchTelemetry("heartbeat", true);
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        handleVisibilityOrUnload();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleVisibilityOrUnload);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleVisibilityOrUnload);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (heartbeatTimerRef.current) {
+        clearInterval(heartbeatTimerRef.current);
+      }
+    };
+  }, [dispatchTelemetry]);
 
   const formatTime = (seconds: number) => {
     if (typeof seconds !== "number" || isNaN(seconds) || seconds < 0 || !isFinite(seconds)) {
@@ -78,6 +169,14 @@ export default function LocalVslPlayer({
         .then(() => {
           setIsPlaying(true);
           setIsEnded(false);
+          if (!hasPlayedRef.current) {
+            hasPlayedRef.current = true;
+            dispatchTelemetry("play");
+          }
+          if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
+          heartbeatTimerRef.current = setInterval(() => {
+            dispatchTelemetry("heartbeat");
+          }, 10000);
         })
         .catch(() => {
           // Autoplay policy fallback: mute and play
@@ -88,14 +187,27 @@ export default function LocalVslPlayer({
             .then(() => {
               setIsPlaying(true);
               setIsEnded(false);
+              if (!hasPlayedRef.current) {
+                hasPlayedRef.current = true;
+                dispatchTelemetry("play");
+              }
+              if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
+              heartbeatTimerRef.current = setInterval(() => {
+                dispatchTelemetry("heartbeat");
+              }, 10000);
             })
             .catch(() => {});
         });
     } else {
       video.pause();
       setIsPlaying(false);
+      if (heartbeatTimerRef.current) {
+        clearInterval(heartbeatTimerRef.current);
+        heartbeatTimerRef.current = null;
+      }
+      dispatchTelemetry("pause");
     }
-  }, []);
+  }, [dispatchTelemetry]);
 
   const toggleMute = useCallback(() => {
     const video = videoRef.current;
@@ -111,6 +223,32 @@ export default function LocalVslPlayer({
     const cur = video.currentTime;
     setCurrentTime(cur);
 
+    if (cur > maxWatchedRef.current) {
+      maxWatchedRef.current = cur;
+    }
+
+    // Hook checkpoints detection
+    if (cur >= 3 && !hook3sRef.current) {
+      hook3sRef.current = true;
+      dispatchTelemetry("milestone");
+    }
+    if (cur >= 10 && !hook10sRef.current) {
+      hook10sRef.current = true;
+      dispatchTelemetry("milestone");
+    }
+    if (cur >= 30 && !hook30sRef.current) {
+      hook30sRef.current = true;
+      dispatchTelemetry("milestone");
+    }
+    if (cur >= 45 && !hook45sRef.current) {
+      hook45sRef.current = true;
+      dispatchTelemetry("milestone");
+    }
+    if (cur >= 270 && !reachedMidpointRef.current) {
+      reachedMidpointRef.current = true;
+      dispatchTelemetry("milestone");
+    }
+
     // Ensure duration is synchronized whenever available
     const d = video.duration;
     const effectiveDuration =
@@ -122,8 +260,23 @@ export default function LocalVslPlayer({
       if (duration !== effectiveDuration) {
         setDuration(effectiveDuration);
       }
+      const pct = (cur / effectiveDuration) * 100;
       if (!isScrubbingRef.current) {
-        setProgressPercent((cur / effectiveDuration) * 100);
+        setProgressPercent(pct);
+      }
+
+      // Quartiles detection
+      if (pct >= 25 && !reached25Ref.current) {
+        reached25Ref.current = true;
+        dispatchTelemetry("milestone");
+      }
+      if (pct >= 50 && !reached50Ref.current) {
+        reached50Ref.current = true;
+        dispatchTelemetry("milestone");
+      }
+      if (pct >= 75 && !reached75Ref.current) {
+        reached75Ref.current = true;
+        dispatchTelemetry("milestone");
       }
     }
   };
@@ -270,9 +423,22 @@ export default function LocalVslPlayer({
           onPlay={() => {
             setIsPlaying(true);
             setIsEnded(false);
+            if (!hasPlayedRef.current) {
+              hasPlayedRef.current = true;
+              dispatchTelemetry("play");
+            }
+            if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
+            heartbeatTimerRef.current = setInterval(() => {
+              dispatchTelemetry("heartbeat");
+            }, 10000);
           }}
           onPause={() => {
             setIsPlaying(false);
+            if (heartbeatTimerRef.current) {
+              clearInterval(heartbeatTimerRef.current);
+              heartbeatTimerRef.current = null;
+            }
+            dispatchTelemetry("pause");
           }}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={syncDuration}
@@ -282,6 +448,11 @@ export default function LocalVslPlayer({
           onEnded={() => {
             setIsPlaying(false);
             setIsEnded(true);
+            if (heartbeatTimerRef.current) {
+              clearInterval(heartbeatTimerRef.current);
+              heartbeatTimerRef.current = null;
+            }
+            dispatchTelemetry("ended");
             onEnded?.();
           }}
           className="w-full h-full object-contain cursor-pointer"

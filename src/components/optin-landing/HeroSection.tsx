@@ -1,24 +1,87 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import LocalVslPlayer from "./LocalVslPlayer";
+import {
+  resolveVslVariant,
+  getOrCreateVisitorId,
+  generateSessionId,
+  sendVslTelemetry,
+  type VslVariant,
+} from "@/lib/vsl-analytics";
 
 export default function HeroSection({ initialSrc }: { initialSrc?: string }) {
   const [videoSrc, setVideoSrc] = useState(
     initialSrc || "/videos/New_Video_1789071155558.mp4"
   );
+  const [variant, setVariant] = useState<VslVariant>("A");
+  const [visitorId, setVisitorId] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const initializedRef = useRef(false);
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    const vId = getOrCreateVisitorId();
+    const sId = generateSessionId();
+    setVisitorId(vId);
+    setSessionId(sId);
+
     fetch("/api/admin/funnel-content")
       .then((res) => res.json())
       .then((data) => {
-        if (data?.salesVideo) {
-          setVideoSrc(data.salesVideo);
+        const chosenVariant = resolveVslVariant({
+          abTestingEnabled: data?.abTestingEnabled,
+          splitRatio: data?.splitRatio,
+        });
+        setVariant(chosenVariant);
+
+        let srcToUse = data?.salesVideo || "/videos/New_Video_1789071155558.mp4";
+        if (chosenVariant === "B" && data?.salesVideoB) {
+          srcToUse = data.salesVideoB;
+        } else if (data?.salesVideoA) {
+          srcToUse = data.salesVideoA;
         }
+        setVideoSrc(srcToUse);
+
+        // Track session start
+        sendVslTelemetry({
+          sessionId: sId,
+          visitorId: vId,
+          variant: chosenVariant,
+          event: "session_start",
+          currentTime: 0,
+          duration: 0,
+          maxSecondsWatched: 0,
+          maxPercentWatched: 0,
+          videoSrc: srcToUse,
+          pagePath: "/opt-in",
+        });
       })
-      .catch(() => {});
+      .catch(() => {
+        const defaultVar = resolveVslVariant();
+        setVariant(defaultVar);
+      });
   }, []);
+
+  const handleCtaClick = () => {
+    if (!sessionId || !visitorId) return;
+    sendVslTelemetry({
+      sessionId,
+      visitorId,
+      variant,
+      event: "cta_click",
+      currentTime: 0,
+      duration: 0,
+      maxSecondsWatched: 0,
+      maxPercentWatched: 0,
+      ctaClicked: true,
+      pagePath: "/opt-in",
+      videoSrc,
+    });
+  };
 
   return (
     <section className="w-full pt-8 md:pt-14 pb-12">
@@ -45,16 +108,22 @@ export default function HeroSection({ initialSrc }: { initialSrc?: string }) {
 
         {/* Container: Button placed ABOVE the video player */}
         <div className="w-full mt-8 flex flex-col items-center">
-          {/* Switched: Get Started Now Button placed ABOVE the video */}
+          {/* Get Started Now Button with click tracking */}
           <Link
             href="/opt-in/book"
+            onClick={handleCtaClick}
             className="animate-jiggle w-full mb-6 bg-[#2a6ced] hover:bg-[#2059c7] text-white font-extrabold text-xl md:text-2xl py-4 md:py-5 rounded-xl md:rounded-2xl text-center shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all duration-200 active:scale-[0.98] select-none"
           >
             Get Started Now!
           </Link>
 
           {/* Blue & White Video Player below the button */}
-          <LocalVslPlayer src={videoSrc} />
+          <LocalVslPlayer
+            src={videoSrc}
+            sessionId={sessionId}
+            visitorId={visitorId}
+            variant={variant}
+          />
         </div>
       </div>
     </section>

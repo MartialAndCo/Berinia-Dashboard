@@ -12,12 +12,24 @@ export interface FaqVideoItem {
 
 export interface FunnelContentData {
   salesVideo: string;
+  salesVideoA?: string;
+  salesVideoB?: string;
+  abTestingEnabled?: boolean;
+  splitRatio?: number;
+  variantAName?: string;
+  variantBName?: string;
   confirmationVideo: string;
   faqVideos: FaqVideoItem[];
 }
 
 const DEFAULT_CONTENT: FunnelContentData = {
   salesVideo: "/videos/New_Video_1789071155558.mp4",
+  salesVideoA: "/videos/New_Video_1789071155558.mp4",
+  salesVideoB: "/videos/New_Video_1789071155558.mp4",
+  abTestingEnabled: false,
+  splitRatio: 50,
+  variantAName: "Variante A (Hook Promesse ROI)",
+  variantBName: "Variante B (Hook Douleur Métier)",
   confirmationVideo: "/videos/New_Video_1789071155558.mp4",
   faqVideos: [
     {
@@ -66,8 +78,15 @@ export async function GET() {
     const text = await data.text();
     const json = JSON.parse(text);
 
-    const result = {
-      salesVideo: json.salesVideo || DEFAULT_CONTENT.salesVideo,
+    const salesVideoBase = json.salesVideo || DEFAULT_CONTENT.salesVideo;
+    const result: FunnelContentData = {
+      salesVideo: salesVideoBase,
+      salesVideoA: json.salesVideoA || salesVideoBase,
+      salesVideoB: json.salesVideoB || salesVideoBase,
+      abTestingEnabled: typeof json.abTestingEnabled === "boolean" ? json.abTestingEnabled : false,
+      splitRatio: typeof json.splitRatio === "number" ? json.splitRatio : 50,
+      variantAName: json.variantAName || DEFAULT_CONTENT.variantAName,
+      variantBName: json.variantBName || DEFAULT_CONTENT.variantBName,
       confirmationVideo: json.confirmationVideo || DEFAULT_CONTENT.confirmationVideo,
       faqVideos: Array.isArray(json.faqVideos) && json.faqVideos.length > 0 ? json.faqVideos : DEFAULT_CONTENT.faqVideos,
     };
@@ -86,8 +105,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const supabase = getServiceSupabase();
 
+    const salesVideoA = typeof body.salesVideoA === "string" && body.salesVideoA ? body.salesVideoA : (typeof body.salesVideo === "string" && body.salesVideo ? body.salesVideo : DEFAULT_CONTENT.salesVideo);
+    const salesVideoB = typeof body.salesVideoB === "string" && body.salesVideoB ? body.salesVideoB : salesVideoA;
+
     const payload: FunnelContentData = {
-      salesVideo: typeof body.salesVideo === "string" && body.salesVideo ? body.salesVideo : DEFAULT_CONTENT.salesVideo,
+      salesVideo: salesVideoA,
+      salesVideoA,
+      salesVideoB,
+      abTestingEnabled: Boolean(body.abTestingEnabled),
+      splitRatio: typeof body.splitRatio === "number" ? Math.min(100, Math.max(0, body.splitRatio)) : 50,
+      variantAName: typeof body.variantAName === "string" && body.variantAName ? body.variantAName : DEFAULT_CONTENT.variantAName,
+      variantBName: typeof body.variantBName === "string" && body.variantBName ? body.variantBName : DEFAULT_CONTENT.variantBName,
       confirmationVideo: typeof body.confirmationVideo === "string" && body.confirmationVideo ? body.confirmationVideo : DEFAULT_CONTENT.confirmationVideo,
       faqVideos: Array.isArray(body.faqVideos) ? body.faqVideos : DEFAULT_CONTENT.faqVideos,
     };
