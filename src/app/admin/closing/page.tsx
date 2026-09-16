@@ -58,6 +58,7 @@ export default function ClosingVisioPage() {
   const [generatedClientId, setGeneratedClientId] = useState('')
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'waiting' | 'paid'>('idle')
   const [copied, setCopied] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     fetchAirtableLeads()
@@ -177,7 +178,16 @@ export default function ClosingVisioPage() {
         setGeneratedLink(data.checkoutUrl)
         setGeneratedClientId(data.clientId)
         setPaymentStatus('waiting')
-        toast.success("Lien de paiement généré ! Copiez-le pour la visio.", { id: toastId })
+        setShowModal(true)
+
+        // Try automatic copy right away
+        try {
+          await navigator.clipboard.writeText(data.checkoutUrl)
+          setCopied(true)
+          toast.success("✅ Lien copié dans le presse-papier ! Collez-le (Ctrl+V) dans votre visio.", { id: toastId, duration: 6000 })
+        } catch {
+          toast.success("Lien de paiement prêt ! Copiez-le ci-dessous.", { id: toastId })
+        }
       } else {
         toast.error(data.error || "Erreur lors de la génération du lien", { id: toastId })
       }
@@ -188,18 +198,23 @@ export default function ClosingVisioPage() {
     }
   }
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     if (!generatedLink) return
-    navigator.clipboard.writeText(generatedLink)
-    setCopied(true)
-    toast.success("Lien copié dans le presse-papier ! Envoyez-le sur la visio.")
-    setTimeout(() => setCopied(false), 2500)
+    try {
+      await navigator.clipboard.writeText(generatedLink)
+      setCopied(true)
+      toast.success("✅ Lien copié dans le presse-papier ! Envoyez-le dans le chat visio.")
+      setTimeout(() => setCopied(false), 3000)
+    } catch {
+      toast.error("Impossible de copier automatiquement. Veuillez sélectionner et copier le lien manuellement.")
+    }
   }
 
   const handleResetForm = () => {
     setGeneratedLink('')
     setGeneratedClientId('')
     setPaymentStatus('idle')
+    setShowModal(false)
     setSelectedLeadId('')
     setAirtableRecordId('')
     setCompanyName('')
@@ -235,6 +250,134 @@ export default function ClosingVisioPage() {
             </Link>
           </div>
         </div>
+
+        {/* POPUP MODAL EN PLEIN ÉCRAN LORSQU'UN LIEN EST GÉNÉRÉ */}
+        {showModal && generatedLink && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white border-2 border-[#9e4733] rounded-sm max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+              
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.2em] text-[#9e4733] uppercase">
+                    <Sparkles className="w-3.5 h-3.5 text-[#9e4733]" /> LIEN DE CLOSING GÉNÉRÉ
+                  </div>
+                  <h2 className="font-serif text-2xl font-bold text-[#1a1918]">
+                    Prêt à envoyer sur la visio !
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="text-stone-400 hover:text-[#1a1918] p-1 text-2xl font-bold leading-none cursor-pointer"
+                  title="Fermer"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="p-3.5 bg-[#faf8f5] border border-[#e2dfd8] rounded-sm flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[#73706b]">Client : </span>
+                  <strong className="text-[#1a1918]">{companyName}</strong>
+                </div>
+                <div>
+                  <span className="text-[#73706b]">À régler maintenant : </span>
+                  <strong className="text-[#9e4733] font-mono text-sm font-bold">${todayDue.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              {/* URL Display */}
+              <div className="space-y-2">
+                <Label className="text-[11px] font-semibold uppercase tracking-wider text-[#66635e]">
+                  Lien Stripe Checkout sécurisé :
+                </Label>
+                <div className="relative">
+                  <Input
+                    readOnly
+                    value={generatedLink}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="border-[#e2dfd8] bg-[#faf9f7] font-mono text-xs select-all h-12 pr-10 font-bold"
+                  />
+                  <a
+                    href={generatedLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-500 hover:text-[#1a1918]"
+                    title="Ouvrir la page"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+              </div>
+
+              {/* HUGE COPY BUTTON */}
+              <Button
+                type="button"
+                onClick={handleCopyLink}
+                className="w-full h-14 bg-[#1a1918] hover:bg-[#2d2d2d] text-white rounded-sm text-sm font-bold tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-5 h-5 text-emerald-400" />
+                    LIEN COPIÉ DANS LE PRESSE-PAPIER !
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-5 h-5 text-amber-400" />
+                    COPIER LE LIEN POUR LA VISIO
+                  </>
+                )}
+              </Button>
+
+              {/* Real-time Status Card in Modal */}
+              <div className={`p-3.5 rounded-sm border text-xs flex items-center gap-3 ${
+                paymentStatus === 'paid'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  : 'bg-stone-50 border-stone-200 text-stone-700'
+              }`}>
+                {paymentStatus === 'paid' ? (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div>
+                      <strong className="text-emerald-900">Paiement validé avec succès !</strong> Le compte est activé et l'email pour créer le mot de passe a été envoyé à {email}.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="relative flex h-3 w-3 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#9e4733] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-[#9e4733]"></span>
+                    </span>
+                    <div>
+                      En attente du règlement du prospect... Collez-lui le lien dans le chat de la visio.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <a
+                  href={generatedLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#9e4733] hover:underline flex items-center gap-1 font-medium"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Ouvrir la page de paiement &rarr;
+                </a>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowModal(false)}
+                  className="text-xs text-[#73706b] hover:text-[#1a1918]"
+                >
+                  Fermer cette fenêtre
+                </Button>
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* ACTIVE GENERATED LINK CARD */}
         {generatedLink && (
@@ -713,6 +856,94 @@ export default function ClosingVisioPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Bottom Card for Instant Visibility & 1-Click Copy */}
+          {generatedLink && (
+            <div className="p-4 sm:p-5 bg-[#fffdfa] border-2 border-[#9e4733] rounded-sm space-y-3 shadow-lg animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-[#9e4733]/10 flex items-center justify-center text-[#9e4733] shrink-0">
+                    <Zap className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#1a1918]">
+                      Lien de paiement prêt à envoyer :
+                    </span>
+                    <span className="text-[11px] text-[#73706b] ml-2">
+                      (${todayDue.toFixed(2)} à régler)
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => setShowModal(true)}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs border-[#e2dfd8] h-8 px-2.5"
+                  >
+                    Agrandir
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <Input
+                  readOnly
+                  value={generatedLink}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  className="bg-white border-[#e2dfd8] font-mono text-xs h-12 select-all font-bold"
+                />
+                <Button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="bg-[#1a1918] hover:bg-[#2d2d2d] text-white rounded-sm h-12 px-6 text-xs font-bold tracking-wider uppercase shrink-0 flex items-center gap-2 cursor-pointer shadow-sm"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" /> Copié !
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-amber-400" /> Copier pour la Visio
+                    </>
+                  )}
+                </Button>
+                <a
+                  href={generatedLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex"
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#e2dfd8] hover:bg-white text-[#1a1918] rounded-sm h-12 px-3.5 text-xs shrink-0"
+                    title="Ouvrir la page de paiement"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </a>
+              </div>
+
+              {/* Status indicator in bottom card */}
+              <div className="text-[11px] text-[#73706b] flex items-center gap-2 pt-1 border-t border-[#e2dfd8]/60">
+                {paymentStatus === 'paid' ? (
+                  <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Paiement reçu et validé ! Compte activé.
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#9e4733] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-[#9e4733]"></span>
+                    </span>
+                    En attente du paiement du prospect sur la visio (détection temps réel)...
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Action CTA */}
           <div className="flex items-center justify-end gap-4 pt-2">
