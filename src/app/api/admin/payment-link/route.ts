@@ -91,14 +91,17 @@ export async function POST(req: Request) {
     const existingCustomers = await stripe.customers.list({ email: cleanEmail, limit: 1 })
     if (existingCustomers.data && existingCustomers.data.length > 0) {
       stripeCustomer = existingCustomers.data[0]
-      if (!stripeCustomer.name) {
-        stripeCustomer = await stripe.customers.update(stripeCustomer.id, { name: cleanCompanyName })
+      if (!stripeCustomer.name || !stripeCustomer.preferred_locales?.includes('en')) {
+        stripeCustomer = await stripe.customers.update(stripeCustomer.id, { 
+          name: cleanCompanyName,
+          preferred_locales: ['en']
+        })
       }
     } else {
       stripeCustomer = await stripe.customers.create({
         email: cleanEmail,
         name: cleanCompanyName,
-        preferred_locales: ['fr', 'en']
+        preferred_locales: ['en']
       })
     }
 
@@ -155,8 +158,8 @@ export async function POST(req: Request) {
     // A. Recurring Monthly Retainer
     if (rawMonthly > 0) {
       const productSub = await stripe.products.create({
-        name: `Abonnement Plateforme IA - ${cleanCompanyName}`,
-        description: 'Abonnement mensuel récurrent plateforme BerinAgents'
+        name: `Voice AI Platform Subscription - ${cleanCompanyName}`,
+        description: 'Monthly recurring Voice AI platform subscription'
       })
       const priceSub = await stripe.prices.create({
         product: productSub.id,
@@ -171,11 +174,11 @@ export async function POST(req: Request) {
     if (rawSetup > 0) {
       const installmentAmount = Math.round((rawSetup / rawInstallments) * 100)
       const setupDesc = rawInstallments > 1
-        ? `Échéance 1 sur ${rawInstallments} (facilité de paiement sans frais)`
-        : 'Frais d\'intégration, configuration voix et déploiement IA'
+        ? `Installment 1 of ${rawInstallments} (split payment)`
+        : 'Voice AI architecture, prompt engineering, integration & onboarding'
 
       const productSetup = await stripe.products.create({
-        name: `Frais de Setup & Intégration - ${cleanCompanyName}`,
+        name: `Setup & Onboarding Fee - ${cleanCompanyName}`,
         description: setupDesc
       })
       const priceSetup = await stripe.prices.create({
@@ -193,7 +196,7 @@ export async function POST(req: Request) {
         percent_off: rawDiscountPercent,
         duration: rawDiscountMonths > 1 ? 'repeating' : 'once',
         duration_in_months: rawDiscountMonths > 1 ? rawDiscountMonths : undefined,
-        name: `Remise ${rawDiscountPercent}% - ${cleanCompanyName}`
+        name: `Discount ${rawDiscountPercent}% - ${cleanCompanyName}`
       })
       discounts = [{ coupon: coupon.id }]
     } else if (rawDiscountAmount > 0) {
@@ -202,7 +205,7 @@ export async function POST(req: Request) {
         currency: 'usd',
         duration: rawDiscountMonths > 1 ? 'repeating' : 'once',
         duration_in_months: rawDiscountMonths > 1 ? rawDiscountMonths : undefined,
-        name: `Remise $${rawDiscountAmount} - ${cleanCompanyName}`
+        name: `Discount $${rawDiscountAmount} - ${cleanCompanyName}`
       })
       discounts = [{ coupon: coupon.id }]
     }
@@ -230,6 +233,7 @@ export async function POST(req: Request) {
       line_items: lineItems,
       discounts,
       metadata: sessionMetadata,
+      locale: 'en',
       success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/canceled`,
       allow_promotion_codes: true,

@@ -15,7 +15,7 @@ export default function CheckoutCanceledPage() {
           className="h-5 w-auto object-contain"
         />
         <div className="inline-flex items-center gap-1 text-[10px] font-bold tracking-widest text-[#73706b] uppercase">
-          PAIEMENT NON FINALISÉ
+          PAYMENT NOT COMPLETED
         </div>
       </header>
 
@@ -28,16 +28,16 @@ export default function CheckoutCanceledPage() {
               <AlertCircle className="w-9 h-9" />
             </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#1a1918]">
-              Paiement Interrompu
+              Payment Interrupted
             </h1>
             <p className="text-sm text-[#73706b] max-w-md mx-auto leading-relaxed">
-              La transaction n'a pas été débitée. Si vous êtes en appel avec votre conseiller, vous pouvez lui demander de vous renvoyer le lien ou poser vos questions directement.
+              No charges have been made to your card. If you are on a call with your advisor, you can ask them to resend the link or answer any questions you may have.
             </p>
           </div>
 
           <div className="pt-2">
             <p className="text-xs text-[#73706b]">
-              Vous pouvez fermer cette fenêtre pour retourner sur votre appel.
+              You may close this window and return to your call.
             </p>
           </div>
 
@@ -46,7 +46,7 @@ export default function CheckoutCanceledPage() {
 
       {/* Footer */}
       <footer className="max-w-xl mx-auto w-full text-center py-4 text-xs text-[#73706b] border-t border-[#e6e2d6]">
-        &copy; {new Date().getFullYear()} BerinAgents &middot; Plateforme d'Agents Vocaux IA pour Entreprises
+        &copy; {new Date().getFullYear()} BerinAgents &middot; Enterprise Voice AI Platform
       </footer>
     </div>
   )

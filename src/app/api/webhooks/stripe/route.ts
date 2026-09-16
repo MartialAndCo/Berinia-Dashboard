@@ -288,7 +288,7 @@ export async function POST(req: Request) {
               invoice: invoice.id,
               amount: Math.round(installmentAmount * 100),
               currency: 'usd',
-              description: `Frais de Setup (Échéance ${currentInstallmentNum} sur ${totalInstallments}) - ${subscription.metadata?.company_name || 'Client'}`
+              description: `Setup Fee (Installment ${currentInstallmentNum} of ${totalInstallments}) - ${subscription.metadata?.company_name || 'Client'}`
             })
 
             await stripe.subscriptions.update(subscription.id, {
@@ -367,29 +367,29 @@ export async function POST(req: Request) {
                   <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
                     <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
                   </div>
-                  <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #1a1918; margin: 0 0 24px 0; letter-spacing: -0.5px;">Bienvenue sur BerinAgents</h1>
+                  <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #1a1918; margin: 0 0 24px 0; letter-spacing: -0.5px;">Welcome to BerinAgents</h1>
                   <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
                   
-                  <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #1a1918;">Bonjour ${companyName},</p>
-                  <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Votre paiement a été validé avec succès et votre abonnement plateforme est maintenant actif.</p>
-                  <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Pour finaliser la création de votre compte, définissez votre mot de passe pour accéder immédiatement à votre portail client :</p>
+                  <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #1a1918;">Hello ${companyName},</p>
+                  <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Your payment has been successfully processed and your Voice AI platform subscription is now active.</p>
+                  <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">To complete your setup and access your client dashboard, please define your password by clicking below:</p>
                   
                   <div>
                     <a href="${inviteUrl}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
-                      <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Définir mon mot de passe
+                      <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Set Up My Password
                     </a>
                   </div>
                   
                   <p style="color: #737373; font-size: 13px; margin-top: 32px; line-height: 1.5;">
-                    Si le bouton ci-dessus ne fonctionne pas, copiez ce lien dans votre navigateur : <br/>
+                    If the button above does not work, copy this link into your browser: <br/>
                     <a href="${inviteUrl}" style="color: #1a1918; text-decoration: underline; word-break: break-all;">${inviteUrl}</a>
                   </p>
                 `
-                const htmlEmail = getEmailTemplate('Bienvenue sur BerinAgents - Accès à votre espace', contentHtml)
+                const htmlEmail = getEmailTemplate('Welcome to BerinAgents - Portal Access', contentHtml)
                 await resend.emails.send({
                   from: 'BerinAgents <onboarding@berinagents.com>',
                   to: [client.email],
-                  subject: 'Bienvenue sur BerinAgents : Définissez votre mot de passe',
+                  subject: 'Welcome to BerinAgents: Set Up Your Password',
                   html: htmlEmail
                 })
               }
