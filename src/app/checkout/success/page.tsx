@@ -11,6 +11,14 @@ function SuccessContent() {
   const sessionId = searchParams.get('session_id')
   const [customerEmail, setCustomerEmail] = useState('')
 
+  useEffect(() => {
+    if (sessionId) {
+      fetch(`/api/checkout/confirm?session_id=${encodeURIComponent(sessionId)}`, {
+        method: 'POST'
+      }).catch(err => console.error('Immediate checkout sync error:', err))
+    }
+  }, [sessionId])
+
   return (
     <div className="min-h-screen bg-[#f6f4f0] text-[#1a1918] flex flex-col justify-between p-4 sm:p-8">
       {/* Top Header */}

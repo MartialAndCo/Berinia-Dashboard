@@ -4,6 +4,7 @@ import { getEmailTemplate } from '@/lib/email-template'
 import { getServiceSupabase } from '@/lib/supabase'
 import { markAirtableSubscriptionActive, recordStripeInvoicePayment, markAirtableSubscriptionEnded } from '@/lib/airtable'
 import { suspendClientAgent, reactivateClientAgent } from '@/lib/agent-activation'
+import { activatePaidClient } from '@/lib/payment-activation'
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy')
 
@@ -33,31 +34,16 @@ export async function POST(req: Request) {
     const supabaseAdmin = getServiceSupabase()
 
     // 1. Invoice Payment Succeeded (Initial subscription charge or recurring invoice)
-    if (event.type === 'invoice.payment_succeeded') {
+    if (event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid') {
       const invoice = event.data.object
 
-      // If subscription invoice was paid
-      if (invoice.subscription && invoice.amount_paid > 0) {
-        // Find matching client in Supabase
-        const { data: client } = await supabaseAdmin
-          .from('clients')
-          .select('*')
-          .or(`stripe_customer_id.eq.${invoice.customer},stripe_subscription_id.eq.${invoice.subscription}${invoice.customer_email ? `,email.eq.${invoice.customer_email}` : ''}`)
-          .limit(1)
-          .maybeSingle()
-
-        if (client) {
-          await reactivateClientAgent(client.id)
-          await markAirtableSubscriptionActive({
-            email: client.email || invoice.customer_email,
-            companyName: client.company_name
-          }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
-        } else if (invoice.customer_email) {
-          await markAirtableSubscriptionActive({
-            email: invoice.customer_email,
-            fullName: invoice.customer_name
-          }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
-        }
+      // Automatically activate client and link subscription if amount was paid
+      if (invoice.amount_paid > 0) {
+        await activatePaidClient({
+          customerId: typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id,
+          subscriptionId: typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id,
+          customerEmail: invoice.customer_email
+        }).catch(err => console.error('[Stripe Webhook] Error activating client from invoice:', err))
 
         let usageSeconds = 0
         let usageAmount = 0
@@ -82,8 +68,7 @@ export async function POST(req: Request) {
 
         // Record real paid LTV and metered usage into Airtable
         await recordStripeInvoicePayment({
-          email: client?.email || invoice.customer_email,
-          companyName: client?.company_name,
+          email: invoice.customer_email,
           fullName: invoice.customer_name,
           amountPaid: totalPaidDollars,
           usageAmount: usageDollars,
@@ -308,128 +293,14 @@ export async function POST(req: Request) {
     // 4. Checkout Session Completed
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object
-      const email = (session.customer_details?.email || session.customer_email || session.metadata?.email || '').trim().toLowerCase()
-      const customerId = session.customer
-      const subscriptionId = session.subscription
-      const isLiveClosing = session.metadata?.is_live_closing === 'true'
-
-      if (customerId || subscriptionId || email) {
-        // Find matching client by customerId, subscriptionId, metadata client_id, or email
-        let clientQuery = supabaseAdmin.from('clients').select('*')
-        if (session.metadata?.client_id) {
-          clientQuery = clientQuery.eq('id', session.metadata.client_id)
-        } else {
-          clientQuery = clientQuery.or(`stripe_customer_id.eq.${customerId},stripe_subscription_id.eq.${subscriptionId}${email ? `,email.ilike.${email}` : ''}`)
-        }
-
-        const { data: client } = await clientQuery.limit(1).maybeSingle()
-
-        if (client) {
-          // Always activate client status upon checkout completion
-          await supabaseAdmin
-            .from('clients')
-            .update({
-              status: 'Active',
-              stripe_customer_id: customerId || client.stripe_customer_id,
-              stripe_subscription_id: subscriptionId || client.stripe_subscription_id
-            })
-            .eq('id', client.id)
-
-          await reactivateClientAgent(client.id)
-
-          // If this was a live closing, generate invite link and send welcome email NOW (after payment)
-          if (isLiveClosing || client.status === 'Pending Payment' || client.status === 'Pending') {
-            try {
-              const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.berinagents.com'
-              let inviteUrl: string | null = null
-
-              const { data: inviteData, error: inviteErr } = await supabaseAdmin.auth.admin.generateLink({
-                type: 'invite',
-                email: client.email,
-                options: { redirectTo: `${origin}/update-password` }
-              })
-
-              if (!inviteErr && inviteData?.properties?.action_link) {
-                inviteUrl = inviteData.properties.action_link
-              } else {
-                // If user was already registered in auth, generate recovery link
-                const { data: recData } = await supabaseAdmin.auth.admin.generateLink({
-                  type: 'recovery',
-                  email: client.email,
-                  options: { redirectTo: `${origin}/update-password` }
-                })
-                inviteUrl = recData?.properties?.action_link || null
-              }
-
-              if (inviteUrl) {
-                const companyName = client.company_name || 'Client'
-                const contentHtml = `
-                  <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9e4733; margin-bottom: 12px;">
-                    <span style="color: #9e4733; margin-right: 4px;">&#8226;</span> BERINAGENTS
-                  </div>
-                  <h1 style="font-family: 'Georgia', serif; font-size: 32px; font-weight: bold; color: #1a1918; margin: 0 0 24px 0; letter-spacing: -0.5px;">Welcome to BerinAgents</h1>
-                  <div style="border-bottom: 1px solid #e2dfd8; margin-bottom: 32px;"></div>
-                  
-                  <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #1a1918;">Hello ${companyName},</p>
-                  <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">Your payment has been successfully processed and your Voice AI platform subscription is now active.</p>
-                  <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.6; color: #403e3b;">To complete your setup and access your client dashboard, please define your password by clicking below:</p>
-                  
-                  <div>
-                    <a href="${inviteUrl}" style="background-color: #1a1918; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 12px; letter-spacing: 1px; display: inline-block; text-transform: uppercase;">
-                      <span style="color: #9e4733; margin-right: 8px; font-size: 14px;">&#8226;</span> Set Up My Password
-                    </a>
-                  </div>
-                  
-                  <p style="color: #737373; font-size: 13px; margin-top: 32px; line-height: 1.5;">
-                    If the button above does not work, copy this link into your browser: <br/>
-                    <a href="${inviteUrl}" style="color: #1a1918; text-decoration: underline; word-break: break-all;">${inviteUrl}</a>
-                  </p>
-                `
-                const htmlEmail = getEmailTemplate('Welcome to BerinAgents - Portal Access', contentHtml)
-                await resend.emails.send({
-                  from: 'BerinAgents <onboarding@berinagents.com>',
-                  to: [client.email],
-                  subject: 'Welcome to BerinAgents: Set Up Your Password',
-                  html: htmlEmail
-                })
-              }
-            } catch (mailErr) {
-              console.error('[Stripe Webhook] Error sending onboarding email:', mailErr)
-            }
-          }
-
-          // Assign Retell agent if provided in metadata
-          if (session.metadata?.retell_agent_id) {
-            try {
-              const { data: existingAgent } = await supabaseAdmin
-                .from('agents')
-                .select('id')
-                .eq('retell_agent_id', session.metadata.retell_agent_id)
-                .maybeSingle()
-
-              if (!existingAgent) {
-                await supabaseAdmin.from('agents').insert({
-                  client_id: client.id,
-                  agent_name: `Voice Agent - ${client.company_name}`,
-                  retell_agent_id: session.metadata.retell_agent_id,
-                  forward_webhook_url: session.metadata.forward_webhook_url || null
-                })
-              }
-            } catch (agentErr) {
-              console.error('[Stripe Webhook] Error assigning Retell agent:', agentErr)
-            }
-          }
-
-          // Mark Airtable subscription active & Closed Won
-          await markAirtableSubscriptionActive({
-            email: client.email || email,
-            companyName: client.company_name
-          }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
-
-        } else if (email) {
-          await markAirtableSubscriptionActive({ email }).catch(err => console.error('[Stripe Webhook] Airtable markActive error:', err))
-        }
-      }
+      await activatePaidClient({
+        sessionId: session.id,
+        customerId: typeof session.customer === 'string' ? session.customer : session.customer?.id,
+        subscriptionId: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id,
+        customerEmail: session.customer_details?.email || session.customer_email || session.metadata?.email,
+        clientId: session.metadata?.client_id,
+        metadata: session.metadata
+      }).catch(err => console.error('[Stripe Webhook] Error activating client from session:', err))
     }
 
     return NextResponse.json({ received: true })
