@@ -42,6 +42,11 @@ export const metadata: Metadata = {
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
   },
+  verification: {
+    other: {
+      "facebook-domain-verification": "x38n0k934krz3pnr595wo0b62j9dly",
+    },
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
