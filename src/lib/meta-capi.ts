@@ -49,7 +49,7 @@ export async function sendMetaCapiEvent(
   const pixelId =
     process.env.META_PIXEL_ID ||
     process.env.NEXT_PUBLIC_META_PIXEL_ID ||
-    "1118345583879065";
+    "2164746474391551";
   const accessToken = process.env.META_CONVERSIONS_API_TOKEN;
   const testEventCode = process.env.META_TEST_EVENT_CODE;
 
