@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { markAirtableMeetingBooked, cancelAirtableMeeting } from '@/lib/airtable'
 import { dispatchReminder } from '@/lib/sendblue'
+import { sendMetaCapiEvent } from '@/lib/meta-capi'
 
 /**
  * Cal.com Webhook Handler
@@ -168,6 +169,36 @@ export async function POST(req: Request) {
           step: 'direct',
         }).catch((err) => {
           console.error('[Cal.com Webhook] Failed to dispatch Sendblue direct message:', err)
+        })
+      }
+
+      // Dispatch server-side Schedule conversion event to Meta Conversions API (CAPI)
+      if (!isRescheduled) {
+        const names = (attendeeName || '').trim().split(/\s+/)
+        const firstName = names[0] || null
+        const lastName = names.slice(1).join(' ') || null
+
+        sendMetaCapiEvent({
+          eventName: 'Schedule',
+          eventId: payload.uid || undefined,
+          eventTime: Math.floor(new Date(payload.createdAt || Date.now()).getTime() / 1000),
+          eventSourceUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.berinagents.com'}/opt-in/confirmation`,
+          userData: {
+            email: attendeeEmail,
+            phone: attendeePhone,
+            firstName,
+            lastName,
+          },
+          customData: {
+            content_name: 'AI Strategy Call',
+            currency: 'USD',
+            value: 0,
+            business_type: businessType,
+            revenue: revenue,
+            lead_source: leadSource,
+          },
+        }).catch((capiErr) => {
+          console.error('[Cal.com Webhook] Meta CAPI Schedule error:', capiErr)
         })
       }
 

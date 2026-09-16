@@ -8,6 +8,7 @@ import {
   Check,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { trackPixelEvent } from "@/lib/meta-pixel";
 
 const CalBooking = dynamic(() => import("@/components/funnel/CalBooking"), {
   ssr: false,
@@ -172,6 +173,12 @@ export default function QuestionnaireBooking({
         try {
           const structured = getStructuredData(updated);
           sessionStorage.setItem("funnel-structured-answers", JSON.stringify(structured));
+          trackPixelEvent("Lead", {
+            content_name: "Opt-In Qualification Complete",
+            business_type: structured.businessType,
+            revenue: structured.revenue,
+            call_volume: structured.callVolume,
+          });
         } catch {
           // ignore
         }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import HeroSection from "./HeroSection";
 import LogoBar from "./LogoBar";
 import TrackRecordSection from "./TrackRecordSection";
@@ -9,8 +10,16 @@ import ProcessSection from "./ProcessSection";
 import TestimonialsSection from "./TestimonialsSection";
 import FaqSection from "./FaqSection";
 import FooterSection from "./FooterSection";
+import { trackPixelEvent } from "@/lib/meta-pixel";
 
 export default function OptInLandingPage() {
+  useEffect(() => {
+    trackPixelEvent("ViewContent", {
+      content_name: "VSL Opt-in Landing Page",
+      content_category: "AI Receptionist Funnel",
+    });
+  }, []);
+
   return (
     <main className="min-h-screen w-full bg-white text-gray-900 selection:bg-blue-100 selection:text-blue-900 font-sans">
       {/* 1. Hero with light blue gradient stopping around the middle of the video player (~630px) */}

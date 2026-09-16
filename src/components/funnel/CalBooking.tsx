@@ -39,9 +39,16 @@ export default function CalBooking({
         showTimezoneWhenEventDetailsHidden: true,
       };
       cal("ui", calendarUi);
-      const booked = () => {
+      const booked = (e?: any) => {
+        const uid = e?.detail?.data?.uid || e?.data?.uid || "";
+        if (uid) {
+          try {
+            sessionStorage.setItem("last_booking_uid", uid);
+          } catch {}
+        }
         const isOptIn = typeof window !== "undefined" && window.location.pathname.startsWith("/opt-in");
-        router.push(isOptIn ? "/opt-in/confirmation" : "/strategy/confirmation");
+        const basePath = isOptIn ? "/opt-in/confirmation" : "/strategy/confirmation";
+        router.push(uid ? `${basePath}?bookingUid=${encodeURIComponent(uid)}` : basePath);
       };
       const ready = () => {
         clearTimeout(timer);

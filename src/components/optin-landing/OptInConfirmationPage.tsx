@@ -15,6 +15,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import FooterSection from "./FooterSection";
+import { trackPixelEvent } from "@/lib/meta-pixel";
 
 // --- SVG 3D Calendar Icon with Green Checkmark (Pixel-faithful to screenshot) ---
 function CalendarCheckBadge() {
@@ -411,8 +412,32 @@ export default function OptInConfirmationPage({
     initialFaqVideos || DEFAULT_FAQ_VIDEOS
   );
 
+  const scheduleFiredRef = useRef(false);
+
   useEffect(() => {
-    // Dynamically load live video config if available
+    // 1. Trigger Meta Pixel Schedule event with deduplication eventID
+    if (!scheduleFiredRef.current) {
+      scheduleFiredRef.current = true;
+      let bookingUid: string | null = null;
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        bookingUid = searchParams.get("bookingUid") || sessionStorage.getItem("last_booking_uid");
+      } catch {
+        // ignore
+      }
+
+      trackPixelEvent(
+        "Schedule",
+        {
+          content_name: "AI Strategy Call Booked",
+          currency: "USD",
+          value: 0,
+        },
+        bookingUid || undefined
+      );
+    }
+
+    // 2. Dynamically load live video config if available
     fetch("/api/admin/funnel-content")
       .then((res) => res.json())
       .then((data) => {
