@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase";
+import { checkAdminAuth } from "@/utils/supabase/server";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
@@ -8,6 +9,12 @@ import { Readable } from "node:stream";
 
 export async function POST(request: NextRequest) {
   try {
+    try {
+      await checkAdminAuth();
+    } catch {
+      return NextResponse.json({ error: "Unauthorized: Admin access required" }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     if (!file) {

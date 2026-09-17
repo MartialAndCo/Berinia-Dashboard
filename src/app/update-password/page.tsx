@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { setClientActiveAction } from './actions'
+import { validatePassword, checkPasswordCriteria } from '@/lib/password-validator'
+import { Check, X } from 'lucide-react'
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('')
@@ -105,6 +107,8 @@ export default function UpdatePasswordPage() {
     }
   }, [router])
 
+  const criteria = checkPasswordCriteria(password)
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -113,8 +117,9 @@ export default function UpdatePasswordPage() {
       return
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.')
+    const validation = validatePassword(password)
+    if (!validation.isValid) {
+      setError(validation.errors[0])
       return
     }
 
@@ -240,10 +245,38 @@ export default function UpdatePasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required 
-                minLength={6}
+                minLength={10}
                 className="border-[#e2dfd8] bg-[#faf9f7]/50 focus-visible:ring-[#1a1918] focus-visible:border-[#1a1918] rounded-sm h-11 text-sm text-[#202020]"
               />
             </div>
+
+            {password && (
+              <div className="p-3 bg-[#faf9f7] border border-[#e2dfd8] rounded-sm space-y-1.5 text-xs text-[#73706b]">
+                <p className="font-semibold text-[#1a1918] text-[11px] uppercase tracking-wider">Password Requirements</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                  <div className={`flex items-center gap-1.5 ${criteria.length ? 'text-[#2e6930] font-medium' : 'text-[#73706b]'}`}>
+                    {criteria.length ? <Check className="h-3.5 w-3.5 text-[#2e6930] shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-[#a09d96] mx-1 shrink-0" />}
+                    <span>10+ characters</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 ${criteria.uppercase ? 'text-[#2e6930] font-medium' : 'text-[#73706b]'}`}>
+                    {criteria.uppercase ? <Check className="h-3.5 w-3.5 text-[#2e6930] shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-[#a09d96] mx-1 shrink-0" />}
+                    <span>Uppercase (A-Z)</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 ${criteria.lowercase ? 'text-[#2e6930] font-medium' : 'text-[#73706b]'}`}>
+                    {criteria.lowercase ? <Check className="h-3.5 w-3.5 text-[#2e6930] shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-[#a09d96] mx-1 shrink-0" />}
+                    <span>Lowercase (a-z)</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 ${criteria.number ? 'text-[#2e6930] font-medium' : 'text-[#73706b]'}`}>
+                    {criteria.number ? <Check className="h-3.5 w-3.5 text-[#2e6930] shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-[#a09d96] mx-1 shrink-0" />}
+                    <span>Number (0-9)</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 ${criteria.special ? 'text-[#2e6930] font-medium' : 'text-[#73706b]'}`}>
+                    {criteria.special ? <Check className="h-3.5 w-3.5 text-[#2e6930] shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-[#a09d96] mx-1 shrink-0" />}
+                    <span>Special character (!@#...)</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label 

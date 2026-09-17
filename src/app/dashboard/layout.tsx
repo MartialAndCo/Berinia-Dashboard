@@ -104,8 +104,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     const user = session.user
     const isUserAdmin = user.email?.toLowerCase() === 'admin@berinia.com' || 
-      user.app_metadata?.role === 'admin' || 
-      user.user_metadata?.role === 'admin'
+      user.email?.toLowerCase() === 'yannrosemark@gmail.com' ||
+      user.app_metadata?.role === 'admin'
     setIsAdmin(isUserAdmin)
 
     if (!isUserAdmin) {

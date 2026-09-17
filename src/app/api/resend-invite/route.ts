@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { checkAdminAuth } from '@/utils/supabase/server'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
+    try {
+      await checkAdminAuth()
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 })
+    }
+
+    const ip = getClientIp(req)
+    const limitResult = rateLimit({ key: `resend-inv:${ip}`, limit: 10, windowMs: 15 * 60 * 1000 })
+    if (!limitResult.success) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
     const { email } = await req.json()
     if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 

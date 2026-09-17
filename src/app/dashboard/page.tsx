@@ -150,8 +150,8 @@ function ClientDashboardContent() {
 
     const user = session.user
     const isUserAdmin = user.email?.toLowerCase() === 'admin@berinia.com' ||
-      user.app_metadata?.role === 'admin' ||
-      user.user_metadata?.role === 'admin'
+      user.email?.toLowerCase() === 'yannrosemark@gmail.com' ||
+      user.app_metadata?.role === 'admin'
 
     if (isUserAdmin) {
       setIsAdminView(true)

@@ -29,7 +29,7 @@ export function isAdminUser(user: { email?: string | null; app_metadata?: Record
   if (!user) return false
   const email = user.email?.toLowerCase()
   if (email === 'admin@berinia.com' || email === 'yannrosemark@gmail.com') return true
-  if (user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin') return true
+  if (user.app_metadata?.role === 'admin') return true
   return false
 }
 

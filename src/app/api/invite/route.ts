@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
+import { checkAdminAuth } from '@/utils/supabase/server'
 import { Resend } from 'resend'
 import { updateAirtableLeadRecord, getOrCreateAirtableAbonnement, findAirtableLeadData } from '@/lib/airtable'
 
@@ -13,6 +14,12 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    try {
+      await checkAdminAuth()
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 })
+    }
+
     const body = await req.json()
     const { 
       email, 

@@ -25,8 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const u = session.user
         const isUserAdmin = u.email?.toLowerCase() === 'admin@berinia.com' ||
           u.email?.toLowerCase() === 'yannrosemark@gmail.com' ||
-          u.app_metadata?.role === 'admin' ||
-          u.user_metadata?.role === 'admin'
+          u.app_metadata?.role === 'admin'
         if (!isUserAdmin) {
           router.push('/dashboard')
         }

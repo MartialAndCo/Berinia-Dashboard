@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
+import { checkAdminAuth } from '@/utils/supabase/server'
 import { Resend } from 'resend'
 import { getAirtableLeadRecord, updateAirtableLeadRecord } from '@/lib/airtable'
 
@@ -598,8 +599,46 @@ function renderHtmlResponse(result: {
 `
 }
 
+async function verifyAirtableAuth(req: Request): Promise<boolean> {
+  // 1. Check if user is logged in as admin
+  try {
+    const admin = await checkAdminAuth()
+    if (admin) return true
+  } catch {}
+
+  // 2. Check secret token via query or Authorization header
+  const webhookSecret = process.env.AIRTABLE_WEBHOOK_SECRET
+  const url = new URL(req.url)
+  const tokenFromQuery = url.searchParams.get('secret') || url.searchParams.get('key')
+  const authHeader = req.headers.get('authorization')
+  const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : null
+
+  const providedSecret = tokenFromQuery || tokenFromHeader
+  if (webhookSecret && providedSecret && providedSecret === webhookSecret) {
+    return true
+  }
+
+  return false
+}
+
 // GET: Triggered when user clicks the Airtable Button (opens URL in browser)
 export async function GET(req: Request) {
+  const isAuthorized = await verifyAirtableAuth(req)
+  const acceptHeader = req.headers.get('accept') || ''
+
+  if (!isAuthorized) {
+    if (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html')) {
+      return NextResponse.json({ error: 'Unauthorized: Admin access or valid secret required' }, { status: 401 })
+    }
+    return new Response(renderHtmlResponse({
+      success: false,
+      error: 'Unauthorized: You must be logged into the Admin Console or provide a valid authorization key to send invitations.'
+    }), {
+      status: 401,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    })
+  }
+
   const { searchParams } = new URL(req.url)
   const recordId = searchParams.get('recordId') || searchParams.get('id') || undefined
   const email = searchParams.get('email') || undefined
@@ -628,7 +667,6 @@ export async function GET(req: Request) {
   })
 
   // If client requested JSON specifically
-  const acceptHeader = req.headers.get('accept') || ''
   if (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html')) {
     return NextResponse.json(result, { status: result.success ? 200 : 400 })
   }
@@ -643,6 +681,22 @@ export async function GET(req: Request) {
 // POST: Triggered if Airtable Automation (script / webhook action) sends a POST request
 export async function POST(req: Request) {
   try {
+    const isAuthorized = await verifyAirtableAuth(req)
+    const acceptHeader = req.headers.get('accept') || ''
+
+    if (!isAuthorized) {
+      if (acceptHeader.includes('text/html')) {
+        return new Response(renderHtmlResponse({
+          success: false,
+          error: 'Unauthorized: Admin access or valid secret required'
+        }), {
+          status: 401,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        })
+      }
+      return NextResponse.json({ error: 'Unauthorized: Admin access or valid secret required' }, { status: 401 })
+    }
+
     const body = await req.json().catch(() => ({}))
     const origin = req.headers.get('origin') || new URL(req.url).origin
 
@@ -666,7 +720,6 @@ export async function POST(req: Request) {
       origin
     })
 
-    const acceptHeader = req.headers.get('accept') || ''
     if (acceptHeader.includes('text/html')) {
       return new Response(renderHtmlResponse(result), {
         status: result.success ? 200 : 400,

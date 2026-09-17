@@ -59,8 +59,7 @@ export async function updateSession(request: NextRequest) {
   const isUserAdmin = user && (
     user.email?.toLowerCase() === 'admin@berinia.com' ||
     user.email?.toLowerCase() === 'yannrosemark@gmail.com' ||
-    user.app_metadata?.role === 'admin' ||
-    user.user_metadata?.role === 'admin'
+    user.app_metadata?.role === 'admin'
   )
 
   // Protect Admin routes

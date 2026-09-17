@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase";
+import { checkAdminAuth } from "@/utils/supabase/server";
 
 const BUCKET = "sales-funnel";
 const FILE_PATH = "funnel-content.json";
@@ -102,6 +103,12 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    try {
+      await checkAdminAuth();
+    } catch {
+      return NextResponse.json({ error: "Unauthorized: Admin access required" }, { status: 401 });
+    }
+
     const body = await req.json();
     const supabase = getServiceSupabase();
 

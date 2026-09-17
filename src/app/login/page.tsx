@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase/client'
+import { loginAction } from './actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,61 +21,26 @@ export default function LoginPage() {
     setError(null)
     
     try {
-      const cleanEmail = email.trim()
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password,
-      })
+      const nextParam = typeof window !== 'undefined' 
+        ? new URLSearchParams(window.location.search).get('next') || ''
+        : ''
 
-      if (error) {
-        setError(error.message)
+      const formData = new FormData()
+      formData.append('email', email)
+      formData.append('password', password)
+      if (nextParam) {
+        formData.append('next', nextParam)
+      }
+
+      const result = await loginAction(formData)
+
+      if (!result.success) {
+        setError(result.error || 'Unable to sign in.')
         setLoading(false)
         return
       }
 
-      if (!data?.session) {
-        setError('Unable to establish session. Please verify your credentials.')
-        setLoading(false)
-        return
-      }
-
-      // If user is admin, immediately redirect to admin console
-      const u = data.session.user
-      const isUserAdmin = cleanEmail.toLowerCase() === 'admin@berinia.com' ||
-        cleanEmail.toLowerCase() === 'yannrosemark@gmail.com' ||
-        u.email?.toLowerCase() === 'admin@berinia.com' ||
-        u.email?.toLowerCase() === 'yannrosemark@gmail.com' ||
-        u.app_metadata?.role === 'admin' ||
-        u.user_metadata?.role === 'admin'
-
-      const nextUrl = new URLSearchParams(window.location.search).get('next')
-      if (nextUrl && nextUrl.startsWith('/')) {
-        window.location.href = nextUrl
-        return
-      }
-
-      if (isUserAdmin) {
-        window.location.href = '/admin'
-        return
-      }
-
-      // Check if user is a regular client by checking the clients table
-      const { data: clientData } = await supabase
-        .from('clients')
-        .select('id, status')
-        .eq('user_id', data.session.user.id)
-        .maybeSingle()
-      
-      if (clientData) {
-        const isInitialValidated = Boolean(u.user_metadata?.initial_validation_completed || u.user_metadata?.onboarding_completed)
-        if (!isInitialValidated && clientData.status !== 'Active') {
-          window.location.href = '/onboarding'
-        } else {
-          window.location.href = '/dashboard'
-        }
-      } else {
-        window.location.href = '/admin'
-      }
+      window.location.href = result.redirectUrl || '/dashboard'
     } catch (err: any) {
       console.error('Login error:', err)
       setError(err?.message || 'An unexpected error occurred.')

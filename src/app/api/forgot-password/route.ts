@@ -1,9 +1,25 @@
 import { NextResponse } from 'next/server'
 import { getServiceSupabase } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
+    // 1. Rate limiting by IP: maximum 5 attempts per 15 minutes
+    const ip = getClientIp(req)
+    const limitResult = rateLimit({
+      key: `forgot-pw:${ip}`,
+      limit: 5,
+      windowMs: 15 * 60 * 1000,
+    })
+
+    if (!limitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many password reset requests. Please wait a few minutes before trying again.' },
+        { status: 429 }
+      )
+    }
+
     const { email } = await req.json()
 
     if (!email || typeof email !== 'string') {
@@ -15,7 +31,7 @@ export async function POST(req: Request) {
     const supabaseAdmin = getServiceSupabase()
     const origin = process.env.NEXT_PUBLIC_SITE_URL || req.headers.get('origin') || 'https://www.berinagents.com'
 
-    // 1. Generate the recovery link via Supabase Admin (does NOT send Supabase's default email)
+    // 2. Generate the recovery link via Supabase Admin (does NOT send Supabase's default email)
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email: normalizedEmail,
@@ -24,18 +40,22 @@ export async function POST(req: Request) {
       },
     })
 
+    // Prevent User Enumeration: Always return a generic success message even if account is not found
     if (linkError) {
-      console.error('Supabase generateLink error:', linkError)
-      const isNotFound = linkError.message.toLowerCase().includes('not found')
-      const errorMessage = isNotFound
-        ? "No account is associated with this email address."
-        : linkError.message
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
+      console.warn('[ForgotPassword] Supabase generateLink failed (account may not exist):', linkError.message)
+      return NextResponse.json({
+        success: true,
+        message: 'If an account is associated with this email address, a password reset link has been sent.'
+      })
     }
 
     const resetUrl = linkData.properties?.action_link
     if (!resetUrl) {
-      return NextResponse.json({ error: 'Unable to generate reset link.' }, { status: 500 })
+      console.warn('[ForgotPassword] No action_link in recovery linkData')
+      return NextResponse.json({
+        success: true,
+        message: 'If an account is associated with this email address, a password reset link has been sent.'
+      })
     }
 
     // 2. Send custom email via Resend
@@ -80,7 +100,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Error sending email via Resend: " + resendError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      message: 'If an account is associated with this email address, a password reset link has been sent.'
+    })
   } catch (err: any) {
     console.error('Forgot password error:', err)
     return NextResponse.json({ error: err.message || 'An unexpected error occurred.' }, { status: 500 })
