@@ -70,7 +70,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               s.parentNode.insertBefore(t,s)}(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
               fbq('init', '2164746474391551');
-              fbq('init', '1118345583879065');
               fbq('track', 'PageView');
             `,
           }}
@@ -81,13 +80,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             width="1"
             style={{ display: "none" }}
             src="https://www.facebook.com/tr?id=2164746474391551&ev=PageView&noscript=1"
-            alt=""
-          />
-          <img
-            height="1"
-            width="1"
-            style={{ display: "none" }}
-            src="https://www.facebook.com/tr?id=1118345583879065&ev=PageView&noscript=1"
             alt=""
           />
         </noscript>
